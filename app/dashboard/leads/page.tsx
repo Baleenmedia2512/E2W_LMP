@@ -35,12 +35,17 @@ import { Lead } from '@/types';
 import { HiDotsVertical, HiEye, HiPencil, HiPhone, HiClock, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
 import { startOfDay, endOfDay } from 'date-fns';
 
-interface LeadsResponse {
+interface LeadsData {
   data: Lead[];
   total: number;
   page: number;
   pageSize: number;
   hasMore: boolean;
+}
+
+interface LeadsResponse {
+  success: boolean;
+  data: LeadsData;
 }
 
 export default function LeadsPage() {
@@ -106,7 +111,7 @@ export default function LeadsPage() {
     fetcher
   );
   
-  const leads = response?.data || [];
+  const leads = response?.data?.data || [];
 
   const handleAutoAssign = async () => {
     setIsAutoAssigning(true);
@@ -367,10 +372,10 @@ export default function LeadsPage() {
         </Table>
         
         {/* Pagination info */}
-        {response && response.total > 0 && (
+        {response?.data && response.data.total > 0 && (
           <Box p={4} borderTopWidth="1px">
             <Text fontSize="sm" color="gray.600">
-              Showing {leads.length} of {response.total} leads
+              Showing {leads.length} of {response.data.total} leads
             </Text>
           </Box>
         )}
@@ -524,10 +529,10 @@ export default function LeadsPage() {
           )}
           
           {/* Pagination info */}
-          {response && response.total > 0 && (
+          {response?.data && response.data.total > 0 && (
             <Box bg="white" borderRadius="lg" boxShadow="sm" p={4} mt={4}>
               <Text fontSize="sm" color="gray.600">
-                Showing {leads.length} of {response.total} leads
+                Showing {leads.length} of {response.data.total} leads
               </Text>
             </Box>
           )}
