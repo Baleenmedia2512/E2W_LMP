@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
@@ -13,14 +13,19 @@ import {
   Td,
   Badge,
   HStack,
+  VStack,
   Text,
   Spinner,
+  IconButton,
+  Card,
+  CardBody,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 import { CallLog } from '@/types';
+import { HiViewGrid, HiViewList } from 'react-icons/hi';
 
 interface CallLogWithDetails extends CallLog {
   lead: {
@@ -39,6 +44,7 @@ interface CallLogWithDetails extends CallLog {
 export default function CallsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const [viewMode, setViewMode] = useState<'table' | 'tiles'>('table');
   
   const { data: response, isLoading, error } = useSWR<{ data: CallLogWithDetails[] }>(
     '/api/calls',
@@ -82,10 +88,29 @@ export default function CallsPage() {
     <Box>
       <HStack justify="space-between" mb={6}>
         <Heading size="lg">Call Logs</Heading>
+        <HStack spacing={2}>
+          <IconButton
+            aria-label="Table view"
+            icon={<HiViewList />}
+            size="sm"
+            colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
+            variant={viewMode === 'table' ? 'solid' : 'ghost'}
+            onClick={() => setViewMode('table')}
+          />
+          <IconButton
+            aria-label="Tiles view"
+            icon={<HiViewGrid />}
+            size="sm"
+            colorScheme={viewMode === 'tiles' ? 'blue' : 'gray'}
+            variant={viewMode === 'tiles' ? 'solid' : 'ghost'}
+            onClick={() => setViewMode('tiles')}
+          />
+        </HStack>
       </HStack>
 
-      <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-        <Table variant="simple">
+      {viewMode === 'table' ? (
+        <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+          <Table variant="simple">
           <Thead bg="gray.50">
             <Tr>
               <Th>Lead Name</Th>
@@ -141,6 +166,96 @@ export default function CallsPage() {
           </Tbody>
         </Table>
       </Box>
+      ) : (
+        <Box>
+          {calls && calls.length > 0 ? (
+            <Box
+              display="grid"
+              gridTemplateColumns={{ base: '1fr', md: '1fr 1fr', lg: 'repeat(3, 1fr)' }}
+              gap={4}
+            >
+              {calls.map((call) => (
+                <Card
+                  key={call.id}
+                  _hover={{ boxShadow: 'md', transform: 'translateY(-2px)' }}
+                  transition="all 0.2s"
+                  cursor="pointer"
+                  onClick={() => router.push(`/dashboard/leads/${call.lead.id}`)}
+                >
+                  <CardBody>
+                    <VStack align="stretch" spacing={3}>
+                      <HStack justify="space-between">
+                        <Text fontWeight="bold" fontSize="lg" color="blue.600">
+                          {call.lead?.name || 'N/A'}
+                        </Text>
+                        <Badge colorScheme={getStatusColor(call.callStatus)}>
+                          {call.callStatus?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
+                        </Badge>
+                      </HStack>
+                      
+                      <VStack align="stretch" spacing={2}>
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
+                            Phone:
+                          </Text>
+                          <Text fontSize="sm">{call.lead?.phone || '-'}</Text>
+                        </HStack>
+                        
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
+                            Caller:
+                          </Text>
+                          <Text fontSize="sm">{call.caller?.name || call.caller?.email || 'N/A'}</Text>
+                        </HStack>
+                        
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
+                            Started:
+                          </Text>
+                          <Text fontSize="sm">{new Date(call.startedAt).toLocaleString()}</Text>
+                        </HStack>
+                        
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
+                            Duration:
+                          </Text>
+                          <Text fontSize="sm">
+                            {call.duration
+                              ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
+                              : '-'}
+                          </Text>
+                        </HStack>
+                        
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
+                            Attempt:
+                          </Text>
+                          <Badge colorScheme="purple">#{call.attemptNumber}</Badge>
+                        </HStack>
+                        
+                        {call.remarks && (
+                          <Box mt={2}>
+                            <Text fontSize="sm" fontWeight="semibold" color="gray.600">
+                              Remarks:
+                            </Text>
+                            <Text fontSize="sm" mt={1} noOfLines={2}>
+                              {call.remarks}
+                            </Text>
+                          </Box>
+                        )}
+                      </VStack>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              ))}
+            </Box>
+          ) : (
+            <Box bg="white" borderRadius="lg" boxShadow="sm" p={8} textAlign="center">
+              <Text color="gray.500">No call logs found</Text>
+            </Box>
+          )}
+        </Box>
+      )}
     </Box>
   );
 }

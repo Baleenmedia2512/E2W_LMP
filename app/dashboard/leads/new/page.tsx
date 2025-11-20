@@ -14,17 +14,43 @@ import {
   Card,
   CardBody,
   SimpleGrid,
+  Text,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { mutate } from 'swr';
+import useSWR from 'swr';
+import { fetcher } from '@/lib/swr';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: {
+    name: string;
+  };
+}
+
+interface UsersResponse {
+  success: boolean;
+  data: User[];
+}
 
 export default function NewLeadPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+
+  // Fetch agents for SuperAgent assignment dropdown
+  const { data: usersResponse } = useSWR<UsersResponse>(
+    session?.user?.role === 'SuperAgent' ? '/api/users?role=Agent' : null,
+    fetcher
+  );
+
+  const agents = usersResponse?.data || [];
+  const isSuperAgent = session?.user?.role === 'SuperAgent';
 
   const [formData, setFormData] = useState({
     name: '',
@@ -38,6 +64,7 @@ export default function NewLeadPage() {
     source: 'Website',
     campaign: '',
     priority: 'medium',
+    assignedToId: '',
     notes: '',
   });
 
@@ -55,18 +82,27 @@ export default function NewLeadPage() {
     setLoading(true);
 
     try {
+      // Prepare payload - remove assignedToId if empty string
+      const payload = {
+        ...formData,
+        assignedToId: formData.assignedToId || null,
+      };
+
       const response = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to create lead');
+        throw new Error(result.error || 'Failed to create lead');
       }
 
       toast({
         title: 'Lead created successfully',
+        description: result.message || 'The lead has been added to the system',
         status: 'success',
         duration: 3000,
       });
@@ -208,6 +244,43 @@ export default function NewLeadPage() {
                     <option value="high">High</option>
                   </Select>
                 </FormControl>
+
+                {/* Show Assign To dropdown only for SuperAgent */}
+                {isSuperAgent && (
+                  <FormControl>
+                    <FormLabel>Assign To</FormLabel>
+                    <Select
+                      name="assignedToId"
+                      value={formData.assignedToId}
+                      onChange={handleChange}
+                      placeholder="Leave Unassigned"
+                    >
+                      {agents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name} ({agent.email})
+                        </option>
+                      ))}
+                    </Select>
+                    <Text fontSize="xs" color="gray.600" mt={1}>
+                      Leave empty to keep lead unassigned
+                    </Text>
+                  </FormControl>
+                )}
+
+                {/* Show info message for regular agents */}
+                {!isSuperAgent && (
+                  <Box
+                    p={3}
+                    bg="blue.50"
+                    borderRadius="md"
+                    borderLeft="4px solid"
+                    borderColor="blue.500"
+                  >
+                    <Text fontSize="sm" color="blue.700">
+                      This lead will be automatically assigned to you
+                    </Text>
+                  </Box>
+                )}
               </SimpleGrid>
 
               <FormControl>

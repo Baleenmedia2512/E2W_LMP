@@ -49,14 +49,34 @@ export default function NewFollowUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate that leadId exists
+    if (!leadId) {
+      toast({
+        title: 'Error',
+        description: 'Lead ID is missing',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const scheduledDate = new Date(formData.scheduledAt);
+      const now = new Date();
+      
+      // Validate that scheduled date is in the future
+      if (scheduledDate <= now) {
+        throw new Error('Follow-up must be scheduled for a future date and time');
+      }
+
       const payload = {
         leadId,
-        scheduledAt: new Date(formData.scheduledAt).toISOString(),
+        scheduledAt: scheduledDate.toISOString(),
         priority: formData.priority,
-        notes: formData.notes,
+        notes: formData.notes || null,
         status: 'pending',
       };
 
@@ -66,12 +86,15 @@ export default function NewFollowUpPage() {
         body: JSON.stringify(payload),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to schedule follow-up');
+        throw new Error(result.error || 'Failed to schedule follow-up');
       }
 
       toast({
         title: 'Follow-up scheduled successfully',
+        description: result.message || `Scheduled for ${scheduledDate.toLocaleString()}`,
         status: 'success',
         duration: 3000,
       });

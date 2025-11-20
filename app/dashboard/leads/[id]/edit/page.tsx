@@ -20,8 +20,43 @@ import {
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 import { fetcher } from '@/lib/swr';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: {
+    name: string;
+  };
+}
+
+interface LeadResponse {
+  success: boolean;
+  data: {
+    id: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    alternatePhone: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    pincode: string | null;
+    source: string;
+    campaign: string | null;
+    status: string;
+    priority: string;
+    assignedToId: string | null;
+    notes: string | null;
+  };
+}
+
+interface UsersResponse {
+  success: boolean;
+  data: User[];
+}
 
 export default function EditLeadPage() {
   const { data: session, status } = useSession();
@@ -30,7 +65,19 @@ export default function EditLeadPage() {
   const toast = useToast();
   const leadId = params?.id as string;
 
-  const { data: lead, error } = useSWR(leadId ? `/api/leads/${leadId}` : null, fetcher);
+  const { data: leadResponse, error, isLoading: leadLoading } = useSWR<LeadResponse>(
+    leadId ? `/api/leads/${leadId}` : null,
+    fetcher
+  );
+
+  const { data: usersResponse } = useSWR<UsersResponse>(
+    session?.user?.role === 'SuperAgent' ? '/api/users?role=Agent' : null,
+    fetcher
+  );
+
+  const lead = leadResponse?.data;
+  const agents = usersResponse?.data || [];
+  const isSuperAgent = session?.user?.role === 'SuperAgent';
 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -46,6 +93,7 @@ export default function EditLeadPage() {
     campaign: '',
     status: 'new',
     priority: 'medium',
+    assignedToId: '',
     notes: '',
   });
 
@@ -64,15 +112,19 @@ export default function EditLeadPage() {
         campaign: lead.campaign || '',
         status: lead.status || 'new',
         priority: lead.priority || 'medium',
+        assignedToId: lead.assignedToId || '',
         notes: lead.notes || '',
       });
     }
   }, [lead]);
 
-  if (status === 'loading' || !lead) {
+  if (status === 'loading' || leadLoading) {
     return (
-      <Box p={8} display="flex" justifyContent="center">
-        <Spinner size="xl" />
+      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <VStack spacing={4}>
+          <Spinner size="xl" color="blue.500" />
+          <Text color="gray.600">Loading lead data...</Text>
+        </VStack>
       </Box>
     );
   }
@@ -85,7 +137,32 @@ export default function EditLeadPage() {
   if (error) {
     return (
       <Box p={8}>
-        <Text color="red.500">Error loading lead</Text>
+        <VStack spacing={4}>
+          <Text color="red.500" fontSize="lg" fontWeight="bold">
+            Error loading lead
+          </Text>
+          <Text color="gray.600">
+            {error?.info?.error || error?.message || 'Failed to fetch lead data'}
+          </Text>
+          <Button onClick={() => router.back()} colorScheme="blue">
+            Go Back
+          </Button>
+        </VStack>
+      </Box>
+    );
+  }
+
+  if (!lead) {
+    return (
+      <Box p={8}>
+        <VStack spacing={4}>
+          <Text color="gray.600" fontSize="lg">
+            Lead not found
+          </Text>
+          <Button onClick={() => router.back()} colorScheme="blue">
+            Go Back
+          </Button>
+        </VStack>
       </Box>
     );
   }
@@ -95,21 +172,34 @@ export default function EditLeadPage() {
     setLoading(true);
 
     try {
+      // Prepare payload - handle assignedToId properly
+      const payload = {
+        ...formData,
+        assignedToId: formData.assignedToId || null,
+      };
+
       const response = await fetch(`/api/leads/${leadId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to update lead');
+        throw new Error(result.error || 'Failed to update lead');
       }
 
       toast({
         title: 'Lead updated successfully',
+        description: result.message || 'Changes have been saved',
         status: 'success',
         duration: 3000,
       });
+
+      // Refresh cache
+      globalMutate(`/api/leads/${leadId}`);
+      globalMutate('/api/leads');
 
       router.push(`/dashboard/leads/${leadId}`);
     } catch (error) {
@@ -256,6 +346,28 @@ export default function EditLeadPage() {
                     <option value="high">High</option>
                   </Select>
                 </FormControl>
+
+                {/* Show Assign To dropdown only for SuperAgent */}
+                {isSuperAgent && (
+                  <FormControl>
+                    <FormLabel>Assign To</FormLabel>
+                    <Select
+                      name="assignedToId"
+                      value={formData.assignedToId}
+                      onChange={handleChange}
+                      placeholder="Leave Unassigned"
+                    >
+                      {agents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name} ({agent.email})
+                        </option>
+                      ))}
+                    </Select>
+                    <Text fontSize="xs" color="gray.600" mt={1}>
+                      Change assignment or leave empty to unassign
+                    </Text>
+                  </FormControl>
+                )}
               </SimpleGrid>
 
               <FormControl>
