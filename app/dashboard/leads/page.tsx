@@ -39,6 +39,7 @@ import { HiDotsVertical, HiEye, HiPencil, HiPhone, HiClock, HiSearch, HiViewGrid
 import { startOfDay, endOfDay } from 'date-fns';
 import ConvertToUnreachableModal from '@/components/ConvertToUnreachableModal';
 import ConvertToUnqualifiedModal from '@/components/ConvertToUnqualifiedModal';
+import AddLeadModal from '@/components/AddLeadModal';
 
 interface LeadsData {
   data: Lead[];
@@ -65,11 +66,15 @@ export default function LeadsPage() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'tiles'>('table');
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
   
   // Conversion modals state
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const { isOpen: isUnreachableOpen, onOpen: onUnreachableOpen, onClose: onUnreachableClose } = useDisclosure();
   const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
+  
+  // Add Lead Modal
+  const { isOpen: isAddLeadOpen, onOpen: onAddLeadOpen, onClose: onAddLeadClose } = useDisclosure();
   
   // Debounce search query
   useEffect(() => {
@@ -87,13 +92,15 @@ export default function LeadsPage() {
       switch (filter) {
         case 'newToday':
           setStatusFilter('new');
+          setDateFilter('today');
           break;
         case 'followupsToday':
-          // This would need special handling - for now show all with status
-          setStatusFilter('');
+          setStatusFilter('followup');
+          setDateFilter('today');
           break;
         case 'conversionsToday':
           setStatusFilter('converted');
+          setDateFilter('today');
           break;
         case 'assigned':
           // Filter for assigned leads - handled by API
@@ -102,7 +109,7 @@ export default function LeadsPage() {
           // Filter for unassigned leads - handled by API
           break;
         case 'callsToday':
-          // Show leads with calls today
+          setDateFilter('today');
           break;
         default:
           break;
@@ -116,6 +123,11 @@ export default function LeadsPage() {
     if (statusFilter) params.append('status', statusFilter);
     if (sourceFilter) params.append('source', sourceFilter);
     if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
+    
+    // Add date filter
+    if (dateFilter !== 'all') {
+      params.append('dateFilter', dateFilter);
+    }
     
     // Handle special dashboard filters
     const dashboardFilter = searchParams.get('filter');
@@ -225,7 +237,14 @@ export default function LeadsPage() {
         direction={{ base: 'column', md: 'row' }}
         gap={{ base: 3, md: 0 }}
       >
-        <Heading size={{ base: 'md', md: 'lg' }}>Leads</Heading>
+        <Heading size={{ base: 'md', md: 'lg' }}>
+          Leads
+          {dateFilter === 'today' && (
+            <Badge ml={2} colorScheme="blue" fontSize="sm">
+              Today
+            </Badge>
+          )}
+        </Heading>
         <HStack spacing={2} flexWrap={{ base: 'wrap', md: 'nowrap' }}>
           {session?.user?.role === 'SuperAgent' && (
             <Button
@@ -241,7 +260,7 @@ export default function LeadsPage() {
           <Button 
             size={{ base: 'sm', md: 'md' }}
             colorScheme="blue" 
-            onClick={() => router.push('/dashboard/leads/new')}
+            onClick={onAddLeadOpen}
             width={{ base: 'full', sm: 'auto' }}
           >
             + Add Lead
@@ -290,7 +309,19 @@ export default function LeadsPage() {
               <option value="Referral">Referral</option>
               <option value="Direct">Direct</option>
             </Select>
-            {(statusFilter || sourceFilter || searchQuery) && (
+            <Select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as 'all' | 'today' | 'week' | 'month')}
+              maxW={{ base: 'full', sm: '150px', md: '200px' }}
+              flex={{ base: '1 1 48%', md: '0 1 auto' }}
+              size={{ base: 'sm', md: 'md' }}
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+            </Select>
+            {(statusFilter || sourceFilter || searchQuery || dateFilter !== 'all') && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -298,6 +329,8 @@ export default function LeadsPage() {
                   setStatusFilter('');
                   setSourceFilter('');
                   setSearchQuery('');
+                  setDateFilter('all');
+                  router.push('/dashboard/leads');
                 }}
               >
                 Clear Filters
@@ -654,6 +687,9 @@ export default function LeadsPage() {
           />
         </>
       )}
+
+      {/* Add Lead Modal */}
+      <AddLeadModal isOpen={isAddLeadOpen} onClose={onAddLeadClose} />
     </Box>
   );
 }

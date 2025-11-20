@@ -28,10 +28,11 @@ export async function GET(request: NextRequest) {
         recentLeads,
         todayFollowUps,
       ] = await Promise.all([
-        // New leads today
+        // New leads today - only count leads with status "new" created today
         prisma.lead.count({
           where: {
             ...leadWhere,
+            status: 'new',
             createdAt: {
               gte: startOfToday,
               lte: endOfToday,

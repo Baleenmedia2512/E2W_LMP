@@ -122,6 +122,7 @@ model Lead {
   callLogs    CallLog[]
   followUps   FollowUp[]
   rawData     LeadRaw?
+  metaEvents  MetaWebhookEvent[]
 
   @@index([assignedToId])
   @@index([createdById])
@@ -284,4 +285,44 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+// ========================================
+// Meta Lead Ads Integration
+// ========================================
+
+model MetaWebhookEvent {
+  id          String   @id @default(cuid())
+  leadgenId   String   @unique // Facebook's leadgen_id
+  formId      String? // Form ID from Meta
+  adId        String? // Ad ID from Meta
+  campaignId  String? // Campaign ID from Meta
+  pageId      String? // Page ID from Meta
+  payload     Json // Full webhook payload
+  processed   Boolean  @default(false)
+  error       String?  @db.Text
+  leadId      String? // Reference to created Lead
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+
+  lead Lead? @relation(fields: [leadId], references: [id])
+
+  @@index([leadgenId])
+  @@index([processed])
+  @@index([createdAt])
+}
+
+model MetaConfig {
+  id              String   @id @default(cuid())
+  pageId          String   @unique
+  pageName        String?
+  pageAccessToken String   @db.Text // Encrypted access token
+  verifyToken     String // Webhook verify token
+  isActive        Boolean  @default(true)
+  lastVerified    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([pageId])
+  @@index([isActive])
 }
