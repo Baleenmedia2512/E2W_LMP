@@ -33,7 +33,7 @@ export interface Lead {
   pincode: string | null;
   source: string;
   campaign: string | null;
-  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
+  status: 'new' | 'followup' | 'unreach' | 'unqualified';
   priority: 'low' | 'medium' | 'high';
   assignedToId: string | null;
   createdById: string | null;

@@ -4,6 +4,10 @@ import { Box, Flex, VStack, Text, Icon, useColorModeValue, Avatar } from '@chakr
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+
+interface SidebarProps {
+  onNavigate?: () => void;
+}
 import {
   FiHome,
   FiUsers,
@@ -12,19 +16,25 @@ import {
   FiSettings,
   FiPhone,
   FiClock,
+  FiUserX,
+  FiAlertCircle,
+  FiBell,
 } from 'react-icons/fi';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: FiHome, roles: ['Agent', 'SuperAgent', 'Finance', 'HR', 'Procurement'] },
   { name: 'Leads', href: '/dashboard/leads', icon: FiUsers, roles: ['Agent', 'SuperAgent'] },
+  { name: 'Unqualified', href: '/dashboard/leads/unqualified', icon: FiUserX, roles: ['Agent', 'SuperAgent'] },
+  { name: 'Unreachable', href: '/dashboard/leads/unreachable', icon: FiAlertCircle, roles: ['Agent', 'SuperAgent'] },
   { name: 'Calls', href: '/dashboard/calls', icon: FiPhone, roles: ['Agent', 'SuperAgent'] },
   { name: 'Follow-ups', href: '/dashboard/followups', icon: FiClock, roles: ['Agent', 'SuperAgent'] },
+  { name: 'Notifications', href: '/dashboard/notifications', icon: FiBell, roles: ['Agent', 'SuperAgent'] },
   { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, roles: ['Agent', 'SuperAgent', 'Finance', 'HR'] },
   { name: 'Reports', href: '/dashboard/reports', icon: FiFileText, roles: ['SuperAgent', 'Finance', 'HR'] },
   { name: 'Settings', href: '/dashboard/settings', icon: FiSettings, roles: ['Agent', 'SuperAgent', 'Finance', 'HR', 'Procurement'] },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -36,9 +46,9 @@ export default function Sidebar() {
 
   return (
     <Box
-      w="64"
+      w={{ base: 'full', lg: '64' }}
       bg={bgColor}
-      borderRight="1px"
+      borderRight={{ base: 'none', lg: '1px' }}
       borderColor={borderColor}
       h="full"
       overflowY="auto"
@@ -59,7 +69,7 @@ export default function Sidebar() {
           {filteredNavItems.map((item) => {
             const isActive = pathname === item.href;
             return (
-              <Link key={item.href} href={item.href}>
+              <Link key={item.href} href={item.href} onClick={onNavigate}>
                 <Flex
                   align="center"
                   px={4}

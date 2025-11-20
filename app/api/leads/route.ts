@@ -104,8 +104,22 @@ export async function GET(request: NextRequest) {
         prisma.lead.count({ where }),
       ]);
 
+      // Apply priority-based sorting: New (1), Followup (2), Unreach (3), Unqualified (4)
+      const statusPriority: Record<string, number> = {
+        new: 1,
+        followup: 2,
+        unreach: 3,
+        unqualified: 4,
+      };
+
+      const sortedLeads = leads.sort((a, b) => {
+        const priorityA = statusPriority[a.status.toLowerCase()] || 999;
+        const priorityB = statusPriority[b.status.toLowerCase()] || 999;
+        return priorityA - priorityB;
+      });
+
       return createApiResponse({
-        data: leads,
+        data: sortedLeads,
         total,
         page,
         pageSize,
@@ -189,16 +203,62 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Create notification for assigned agent (if not self)
+      // US-033: Create notifications for new lead
+      const notificationsToCreate = [];
+
+      // If lead is assigned to someone else, notify them
       if (assignedToId && assignedToId !== sess.user.id) {
-        await prisma.notification.create({
-          data: {
-            userId: assignedToId,
-            type: 'lead_assigned',
-            title: 'New Lead Assigned',
-            message: `A new lead "${lead.name}" has been assigned to you`,
-            metadata: { leadId: lead.id },
+        notificationsToCreate.push({
+          userId: assignedToId,
+          type: 'new_lead_assigned',
+          title: 'New Lead Assigned',
+          message: `New lead "${lead.name}" has been assigned to you`,
+          metadata: {
+            leadId: lead.id,
+            leadName: lead.name,
+            createdBy: sess.user.name || sess.user.email,
+            assignedTo: lead.assignedTo?.name || lead.assignedTo?.email,
           },
+        });
+      }
+
+      // If created by employee (Agent), notify SuperAdmin
+      if (sess.user.role === 'Agent') {
+        // Find all SuperAgents to notify
+        const superAgents = await prisma.user.findMany({
+          where: {
+            role: {
+              name: 'SuperAgent',
+            },
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        superAgents.forEach((superAgent) => {
+          if (superAgent.id !== sess.user.id) {
+            notificationsToCreate.push({
+              userId: superAgent.id,
+              type: 'new_lead_created',
+              title: 'New Lead Created',
+              message: `${sess.user.name || sess.user.email} created a new lead "${lead.name}"`,
+              metadata: {
+                leadId: lead.id,
+                leadName: lead.name,
+                createdBy: sess.user.name || sess.user.email,
+                assignedTo: lead.assignedTo?.name || lead.assignedTo?.email || 'Unassigned',
+              },
+            });
+          }
+        });
+      }
+
+      // Create all notifications
+      if (notificationsToCreate.length > 0) {
+        await prisma.notification.createMany({
+          data: notificationsToCreate,
         });
       }
 

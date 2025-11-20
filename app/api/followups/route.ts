@@ -56,6 +56,12 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Automatically update lead status to "followup"
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { status: 'followup' },
+      });
+
       // Create notification for assigned agent
       if (lead.assignedToId && lead.assignedToId !== sess.user.id) {
         await prisma.notification.create({

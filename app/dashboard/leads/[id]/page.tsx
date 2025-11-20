@@ -106,10 +106,9 @@ export default function LeadDetailPage() {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       new: 'blue',
-      contacted: 'purple',
-      qualified: 'green',
-      converted: 'teal',
-      lost: 'red',
+      followup: 'orange',
+      unreach: 'gray',
+      unqualified: 'yellow',
     };
     return colors[status] || 'gray';
   };

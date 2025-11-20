@@ -116,6 +116,7 @@ export async function GET(request: NextRequest) {
       const sess = session as Session;
       const searchParams = request.nextUrl.searchParams;
       const leadId = searchParams.get('leadId');
+      const groupByLead = searchParams.get('groupByLead') === 'true';
 
       const where: Record<string, unknown> = {};
 
@@ -128,32 +129,88 @@ export async function GET(request: NextRequest) {
         where.callerId = sess.user.id;
       }
 
-      const callLogs = await prisma.callLog.findMany({
-        where,
-        include: {
-          lead: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              status: true,
+      if (groupByLead) {
+        // Group by lead - get the most recent call for each lead
+        const callLogs = await prisma.callLog.findMany({
+          where,
+          include: {
+            lead: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                status: true,
+              },
+            },
+            caller: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
             },
           },
-          caller: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+          orderBy: {
+            startedAt: 'desc',
           },
-        },
-        orderBy: {
-          startedAt: 'desc',
-        },
-        take: 50,
-      });
+        });
 
-      return createApiResponse(callLogs);
+        // Group by leadId and keep only the most recent call per lead
+        const groupedMap = new Map();
+        const attemptCounts = new Map<string, number>();
+
+        // First pass - count total attempts per lead
+        for (const log of callLogs) {
+          const count = attemptCounts.get(log.leadId) || 0;
+          attemptCounts.set(log.leadId, count + 1);
+        }
+
+        // Second pass - get most recent call per lead
+        for (const log of callLogs) {
+          if (!groupedMap.has(log.leadId)) {
+            groupedMap.set(log.leadId, {
+              ...log,
+              totalAttempts: attemptCounts.get(log.leadId) || 1,
+            });
+          }
+        }
+
+        const grouped = Array.from(groupedMap.values());
+        return createApiResponse(grouped);
+      } else {
+        // Return all call logs ungrouped
+        const callLogs = await prisma.callLog.findMany({
+          where,
+          include: {
+            lead: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                status: true,
+              },
+            },
+            caller: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: {
+            startedAt: 'desc',
+          },
+          take: 50,
+        });
+
+        return createApiResponse(callLogs);
+      }
     } catch (error) {
       console.error('Get call logs error:', error);
       return createApiError('Failed to fetch call logs', 500);

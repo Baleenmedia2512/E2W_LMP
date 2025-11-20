@@ -16,7 +16,7 @@ export const createLeadSchema = z.object({
   pincode: z.string().max(10).optional().nullable(),
   source: z.string().min(1, 'Source is required'),
   campaign: z.string().optional().nullable(),
-  status: z.enum(['new', 'contacted', 'qualified', 'converted', 'lost']).default('new'),
+  status: z.enum(['new', 'followup', 'unreach', 'unqualified']).default('new'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   assignedToId: z.string().cuid().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
@@ -73,7 +73,7 @@ export const paginationSchema = z.object({
 
 // Search and filter validations
 export const leadFilterSchema = z.object({
-  status: z.enum(['new', 'contacted', 'qualified', 'converted', 'lost']).optional(),
+  status: z.enum(['new', 'followup', 'unreach', 'unqualified']).optional(),
   source: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
   assignedToId: z.string().optional(), // Can be CUID or 'null' string
