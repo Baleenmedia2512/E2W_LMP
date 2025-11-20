@@ -14,6 +14,7 @@ import {
   Badge,
   HStack,
   VStack,
+  Flex,
   useToast,
   Spinner,
   Text,
@@ -26,14 +27,18 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  useDisclosure,
+  MenuDivider,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 import { Lead } from '@/types';
-import { HiDotsVertical, HiEye, HiPencil, HiPhone, HiClock, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiPencil, HiPhone, HiClock, HiSearch, HiViewGrid, HiViewList, HiBan, HiX } from 'react-icons/hi';
 import { startOfDay, endOfDay } from 'date-fns';
+import ConvertToUnreachableModal from '@/components/ConvertToUnreachableModal';
+import ConvertToUnqualifiedModal from '@/components/ConvertToUnqualifiedModal';
 
 interface LeadsData {
   data: Lead[];
@@ -57,8 +62,23 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'tiles'>('table');
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+  
+  // Conversion modals state
+  const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
+  const { isOpen: isUnreachableOpen, onOpen: onUnreachableOpen, onClose: onUnreachableClose } = useDisclosure();
+  const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
+  
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   
   // Handle filter from query params (from dashboard clicks)
   useEffect(() => {
@@ -95,7 +115,7 @@ export default function LeadsPage() {
     const params = new URLSearchParams();
     if (statusFilter) params.append('status', statusFilter);
     if (sourceFilter) params.append('source', sourceFilter);
-    if (searchQuery) params.append('search', searchQuery);
+    if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
     
     // Handle special dashboard filters
     const dashboardFilter = searchParams.get('filter');
@@ -111,7 +131,20 @@ export default function LeadsPage() {
     fetcher
   );
   
-  const leads = response?.data?.data || [];
+  // Apply priority-based sorting: New (1), Followup (2), Unreach (3), Unqualified (4)
+  const statusPriority: Record<string, number> = {
+    new: 1,
+    followup: 2,
+    unreach: 3,
+    unqualified: 4,
+  };
+
+  const rawLeads = response?.data?.data || [];
+  const leads = rawLeads.sort((a, b) => {
+    const priorityA = statusPriority[a.status.toLowerCase()] || 999;
+    const priorityB = statusPriority[b.status.toLowerCase()] || 999;
+    return priorityA - priorityB;
+  });
 
   const handleAutoAssign = async () => {
     setIsAutoAssigning(true);
@@ -150,11 +183,9 @@ export default function LeadsPage() {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       new: 'blue',
-      contacted: 'purple',
-      qualified: 'cyan',
-      converted: 'green',
-      lost: 'red',
-      follow_up: 'orange',
+      followup: 'orange',
+      unreach: 'gray',
+      unqualified: 'yellow',
     };
     return colors[status] || 'gray';
   };
@@ -187,55 +218,72 @@ export default function LeadsPage() {
 
   return (
     <Box>
-      <HStack justify="space-between" mb={6}>
-        <Heading size="lg">Leads</Heading>
-        <HStack>
+      <Flex 
+        justify="space-between" 
+        align={{ base: 'stretch', md: 'center' }}
+        mb={6}
+        direction={{ base: 'column', md: 'row' }}
+        gap={{ base: 3, md: 0 }}
+      >
+        <Heading size={{ base: 'md', md: 'lg' }}>Leads</Heading>
+        <HStack spacing={2} flexWrap={{ base: 'wrap', md: 'nowrap' }}>
           {session?.user?.role === 'SuperAgent' && (
             <Button
+              size={{ base: 'sm', md: 'md' }}
               colorScheme="purple"
               onClick={handleAutoAssign}
               isLoading={isAutoAssigning}
+              width={{ base: 'full', sm: 'auto' }}
             >
               Auto-Assign
             </Button>
           )}
-          <Button colorScheme="blue" onClick={() => router.push('/dashboard/leads/new')}>
+          <Button 
+            size={{ base: 'sm', md: 'md' }}
+            colorScheme="blue" 
+            onClick={() => router.push('/dashboard/leads/new')}
+            width={{ base: 'full', sm: 'auto' }}
+          >
             + Add Lead
           </Button>
         </HStack>
-      </HStack>
+      </Flex>
 
       {/* Filters and View Toggle */}
-      <Box bg="white" p={4} borderRadius="lg" boxShadow="sm" mb={4}>
-        <HStack spacing={4} justify="space-between">
-          <HStack spacing={4} flex={1}>
-            <InputGroup maxW="300px">
+      <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
+        <VStack spacing={3} align="stretch">
+          <HStack spacing={{ base: 2, md: 4 }} flexWrap="wrap">
+            <InputGroup maxW={{ base: 'full', md: '300px' }} flex={{ base: '1 1 100%', md: '0 1 auto' }}>
               <InputLeftElement>
                 <HiSearch />
               </InputLeftElement>
               <Input
-                placeholder="Search by name, email, phone..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                size={{ base: 'sm', md: 'md' }}
               />
             </InputGroup>
             <Select
               placeholder="All Statuses"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              maxW="200px"
+              maxW={{ base: 'full', sm: '150px', md: '200px' }}
+              flex={{ base: '1 1 48%', md: '0 1 auto' }}
+              size={{ base: 'sm', md: 'md' }}
             >
               <option value="new">New</option>
-              <option value="contacted">Contacted</option>
-              <option value="qualified">Qualified</option>
-              <option value="converted">Converted</option>
-              <option value="lost">Lost</option>
+              <option value="followup">Followup</option>
+              <option value="unreach">Unreach</option>
+              <option value="unqualified">Unqualified</option>
             </Select>
             <Select
               placeholder="All Sources"
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
-              maxW="200px"
+              maxW={{ base: 'full', sm: '150px', md: '200px' }}
+              flex={{ base: '1 1 48%', md: '0 1 auto' }}
+              size={{ base: 'sm', md: 'md' }}
             >
               <option value="Meta">Meta</option>
               <option value="Website">Website</option>
@@ -258,7 +306,7 @@ export default function LeadsPage() {
           </HStack>
           
           {/* View Toggle */}
-          <HStack spacing={2}>
+          <HStack spacing={2} justify={{ base: 'center', md: 'flex-end' }}>
             <IconButton
               aria-label="Table view"
               icon={<HiViewList />}
@@ -276,7 +324,7 @@ export default function LeadsPage() {
               onClick={() => setViewMode('tiles')}
             />
           </HStack>
-        </HStack>
+        </VStack>
       </Box>
 
       {viewMode === 'table' ? (
@@ -361,6 +409,25 @@ export default function LeadsPage() {
                           onClick={() => router.push(`/dashboard/leads/${lead.id}/followup`)}
                         >
                           Schedule Follow-up
+                        </MenuItem>
+                        <MenuDivider />
+                        <MenuItem 
+                          icon={<HiBan />}
+                          onClick={() => {
+                            setSelectedLead({ id: lead.id, name: lead.name });
+                            onUnreachableOpen();
+                          }}
+                        >
+                          Mark as Unreachable
+                        </MenuItem>
+                        <MenuItem 
+                          icon={<HiX />}
+                          onClick={() => {
+                            setSelectedLead({ id: lead.id, name: lead.name });
+                            onUnqualifiedOpen();
+                          }}
+                        >
+                          Mark as Unqualified
                         </MenuItem>
                       </MenuList>
                     </Menu>
@@ -460,6 +527,27 @@ export default function LeadsPage() {
                         >
                           Schedule Follow-up
                         </MenuItem>
+                        <MenuDivider />
+                        <MenuItem 
+                          icon={<HiBan />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLead({ id: lead.id, name: lead.name });
+                            onUnreachableOpen();
+                          }}
+                        >
+                          Mark as Unreachable
+                        </MenuItem>
+                        <MenuItem 
+                          icon={<HiX />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLead({ id: lead.id, name: lead.name });
+                            onUnqualifiedOpen();
+                          }}
+                        >
+                          Mark as Unqualified
+                        </MenuItem>
                       </MenuList>
                     </Menu>
                   </HStack>
@@ -547,6 +635,24 @@ export default function LeadsPage() {
             </Box>
           )}
         </Box>
+      )}
+
+      {/* Conversion Modals */}
+      {selectedLead && (
+        <>
+          <ConvertToUnreachableModal
+            isOpen={isUnreachableOpen}
+            onClose={onUnreachableClose}
+            leadId={selectedLead.id}
+            leadName={selectedLead.name}
+          />
+          <ConvertToUnqualifiedModal
+            isOpen={isUnqualifiedOpen}
+            onClose={onUnqualifiedClose}
+            leadId={selectedLead.id}
+            leadName={selectedLead.name}
+          />
+        </>
       )}
     </Box>
   );

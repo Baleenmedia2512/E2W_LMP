@@ -19,13 +19,16 @@ import {
   IconButton,
   Card,
   CardBody,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 import { CallLog } from '@/types';
-import { HiViewGrid, HiViewList } from 'react-icons/hi';
+import { HiViewGrid, HiViewList, HiEye } from 'react-icons/hi';
+import { format } from 'date-fns';
+import CallAttemptsModal from '@/components/CallAttemptsModal';
 
 interface CallLogWithDetails extends CallLog {
   lead: {
@@ -38,16 +41,22 @@ interface CallLogWithDetails extends CallLog {
     id: string;
     name: string | null;
     email: string;
+    role?: {
+      name: string;
+    };
   };
+  totalAttempts?: number;
 }
 
 export default function CallsPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [viewMode, setViewMode] = useState<'table' | 'tiles'>('table');
+  const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
+  const { isOpen, onOpen, onClose } = useDisclosure();
   
   const { data: response, isLoading, error } = useSWR<{ data: CallLogWithDetails[] }>(
-    '/api/calls',
+    '/api/calls?groupByLead=true',
     fetcher
   );
   
@@ -115,12 +124,11 @@ export default function CallsPage() {
             <Tr>
               <Th>Lead Name</Th>
               <Th>Phone</Th>
-              <Th>Caller</Th>
-              <Th>Started At</Th>
-              <Th>Duration</Th>
-              <Th>Attempt #</Th>
-              <Th>Call Status</Th>
-              <Th>Remarks</Th>
+              <Th>Last Called By</Th>
+              <Th>Last Call Date</Th>
+              <Th>Total Attempts</Th>
+              <Th>Last Status</Th>
+              <Th>Actions</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -136,29 +144,52 @@ export default function CallsPage() {
                     {call.lead?.name || 'N/A'}
                   </Td>
                   <Td>{call.lead?.phone || '-'}</Td>
-                  <Td>{call.caller?.name || call.caller?.email || 'N/A'}</Td>
-                  <Td>{new Date(call.startedAt).toLocaleString()}</Td>
                   <Td>
-                    {call.duration
-                      ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
-                      : '-'}
+                    <Text fontSize="sm" fontWeight="medium">
+                      {call.caller?.name || call.caller?.email || 'N/A'}
+                    </Text>
+                    {call.caller?.role?.name && (
+                      <Text fontSize="xs" color="gray.600">
+                        {call.caller.role.name}
+                      </Text>
+                    )}
+                  </Td>
+                  <Td fontSize="sm">
+                    {format(new Date(call.startedAt), 'MMM dd, yyyy')}
+                    <br />
+                    <Text as="span" color="gray.600" fontSize="xs">
+                      {format(new Date(call.startedAt), 'HH:mm')}
+                    </Text>
                   </Td>
                   <Td>
-                    <Badge colorScheme="purple">#{call.attemptNumber}</Badge>
+                    <Badge colorScheme="purple" fontSize="md">
+                      {call.totalAttempts || 1}
+                    </Badge>
                   </Td>
                   <Td>
                     <Badge colorScheme={getStatusColor(call.callStatus)}>
                       {call.callStatus?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
                     </Badge>
                   </Td>
-                  <Td maxW="200px" isTruncated>
-                    {call.remarks || '-'}
+                  <Td>
+                    <Button
+                      size="sm"
+                      leftIcon={<HiEye />}
+                      colorScheme="blue"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedLead({ id: call.lead.id, name: call.lead.name });
+                        onOpen();
+                      }}
+                    >
+                      View Attempts
+                    </Button>
                   </Td>
                 </Tr>
               ))
             ) : (
               <Tr>
-                <Td colSpan={8} textAlign="center" py={8}>
+                <Td colSpan={7} textAlign="center" py={8}>
                   <Text color="gray.500">No call logs found</Text>
                 </Td>
               </Tr>
@@ -179,70 +210,75 @@ export default function CallsPage() {
                   key={call.id}
                   _hover={{ boxShadow: 'md', transform: 'translateY(-2px)' }}
                   transition="all 0.2s"
-                  cursor="pointer"
-                  onClick={() => router.push(`/dashboard/leads/${call.lead.id}`)}
                 >
                   <CardBody>
                     <VStack align="stretch" spacing={3}>
                       <HStack justify="space-between">
-                        <Text fontWeight="bold" fontSize="lg" color="blue.600">
+                        <Text
+                          fontWeight="bold"
+                          fontSize="lg"
+                          color="blue.600"
+                          cursor="pointer"
+                          onClick={() => router.push(`/dashboard/leads/${call.lead.id}`)}
+                        >
                           {call.lead?.name || 'N/A'}
                         </Text>
-                        <Badge colorScheme={getStatusColor(call.callStatus)}>
-                          {call.callStatus?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
+                        <Badge colorScheme="purple" fontSize="sm">
+                          {call.totalAttempts || 1} {call.totalAttempts === 1 ? 'Attempt' : 'Attempts'}
                         </Badge>
                       </HStack>
                       
                       <VStack align="stretch" spacing={2}>
                         <HStack>
-                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="100px">
                             Phone:
                           </Text>
                           <Text fontSize="sm">{call.lead?.phone || '-'}</Text>
                         </HStack>
                         
                         <HStack>
-                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
-                            Caller:
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="100px">
+                            Last Called By:
                           </Text>
-                          <Text fontSize="sm">{call.caller?.name || call.caller?.email || 'N/A'}</Text>
+                          <VStack align="start" spacing={0}>
+                            <Text fontSize="sm">{call.caller?.name || call.caller?.email || 'N/A'}</Text>
+                            {call.caller?.role?.name && (
+                              <Text fontSize="xs" color="gray.600">{call.caller.role.name}</Text>
+                            )}
+                          </VStack>
                         </HStack>
                         
                         <HStack>
-                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
-                            Started:
-                          </Text>
-                          <Text fontSize="sm">{new Date(call.startedAt).toLocaleString()}</Text>
-                        </HStack>
-                        
-                        <HStack>
-                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
-                            Duration:
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="100px">
+                            Last Call:
                           </Text>
                           <Text fontSize="sm">
-                            {call.duration
-                              ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
-                              : '-'}
+                            {format(new Date(call.startedAt), 'MMM dd, yyyy HH:mm')}
                           </Text>
                         </HStack>
                         
                         <HStack>
-                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="80px">
-                            Attempt:
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="100px">
+                            Last Status:
                           </Text>
-                          <Badge colorScheme="purple">#{call.attemptNumber}</Badge>
+                          <Badge colorScheme={getStatusColor(call.callStatus)}>
+                            {call.callStatus?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
+                          </Badge>
                         </HStack>
                         
-                        {call.remarks && (
-                          <Box mt={2}>
-                            <Text fontSize="sm" fontWeight="semibold" color="gray.600">
-                              Remarks:
-                            </Text>
-                            <Text fontSize="sm" mt={1} noOfLines={2}>
-                              {call.remarks}
-                            </Text>
-                          </Box>
-                        )}
+                        <Button
+                          size="sm"
+                          leftIcon={<HiEye />}
+                          colorScheme="blue"
+                          width="full"
+                          mt={2}
+                          onClick={() => {
+                            setSelectedLead({ id: call.lead.id, name: call.lead.name });
+                            onOpen();
+                          }}
+                        >
+                          View All Attempts
+                        </Button>
                       </VStack>
                     </VStack>
                   </CardBody>
@@ -255,6 +291,16 @@ export default function CallsPage() {
             </Box>
           )}
         </Box>
+      )}
+
+      {/* Call Attempts Modal */}
+      {selectedLead && (
+        <CallAttemptsModal
+          isOpen={isOpen}
+          onClose={onClose}
+          leadId={selectedLead.id}
+          leadName={selectedLead.name}
+        />
       )}
     </Box>
   );

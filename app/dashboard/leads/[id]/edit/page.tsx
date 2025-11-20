@@ -331,10 +331,9 @@ export default function EditLeadPage() {
                   <FormLabel>Status</FormLabel>
                   <Select name="status" value={formData.status} onChange={handleChange}>
                     <option value="new">New</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="qualified">Qualified</option>
-                    <option value="converted">Converted</option>
-                    <option value="lost">Lost</option>
+                    <option value="followup">Followup</option>
+                    <option value="unreach">Unreach</option>
+                    <option value="unqualified">Unqualified</option>
                   </Select>
                 </FormControl>
 

@@ -9,6 +9,9 @@ export async function GET(request: NextRequest) {
       const sess = session as Session;
       const searchParams = request.nextUrl.searchParams;
       const unreadOnly = searchParams.get('unreadOnly') === 'true';
+      const limit = parseInt(searchParams.get('limit') || '50');
+      const page = parseInt(searchParams.get('page') || '1');
+      const skip = (page - 1) * limit;
 
       const where: Record<string, unknown> = {
         userId: sess.user.id,
@@ -18,24 +21,31 @@ export async function GET(request: NextRequest) {
         where.isRead = false;
       }
 
-      const notifications = await prisma.notification.findMany({
-        where,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 50,
-      });
-
-      const unreadCount = await prisma.notification.count({
-        where: {
-          userId: sess.user.id,
-          isRead: false,
-        },
-      });
+      const [notifications, totalCount, unreadCount] = await Promise.all([
+        prisma.notification.findMany({
+          where,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: limit,
+          skip,
+        }),
+        prisma.notification.count({ where }),
+        prisma.notification.count({
+          where: {
+            userId: sess.user.id,
+            isRead: false,
+          },
+        }),
+      ]);
 
       return createApiResponse({
         notifications,
         unreadCount,
+        totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
       });
     } catch (error) {
       console.error('Get notifications error:', error);

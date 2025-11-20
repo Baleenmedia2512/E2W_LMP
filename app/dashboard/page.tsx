@@ -11,6 +11,7 @@ import {
   Heading,
   VStack,
   HStack,
+  Flex,
   Table,
   Thead,
   Tbody,
@@ -97,10 +98,9 @@ const StatCard = ({
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
     new: 'blue',
-    contacted: 'purple',
-    qualified: 'orange',
-    converted: 'green',
-    lost: 'red',
+    followup: 'orange',
+    unreach: 'gray',
+    unqualified: 'yellow',
   };
   return colors[status] || 'gray';
 };
@@ -139,10 +139,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <VStack spacing={6} align="stretch">
+    <VStack spacing={{ base: 4, md: 6 }} align="stretch">
       {/* Header */}
-      <HStack justify="space-between">
-        <Heading size="lg">Dashboard</Heading>
+      <Flex justify="space-between" align="center" flexWrap="wrap" gap={3}>
+        <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
         <Button
           leftIcon={<FiRefreshCw />}
           size="sm"
@@ -151,10 +151,10 @@ export default function DashboardPage() {
         >
           Refresh
         </Button>
-      </HStack>
+      </Flex>
 
       {/* Stats Grid - All Clickable */}
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={{ base: 4, md: 6 }}>
         <StatCard
           label="New Leads Today"
           value={data.stats.newLeadsToday}
@@ -190,7 +190,7 @@ export default function DashboardPage() {
       </SimpleGrid>
 
       {/* Summary Stats */}
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+      <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={{ base: 4, md: 6 }}>
         <Box 
           bg="white" 
           p={6} 
@@ -248,9 +248,9 @@ export default function DashboardPage() {
 
       {/* Today's Follow-ups */}
       {data.todayFollowUps.length > 0 && (
-        <Box bg="white" p={6} borderRadius="lg" boxShadow="sm" borderWidth="1px">
-          <HStack justify="space-between" mb={4}>
-            <Heading size="md">Today's Follow-ups</Heading>
+        <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
+          <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
+            <Heading size={{ base: 'sm', md: 'md' }}>Today's Follow-ups</Heading>
             <Button 
               size="sm" 
               colorScheme="blue" 
@@ -260,50 +260,52 @@ export default function DashboardPage() {
               View All
             </Button>
           </HStack>
-          <Table variant="simple">
-            <Thead>
-              <Tr>
-                <Th>Time</Th>
-                <Th>Lead</Th>
-                <Th>Phone</Th>
-                <Th>Status</Th>
-                <Th>Priority</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {data.todayFollowUps.map((followUp) => (
-                <Tr key={followUp.id}>
-                  <Td>{format(new Date(followUp.scheduledAt), 'HH:mm')}</Td>
-                  <Td>
-                    <Link href={`/dashboard/leads/${followUp.leadId}`}>
-                      <Text color="brand.500" fontWeight="medium">
-                        {followUp.lead?.name}
-                      </Text>
-                    </Link>
-                  </Td>
-                  <Td>{followUp.lead?.phone}</Td>
-                  <Td>
-                    <Badge colorScheme={getStatusColor(followUp.lead?.status || 'new')}>
-                      {followUp.lead?.status}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <Badge
-                      colorScheme={
-                        followUp.priority === 'high'
-                          ? 'red'
-                          : followUp.priority === 'medium'
-                            ? 'orange'
-                            : 'gray'
-                      }
-                    >
-                      {followUp.priority}
-                    </Badge>
-                  </Td>
+          <Box overflowX="auto">
+            <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+              <Thead>
+                <Tr>
+                  <Th>Time</Th>
+                  <Th>Lead</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }}>Phone</Th>
+                  <Th>Status</Th>
+                  <Th display={{ base: 'none', sm: 'table-cell' }}>Priority</Th>
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
+              </Thead>
+              <Tbody>
+                {data.todayFollowUps.map((followUp) => (
+                  <Tr key={followUp.id}>
+                    <Td>{format(new Date(followUp.scheduledAt), 'HH:mm')}</Td>
+                    <Td>
+                      <Link href={`/dashboard/leads/${followUp.leadId}`}>
+                        <Text color="brand.500" fontWeight="medium" noOfLines={1}>
+                          {followUp.lead?.name}
+                        </Text>
+                      </Link>
+                    </Td>
+                    <Td display={{ base: 'none', md: 'table-cell' }}>{followUp.lead?.phone}</Td>
+                    <Td>
+                      <Badge colorScheme={getStatusColor(followUp.lead?.status || 'new')}>
+                        {followUp.lead?.status}
+                      </Badge>
+                    </Td>
+                    <Td display={{ base: 'none', sm: 'table-cell' }}>
+                      <Badge
+                        colorScheme={
+                          followUp.priority === 'high'
+                            ? 'red'
+                            : followUp.priority === 'medium'
+                              ? 'orange'
+                              : 'gray'
+                        }
+                      >
+                        {followUp.priority}
+                      </Badge>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
         </Box>
       )}
     </VStack>
