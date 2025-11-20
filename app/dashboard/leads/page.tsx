@@ -170,7 +170,17 @@ export default function LeadsPage() {
   if (error) {
     return (
       <Box p={8}>
-        <Text color="red.500">Error loading leads: {error.message}</Text>
+        <VStack spacing={4}>
+          <Text color="red.500" fontSize="lg" fontWeight="bold">
+            Error loading leads
+          </Text>
+          <Text color="gray.600">
+            {error?.info?.error || error?.message || 'An error occurred while fetching the data.'}
+          </Text>
+          <Button onClick={() => mutate()} colorScheme="blue">
+            Retry
+          </Button>
+        </VStack>
       </Box>
     );
   }

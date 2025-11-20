@@ -30,6 +30,11 @@ import { useRouter, useParams } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 
+interface LeadResponse {
+  success: boolean;
+  data: any;
+}
+
 export default function LeadDetailPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -37,15 +42,20 @@ export default function LeadDetailPage() {
   const toast = useToast();
   const leadId = params?.id as string;
 
-  const { data: lead, error, mutate } = useSWR(
+  const { data: leadResponse, error, mutate, isLoading } = useSWR<LeadResponse>(
     leadId ? `/api/leads/${leadId}` : null,
     fetcher
   );
 
-  if (status === 'loading' || !lead) {
+  const lead = leadResponse?.data;
+
+  if (status === 'loading' || isLoading) {
     return (
-      <Box p={8} display="flex" justifyContent="center">
-        <Spinner size="xl" />
+      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <VStack spacing={4}>
+          <Spinner size="xl" color="blue.500" />
+          <Text color="gray.600">Loading lead details...</Text>
+        </VStack>
       </Box>
     );
   }
@@ -58,7 +68,37 @@ export default function LeadDetailPage() {
   if (error) {
     return (
       <Box p={8}>
-        <Text color="red.500">Error loading lead: {error.message}</Text>
+        <VStack spacing={4}>
+          <Text color="red.500" fontSize="lg" fontWeight="bold">
+            Error loading lead
+          </Text>
+          <Text color="gray.600">
+            {error?.info?.error || error?.message || 'Failed to fetch lead details'}
+          </Text>
+          <HStack>
+            <Button onClick={() => mutate()} colorScheme="blue">
+              Retry
+            </Button>
+            <Button onClick={() => router.back()} variant="outline">
+              Go Back
+            </Button>
+          </HStack>
+        </VStack>
+      </Box>
+    );
+  }
+
+  if (!lead) {
+    return (
+      <Box p={8}>
+        <VStack spacing={4}>
+          <Text color="gray.600" fontSize="lg">
+            Lead not found
+          </Text>
+          <Button onClick={() => router.back()} colorScheme="blue">
+            Go Back
+          </Button>
+        </VStack>
       </Box>
     );
   }

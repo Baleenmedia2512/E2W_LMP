@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
@@ -13,6 +13,7 @@ import {
   Td,
   Badge,
   HStack,
+  VStack,
   Text,
   Spinner,
   IconButton,
@@ -21,13 +22,15 @@ import {
   MenuList,
   MenuItem,
   useToast,
+  Card,
+  CardBody,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 import { FollowUp } from '@/types';
-import { HiDotsVertical, HiCheckCircle, HiXCircle } from 'react-icons/hi';
+import { HiDotsVertical, HiCheckCircle, HiXCircle, HiViewGrid, HiViewList } from 'react-icons/hi';
 
 interface FollowUpWithLead extends FollowUp {
   lead: {
@@ -46,6 +49,7 @@ export default function FollowUpsPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const toast = useToast();
+  const [viewMode, setViewMode] = useState<'table' | 'tiles'>('table');
   
   const { data: response, isLoading, error, mutate } = useSWR<{ data: FollowUpWithLead[] }>(
     '/api/followups',
@@ -129,10 +133,29 @@ export default function FollowUpsPage() {
     <Box>
       <HStack justify="space-between" mb={6}>
         <Heading size="lg">Follow-ups</Heading>
+        <HStack spacing={2}>
+          <IconButton
+            aria-label="Table view"
+            icon={<HiViewList />}
+            size="sm"
+            colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
+            variant={viewMode === 'table' ? 'solid' : 'ghost'}
+            onClick={() => setViewMode('table')}
+          />
+          <IconButton
+            aria-label="Tiles view"
+            icon={<HiViewGrid />}
+            size="sm"
+            colorScheme={viewMode === 'tiles' ? 'blue' : 'gray'}
+            variant={viewMode === 'tiles' ? 'solid' : 'ghost'}
+            onClick={() => setViewMode('tiles')}
+          />
+        </HStack>
       </HStack>
 
-      <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-        <Table variant="simple">
+      {viewMode === 'table' ? (
+        <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+          <Table variant="simple">
           <Thead bg="gray.50">
             <Tr>
               <Th>Lead Name</Th>
@@ -227,6 +250,130 @@ export default function FollowUpsPage() {
           </Tbody>
         </Table>
       </Box>
+      ) : (
+        <Box>
+          {followups && followups.length > 0 ? (
+            <Box
+              display="grid"
+              gridTemplateColumns={{ base: '1fr', md: '1fr 1fr', lg: 'repeat(3, 1fr)' }}
+              gap={4}
+            >
+              {followups.map((followup) => (
+                <Card
+                  key={followup.id}
+                  _hover={{ boxShadow: 'md', transform: 'translateY(-2px)' }}
+                  transition="all 0.2s"
+                >
+                  <CardBody>
+                    <VStack align="stretch" spacing={3}>
+                      <HStack justify="space-between">
+                        <Text
+                          fontWeight="bold"
+                          fontSize="lg"
+                          color="blue.600"
+                          cursor="pointer"
+                          onClick={() => router.push(`/dashboard/leads/${followup.lead.id}`)}
+                          _hover={{ textDecoration: 'underline' }}
+                        >
+                          {followup.lead?.name || 'N/A'}
+                        </Text>
+                        {followup.status === 'pending' && (
+                          <Menu>
+                            <MenuButton
+                              as={IconButton}
+                              icon={<HiDotsVertical />}
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <MenuList>
+                              <MenuItem
+                                icon={<HiCheckCircle />}
+                                onClick={() => handleComplete(followup.id)}
+                              >
+                                Mark Complete
+                              </MenuItem>
+                              <MenuItem
+                                icon={<HiXCircle />}
+                                onClick={() => handleCancel(followup.id)}
+                              >
+                                Cancel
+                              </MenuItem>
+                            </MenuList>
+                          </Menu>
+                        )}
+                      </HStack>
+                      
+                      <HStack spacing={2}>
+                        <Badge
+                          colorScheme={
+                            followup.priority === 'high'
+                              ? 'red'
+                              : followup.priority === 'medium'
+                              ? 'orange'
+                              : 'gray'
+                          }
+                        >
+                          {followup.priority?.toUpperCase()}
+                        </Badge>
+                        <Badge
+                          colorScheme={
+                            followup.status === 'completed'
+                              ? 'green'
+                              : followup.status === 'cancelled'
+                              ? 'red'
+                              : 'orange'
+                          }
+                        >
+                          {followup.status?.toUpperCase()}
+                        </Badge>
+                      </HStack>
+                      
+                      <VStack align="stretch" spacing={2}>
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="100px">
+                            Phone:
+                          </Text>
+                          <Text fontSize="sm">{followup.lead?.phone || '-'}</Text>
+                        </HStack>
+                        
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="100px">
+                            Scheduled:
+                          </Text>
+                          <Text fontSize="sm">{new Date(followup.scheduledAt).toLocaleString()}</Text>
+                        </HStack>
+                        
+                        <HStack>
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600" minW="100px">
+                            Assigned To:
+                          </Text>
+                          <Text fontSize="sm">{followup.lead?.assignedTo?.name || 'Unassigned'}</Text>
+                        </HStack>
+                        
+                        {followup.notes && (
+                          <Box mt={2}>
+                            <Text fontSize="sm" fontWeight="semibold" color="gray.600">
+                              Notes:
+                            </Text>
+                            <Text fontSize="sm" mt={1} noOfLines={3}>
+                              {followup.notes}
+                            </Text>
+                          </Box>
+                        )}
+                      </VStack>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              ))}
+            </Box>
+          ) : (
+            <Box bg="white" borderRadius="lg" boxShadow="sm" p={8} textAlign="center">
+              <Text color="gray.500">No follow-ups found</Text>
+            </Box>
+          )}
+        </Box>
+      )}
     </Box>
   );
 }

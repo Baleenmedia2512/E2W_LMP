@@ -45,11 +45,29 @@ export default function NewCallLogPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate that leadId exists
+    if (!leadId) {
+      toast({
+        title: 'Error',
+        description: 'Lead ID is missing',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const startedAt = new Date(formData.startedAt);
       const endedAt = formData.endedAt ? new Date(formData.endedAt) : null;
+      
+      // Validate that endedAt is after startedAt
+      if (endedAt && endedAt <= startedAt) {
+        throw new Error('End time must be after start time');
+      }
+      
       const duration = endedAt
         ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
         : null;
@@ -57,10 +75,10 @@ export default function NewCallLogPage() {
       const payload = {
         leadId,
         startedAt: startedAt.toISOString(),
-        endedAt: endedAt?.toISOString(),
+        endedAt: endedAt?.toISOString() || null,
         duration,
         callStatus: formData.callStatus,
-        remarks: formData.remarks,
+        remarks: formData.remarks || null,
       };
 
       const response = await fetch('/api/calls', {
@@ -69,12 +87,15 @@ export default function NewCallLogPage() {
         body: JSON.stringify(payload),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to log call');
+        throw new Error(result.error || 'Failed to log call');
       }
 
       toast({
         title: 'Call logged successfully',
+        description: result.message || 'Call log has been saved',
         status: 'success',
         duration: 3000,
       });

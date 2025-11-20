@@ -25,10 +25,15 @@ import {
   Th,
   Td,
   useToast,
+  IconButton,
+  Card,
+  CardBody,
+  Badge,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
+import { HiViewGrid, HiViewList } from 'react-icons/hi';
 
 interface DSRMetrics {
   totalCalls: number;
@@ -56,6 +61,7 @@ interface DSRDataItem {
 export default function DSRPage() {
   const { data: session } = useSession();
   const toast = useToast();
+  const [viewMode, setViewMode] = useState<'table' | 'tiles'>('table');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [exportType, setExportType] = useState<'individual' | 'team'>('individual');
@@ -227,11 +233,32 @@ export default function DSRPage() {
       {/* Detailed Table */}
       {exportType === 'team' && dsrData.length > 0 && (
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-          <Heading size="md" p={6} borderBottomWidth="1px">
-            Team Performance Breakdown
-          </Heading>
-          <Box overflowX="auto">
-            <Table variant="simple">
+          <HStack justify="space-between" p={6} borderBottomWidth="1px">
+            <Heading size="md">
+              Team Performance Breakdown
+            </Heading>
+            <HStack spacing={2}>
+              <IconButton
+                aria-label="Table view"
+                icon={<HiViewList />}
+                size="sm"
+                colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
+                variant={viewMode === 'table' ? 'solid' : 'ghost'}
+                onClick={() => setViewMode('table')}
+              />
+              <IconButton
+                aria-label="Tiles view"
+                icon={<HiViewGrid />}
+                size="sm"
+                colorScheme={viewMode === 'tiles' ? 'blue' : 'gray'}
+                variant={viewMode === 'tiles' ? 'solid' : 'ghost'}
+                onClick={() => setViewMode('tiles')}
+              />
+            </HStack>
+          </HStack>
+          {viewMode === 'table' ? (
+            <Box overflowX="auto">
+              <Table variant="simple">
               <Thead bg="gray.50">
                 <Tr>
                   <Th>Agent</Th>
@@ -267,6 +294,81 @@ export default function DSRPage() {
               </Tbody>
             </Table>
           </Box>
+          ) : (
+            <Box p={6}>
+              <Box
+                display="grid"
+                gridTemplateColumns={{ base: '1fr', md: '1fr 1fr', lg: 'repeat(3, 1fr)' }}
+                gap={4}
+              >
+                {dsrData.map((item) => (
+                  <Card key={item.userId} variant="outline">
+                    <CardBody>
+                      <VStack align="stretch" spacing={4}>
+                        <VStack align="start" spacing={1}>
+                          <Text fontWeight="bold" fontSize="lg" color="blue.600">
+                            {item.userName}
+                          </Text>
+                          <Text fontSize="sm" color="gray.500">
+                            {item.userEmail}
+                          </Text>
+                        </VStack>
+                        
+                        <SimpleGrid columns={2} spacing={3}>
+                          <Box>
+                            <Text fontSize="xs" color="gray.600" fontWeight="semibold">
+                              Total Calls
+                            </Text>
+                            <Text fontSize="xl" fontWeight="bold">
+                              {item.metrics.totalCalls}
+                            </Text>
+                          </Box>
+                          
+                          <Box>
+                            <Text fontSize="xs" color="gray.600" fontWeight="semibold">
+                              Contacted
+                            </Text>
+                            <Text fontSize="xl" fontWeight="bold">
+                              {item.metrics.leadsContacted}
+                            </Text>
+                          </Box>
+                          
+                          <Box>
+                            <Text fontSize="xs" color="gray.600" fontWeight="semibold">
+                              Qualified
+                            </Text>
+                            <Text fontSize="xl" fontWeight="bold" color="blue.500">
+                              {item.metrics.leadsQualified}
+                            </Text>
+                          </Box>
+                          
+                          <Box>
+                            <Text fontSize="xs" color="gray.600" fontWeight="semibold">
+                              Converted
+                            </Text>
+                            <Text fontSize="xl" fontWeight="bold" color="green.500">
+                              {item.metrics.leadsConverted}
+                            </Text>
+                          </Box>
+                        </SimpleGrid>
+                        
+                        <Box pt={2} borderTopWidth="1px">
+                          <HStack justify="space-between">
+                            <Text fontSize="sm" color="gray.600">
+                              Follow-ups
+                            </Text>
+                            <Badge colorScheme="purple">
+                              {item.metrics.followUpsCompleted}/{item.metrics.followUpsScheduled}
+                            </Badge>
+                          </HStack>
+                        </Box>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                ))}
+              </Box>
+            </Box>
+          )}
         </Box>
       )}
     </Box>

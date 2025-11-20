@@ -63,11 +63,16 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      if (filterValidation.data.search) {
+      // Search functionality - handle empty/null search
+      if (filterValidation.data.search && filterValidation.data.search.trim().length > 0) {
+        const searchTerm = filterValidation.data.search.trim();
         where.OR = [
-          { name: { contains: filterValidation.data.search, mode: 'insensitive' } },
-          { email: { contains: filterValidation.data.search, mode: 'insensitive' } },
-          { phone: { contains: filterValidation.data.search } },
+          { name: { contains: searchTerm } },
+          { email: { contains: searchTerm } },
+          { phone: { contains: searchTerm } },
+          { alternatePhone: { contains: searchTerm } },
+          { city: { contains: searchTerm } },
+          { notes: { contains: searchTerm } },
         ];
       }
 
@@ -132,9 +137,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Handle role-based assignment logic
+      let assignedToId = validation.data.assignedToId;
+      
+      // If user is Agent (not SuperAgent), auto-assign to themselves
+      if (sess.user.role === 'Agent') {
+        assignedToId = sess.user.id;
+      }
+      // If SuperAgent provided an assignedToId, use it; otherwise leave unassigned
+      // SuperAgent can create unassigned leads
+
       const lead = await prisma.lead.create({
         data: {
           ...validation.data,
+          assignedToId: assignedToId || null,
           createdById: sess.user.id,
           metadata: validation.data.metadata ? JSON.parse(JSON.stringify(validation.data.metadata)) : undefined,
         },
@@ -149,6 +165,19 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Create assignment record if assigned
+      if (assignedToId) {
+        await prisma.assignment.create({
+          data: {
+            leadId: lead.id,
+            assignedToId: assignedToId,
+            assignedById: sess.user.id,
+            assignmentType: sess.user.role === 'Agent' ? 'auto' : 'manual',
+            reason: sess.user.role === 'Agent' ? 'Self-created lead' : 'Manually assigned by SuperAgent',
+          },
+        });
+      }
+
       // Create audit log
       await prisma.auditLog.create({
         data: {
@@ -159,6 +188,19 @@ export async function POST(request: NextRequest) {
           changes: { after: lead },
         },
       });
+
+      // Create notification for assigned agent (if not self)
+      if (assignedToId && assignedToId !== sess.user.id) {
+        await prisma.notification.create({
+          data: {
+            userId: assignedToId,
+            type: 'lead_assigned',
+            title: 'New Lead Assigned',
+            message: `A new lead "${lead.name}" has been assigned to you`,
+            metadata: { leadId: lead.id },
+          },
+        });
+      }
 
       return createApiResponse(lead, 'Lead created successfully');
     } catch (error) {

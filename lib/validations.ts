@@ -18,6 +18,7 @@ export const createLeadSchema = z.object({
   campaign: z.string().optional().nullable(),
   status: z.enum(['new', 'contacted', 'qualified', 'converted', 'lost']).default('new'),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  assignedToId: z.string().cuid().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
   metadata: z.record(z.unknown()).optional().nullable(),
 });
