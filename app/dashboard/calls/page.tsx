@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -20,9 +20,10 @@ import {
   Card,
   CardBody,
   useDisclosure,
+  Select,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 import { CallLog } from '@/types';
@@ -51,12 +52,34 @@ interface CallLogWithDetails extends CallLog {
 export default function CallsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [viewMode, setViewMode] = useState<'table' | 'tiles'>('table');
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  
+  // Handle filter from query params (from dashboard clicks)
+  useEffect(() => {
+    const filter = searchParams.get('filter');
+    if (filter === 'callsToday') {
+      setDateFilter('today');
+    }
+  }, [searchParams]);
+  
+  // Build query string
+  const buildQueryString = () => {
+    const params = new URLSearchParams();
+    params.append('groupByLead', 'true');
+    
+    if (dateFilter !== 'all') {
+      params.append('dateFilter', dateFilter);
+    }
+    
+    return params.toString() ? `?${params.toString()}` : '?groupByLead=true';
+  };
   
   const { data: response, isLoading, error } = useSWR<{ data: CallLogWithDetails[] }>(
-    '/api/calls?groupByLead=true',
+    `/api/calls${buildQueryString()}`,
     fetcher
   );
   
@@ -95,9 +118,32 @@ export default function CallsPage() {
 
   return (
     <Box>
-      <HStack justify="space-between" mb={6}>
-        <Heading size="lg">Call Logs</Heading>
-        <HStack spacing={2}>
+      <HStack justify="space-between" mb={6} flexWrap="wrap">
+        <Heading size="lg">
+          Call Logs
+          {dateFilter === 'today' && (
+            <Badge ml={2} colorScheme="blue" fontSize="sm">
+              Today
+            </Badge>
+          )}
+        </Heading>
+        <HStack spacing={2} flexWrap="wrap">
+          <Select
+            value={dateFilter}
+            onChange={(e) => {
+              setDateFilter(e.target.value as 'all' | 'today' | 'week' | 'month');
+              if (e.target.value === 'all') {
+                router.push('/dashboard/calls');
+              }
+            }}
+            maxW="200px"
+            size="sm"
+          >
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">Last 30 Days</option>
+          </Select>
           <IconButton
             aria-label="Table view"
             icon={<HiViewList />}

@@ -4,6 +4,7 @@ import { createLeadSchema, leadFilterSchema, paginationSchema } from '@/lib/vali
 import { hasPermission } from '@/lib/roles';
 import prisma from '@/lib/prisma';
 import { Session } from 'next-auth';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 export async function GET(request: NextRequest) {
   return withAuth(async (session) => {
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest) {
         assignedToId: searchParams.get('assignedToId') || undefined,
         search: searchParams.get('search') || undefined,
       };
+
+      const dateFilter = searchParams.get('dateFilter'); // 'today', 'week', 'month'
 
       const filterValidation = leadFilterSchema.safeParse(filters);
       if (!filterValidation.success) {
@@ -74,6 +77,34 @@ export async function GET(request: NextRequest) {
           { city: { contains: searchTerm } },
           { notes: { contains: searchTerm } },
         ];
+      }
+
+      // Date filter - filter by creation date
+      if (dateFilter) {
+        const today = new Date();
+        const startOfToday = startOfDay(today);
+        const endOfToday = endOfDay(today);
+
+        switch (dateFilter) {
+          case 'today':
+            where.createdAt = {
+              gte: startOfToday,
+              lte: endOfToday,
+            };
+            break;
+          case 'week':
+            where.createdAt = {
+              gte: subDays(startOfToday, 7),
+              lte: endOfToday,
+            };
+            break;
+          case 'month':
+            where.createdAt = {
+              gte: subDays(startOfToday, 30),
+              lte: endOfToday,
+            };
+            break;
+        }
       }
 
       const [leads, total] = await Promise.all([

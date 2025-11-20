@@ -12,17 +12,53 @@ import {
   Switch,
   Divider,
   HStack,
+  Card,
+  CardBody,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { FiSettings, FiGrid } from 'react-icons/fi';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
+  const router = useRouter();
 
   return (
     <Box>
       <Heading size="lg" mb={6}>
         Settings
       </Heading>
+
+      {/* Quick Access Cards for SuperAgent */}
+      {session?.user?.role === 'SuperAgent' && (
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4} mb={6}>
+          <Card
+            cursor="pointer"
+            _hover={{ shadow: 'md', transform: 'translateY(-2px)' }}
+            transition="all 0.2s"
+            onClick={() => router.push('/dashboard/settings/meta')}
+          >
+            <CardBody>
+              <HStack spacing={3}>
+                <Box p={3} bg="blue.100" borderRadius="lg">
+                  <FiGrid size={24} color="#3182CE" />
+                </Box>
+                <Box>
+                  <Text fontWeight="600" fontSize="lg">
+                    Meta Integration
+                  </Text>
+                  <Text fontSize="sm" color="gray.600">
+                    Configure Facebook Lead Ads
+                  </Text>
+                </Box>
+              </HStack>
+            </CardBody>
+          </Card>
+
+          {/* Add more integration cards here */}
+        </SimpleGrid>
+      )}
 
       <Box bg="white" p={6} borderRadius="lg" boxShadow="sm" maxW="2xl">
         <VStack spacing={6} align="stretch">

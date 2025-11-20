@@ -3,6 +3,7 @@ import { withAuth, createApiResponse, createApiError } from '@/lib/api-middlewar
 import { createCallLogSchema } from '@/lib/validations';
 import prisma from '@/lib/prisma';
 import { Session } from 'next-auth';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 export async function POST(request: NextRequest) {
   return withAuth(async (session) => {
@@ -117,6 +118,7 @@ export async function GET(request: NextRequest) {
       const searchParams = request.nextUrl.searchParams;
       const leadId = searchParams.get('leadId');
       const groupByLead = searchParams.get('groupByLead') === 'true';
+      const dateFilter = searchParams.get('dateFilter'); // 'today', 'week', 'month'
 
       const where: Record<string, unknown> = {};
 
@@ -127,6 +129,34 @@ export async function GET(request: NextRequest) {
       // Agents can only see their own call logs
       if (sess.user.role === 'Agent') {
         where.callerId = sess.user.id;
+      }
+
+      // Date filter - filter by call date
+      if (dateFilter) {
+        const today = new Date();
+        const startOfToday = startOfDay(today);
+        const endOfToday = endOfDay(today);
+
+        switch (dateFilter) {
+          case 'today':
+            where.startedAt = {
+              gte: startOfToday,
+              lte: endOfToday,
+            };
+            break;
+          case 'week':
+            where.startedAt = {
+              gte: subDays(startOfToday, 7),
+              lte: endOfToday,
+            };
+            break;
+          case 'month':
+            where.startedAt = {
+              gte: subDays(startOfToday, 30),
+              lte: endOfToday,
+            };
+            break;
+        }
       }
 
       if (groupByLead) {
