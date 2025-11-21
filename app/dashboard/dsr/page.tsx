@@ -240,41 +240,117 @@ export default function DSRPage() {
   );
 
   const handleExportExcel = async () => {
-    toast({
-      title: 'Export Started',
-      description: 'Preparing Excel export...',
-      status: 'info',
-      duration: 2000,
-    });
-    
-    // Placeholder for Excel export
-    setTimeout(() => {
+    try {
+      // Validate data is loaded
+      if (!myPerformance?.data || loadingPerf) {
+        toast({
+          title: 'Data Loading',
+          description: 'Please wait for data to load before exporting',
+          status: 'warning',
+          duration: 3000,
+        });
+        return;
+      }
+
+      toast({
+        title: 'Export Started',
+        description: 'Preparing Excel export...',
+        status: 'info',
+        duration: 2000,
+      });
+
+      // Import export utility dynamically
+      const { exportToExcel } = await import('@/lib/export-utils');
+
+      // Prepare export data with fallbacks
+      const exportData = {
+        performance: myPerformance.data || {},
+        statusBreakdown: statusBreakdown?.data || { breakdown: [] },
+        avgCalls: avgCallsData?.data || {},
+        mostContacted: mostContactedLead?.data || {},
+        agentPerformance: agentPerformance?.data || [],
+        dateRange: {
+          startDate: startDate,
+          endDate: endDate,
+        },
+        userName: session?.user?.name || 'Agent',
+      };
+
+      // Trigger export
+      exportToExcel(exportData);
+
       toast({
         title: 'Export Complete',
         description: 'Excel file downloaded successfully',
         status: 'success',
         duration: 3000,
       });
-    }, 1500);
+    } catch (error) {
+      console.error('Excel export error:', error);
+      toast({
+        title: 'Export Failed',
+        description: error instanceof Error ? error.message : 'Unable to generate Excel file. Please try again.',
+        status: 'error',
+        duration: 4000,
+      });
+    }
   };
 
   const handleExportPDF = async () => {
-    toast({
-      title: 'Export Started',
-      description: 'Preparing PDF export...',
-      status: 'info',
-      duration: 2000,
-    });
-    
-    // Placeholder for PDF export
-    setTimeout(() => {
+    try {
+      // Validate data is loaded
+      if (!myPerformance?.data || loadingPerf) {
+        toast({
+          title: 'Data Loading',
+          description: 'Please wait for data to load before exporting',
+          status: 'warning',
+          duration: 3000,
+        });
+        return;
+      }
+
+      toast({
+        title: 'Export Started',
+        description: 'Preparing PDF export...',
+        status: 'info',
+        duration: 2000,
+      });
+
+      // Import export utility dynamically
+      const { exportToPDF } = await import('@/lib/export-utils');
+
+      // Prepare export data with fallbacks
+      const exportData = {
+        performance: myPerformance.data || {},
+        statusBreakdown: statusBreakdown?.data || { breakdown: [] },
+        avgCalls: avgCallsData?.data || {},
+        mostContacted: mostContactedLead?.data || {},
+        agentPerformance: agentPerformance?.data || [],
+        dateRange: {
+          startDate: startDate,
+          endDate: endDate,
+        },
+        userName: session?.user?.name || 'Agent',
+      };
+
+      // Trigger export
+      exportToPDF(exportData);
+
       toast({
         title: 'Export Complete',
-        description: 'PDF file downloaded successfully',
+        description: 'PDF ready. Use Print dialog to save as PDF.',
         status: 'success',
-        duration: 3000,
+        duration: 4000,
       });
-    }, 1500);
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast({
+        title: 'Export Failed',
+        description: error instanceof Error ? error.message : 'Unable to generate PDF file. Please try again.',
+        status: 'error',
+        duration: 4000,
+      });
+    }
   };
 
   const handleViewAttempts = (leadId: string) => {

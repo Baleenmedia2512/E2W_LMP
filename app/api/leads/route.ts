@@ -5,29 +5,35 @@ import { hasPermission } from '@/lib/roles';
 import prisma from '@/lib/prisma';
 import { Session } from 'next-auth';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
+import { rateLimit, getRateLimitHeaders } from '@/lib/middleware/rateLimiter';
+import { sanitizeSearchQuery, sanitizeLeadData } from '@/lib/middleware/sanitize';
 
 export async function GET(request: NextRequest) {
+  // Apply rate limiting (100 requests per minute for GET)
+  const rateLimitResult = await rateLimit({ maxRequests: 100, windowMs: 60000 })(request);
+  if (rateLimitResult) return rateLimitResult;
+
   return withAuth(async (session) => {
     try {
       const sess = session as Session;
       const searchParams = request.nextUrl.searchParams;
 
-      // Parse pagination
-      const page = parseInt(searchParams.get('page') || '1');
-      const pageSize = parseInt(searchParams.get('pageSize') || '20');
+      // Parse pagination with higher limits
+      const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+      const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '20')));
 
       const paginationValidation = paginationSchema.safeParse({ page, pageSize });
       if (!paginationValidation.success) {
         return createApiError('Invalid pagination parameters', 400);
       }
 
-      // Parse filters
+      // Parse and sanitize filters
       const filters = {
         status: searchParams.get('status') || undefined,
         source: searchParams.get('source') || undefined,
         priority: searchParams.get('priority') || undefined,
         assignedToId: searchParams.get('assignedToId') || undefined,
-        search: searchParams.get('search') || undefined,
+        search: sanitizeSearchQuery(searchParams.get('search')) || undefined,
       };
 
       const dateFilter = searchParams.get('dateFilter'); // 'today', 'week', 'month'
@@ -107,10 +113,23 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Optimize query with select to reduce payload
       const [leads, total] = await Promise.all([
         prisma.lead.findMany({
           where,
-          include: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+            alternatePhone: true,
+            city: true,
+            state: true,
+            source: true,
+            status: true,
+            priority: true,
+            createdAt: true,
+            updatedAt: true,
             assignedTo: {
               select: {
                 id: true,
@@ -122,7 +141,12 @@ export async function GET(request: NextRequest) {
               select: {
                 id: true,
                 name: true,
-                email: true,
+              },
+            },
+            _count: {
+              select: {
+                callLogs: true,
+                followUps: true,
               },
             },
           },
@@ -164,6 +188,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting (20 requests per minute for POST)
+  const rateLimitResult = await rateLimit({ maxRequests: 20, windowMs: 60000 })(request);
+  if (rateLimitResult) return rateLimitResult;
+
   return withAuth(async (session) => {
     try {
       const sess = session as Session;
@@ -173,7 +201,11 @@ export async function POST(request: NextRequest) {
       }
 
       const body = await request.json();
-      const validation = createLeadSchema.safeParse(body);
+      
+      // Sanitize input data
+      const sanitizedData = sanitizeLeadData(body);
+      
+      const validation = createLeadSchema.safeParse(sanitizedData);
 
       if (!validation.success) {
         return createApiError(
