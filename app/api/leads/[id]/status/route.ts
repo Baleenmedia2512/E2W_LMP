@@ -4,9 +4,10 @@ import { canAccessResource } from '@/lib/roles';
 import prisma from '@/lib/prisma';
 import { Session } from 'next-auth';
 import { z } from 'zod';
+import { createUndoLog } from '@/lib/undo-helper';
 
 const updateStatusSchema = z.object({
-  status: z.enum(['new', 'followup', 'unreach', 'unqualified']),
+  status: z.enum(['new', 'contacted', 'qualified', 'followup', 'won', 'lost', 'unreach', 'unqualified']),
   reason: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   metadata: z.record(z.unknown()).optional().nullable(),
@@ -42,6 +43,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       }
 
       const { status, reason, notes, metadata } = validation.data;
+
+      // Create undo log BEFORE making changes
+      await createUndoLog({
+        userId: sess.user.id,
+        action: 'update_status',
+        targetType: 'Lead',
+        targetId: id,
+        previousState: {
+          status: existingLead.status,
+          notes: existingLead.notes,
+          metadata: existingLead.metadata,
+        },
+      });
 
       // Update lead status
       const lead = await prisma.lead.update({

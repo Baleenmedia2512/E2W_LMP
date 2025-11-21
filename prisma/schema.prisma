@@ -107,7 +107,7 @@ model Lead {
   pincode        String?
   source         String    // Meta, Website, Referral, etc.
   campaign       String?
-  status         String    @default("new") // new, followup, unreach, unqualified
+  status         String    @default("new") // new, contacted, qualified, followup, won, lost, unreach, unqualified
   priority       String    @default("medium") // low, medium, high
   assignedToId   String?
   createdById    String?

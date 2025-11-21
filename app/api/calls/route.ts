@@ -4,6 +4,7 @@ import { createCallLogSchema } from '@/lib/validations';
 import prisma from '@/lib/prisma';
 import { Session } from 'next-auth';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
+import { createUndoLog } from '@/lib/undo-helper';
 
 export async function POST(request: NextRequest) {
   return withAuth(async (session) => {
@@ -75,6 +76,18 @@ export async function POST(request: NextRequest) {
               email: true,
             },
           },
+        },
+      });
+
+      // Create undo log for call creation
+      await createUndoLog({
+        userId: sess.user.id,
+        action: 'add_call',
+        targetType: 'CallLog',
+        targetId: callLog.id,
+        previousState: {
+          leadId,
+          leadStatus: lead.status,
         },
       });
 

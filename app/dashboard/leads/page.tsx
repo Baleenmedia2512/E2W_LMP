@@ -35,11 +35,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 import { Lead } from '@/types';
-import { HiDotsVertical, HiEye, HiPencil, HiPhone, HiClock, HiSearch, HiViewGrid, HiViewList, HiBan, HiX } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiPencil, HiPhone, HiClock, HiSearch, HiViewGrid, HiViewList, HiBan, HiX, HiUserAdd } from 'react-icons/hi';
 import { startOfDay, endOfDay } from 'date-fns';
 import ConvertToUnreachableModal from '@/components/ConvertToUnreachableModal';
 import ConvertToUnqualifiedModal from '@/components/ConvertToUnqualifiedModal';
 import AddLeadModal from '@/components/AddLeadModal';
+import AssignLeadModal from '@/components/AssignLeadModal';
 
 interface LeadsData {
   data: Lead[];
@@ -75,6 +76,10 @@ export default function LeadsPage() {
   
   // Add Lead Modal
   const { isOpen: isAddLeadOpen, onOpen: onAddLeadOpen, onClose: onAddLeadClose } = useDisclosure();
+  
+  // Assign Lead Modal
+  const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
+  const [leadToAssign, setLeadToAssign] = useState<{ id: string; name: string; currentAssignee?: string } | null>(null);
   
   // Debounce search query
   useEffect(() => {
@@ -157,6 +162,19 @@ export default function LeadsPage() {
     const priorityB = statusPriority[b.status.toLowerCase()] || 999;
     return priorityA - priorityB;
   });
+
+  // Listen for undo events to refresh leads
+  useEffect(() => {
+    const handleUndoPerformed = () => {
+      if (mutate) {
+        mutate();
+      }
+    };
+
+    window.addEventListener('undo-performed', handleUndoPerformed);
+    return () => window.removeEventListener('undo-performed', handleUndoPerformed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAutoAssign = async () => {
     setIsAutoAssigning(true);
@@ -426,6 +444,20 @@ export default function LeadsPage() {
                           View Details
                         </MenuItem>
                         <MenuItem 
+                          icon={<HiUserAdd />}
+                          onClick={() => {
+                            setLeadToAssign({
+                              id: lead.id,
+                              name: lead.name,
+                              currentAssignee: lead.assignedTo?.name
+                            });
+                            onAssignOpen();
+                          }}
+                        >
+                          {lead.assignedTo ? 'Reassign Lead' : 'Assign Lead'}
+                        </MenuItem>
+                        <MenuDivider />
+                        <MenuItem 
                           icon={<HiPencil />}
                           onClick={() => router.push(`/dashboard/leads/${lead.id}/edit`)}
                         >
@@ -686,6 +718,18 @@ export default function LeadsPage() {
             leadName={selectedLead.name}
           />
         </>
+      )}
+
+      {/* Assign Lead Modal */}
+      {leadToAssign && (
+        <AssignLeadModal
+          isOpen={isAssignOpen}
+          onClose={onAssignClose}
+          leadId={leadToAssign.id}
+          leadName={leadToAssign.name}
+          currentAssignee={leadToAssign.currentAssignee}
+          onSuccess={() => mutate()}
+        />
       )}
 
       {/* Add Lead Modal */}

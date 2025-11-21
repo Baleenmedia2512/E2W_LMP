@@ -3,6 +3,7 @@ import { withAuth, createApiResponse, createApiError } from '@/lib/api-middlewar
 import { createFollowUpSchema, updateFollowUpSchema } from '@/lib/validations';
 import prisma from '@/lib/prisma';
 import { Session } from 'next-auth';
+import { createUndoLog } from '@/lib/undo-helper';
 
 export async function POST(request: NextRequest) {
   return withAuth(async (session) => {
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
               id: true,
               name: true,
               phone: true,
+              status: true,
             },
           },
           createdBy: {
@@ -53,6 +55,18 @@ export async function POST(request: NextRequest) {
               email: true,
             },
           },
+        },
+      });
+
+      // Create undo log for follow-up creation
+      await createUndoLog({
+        userId: sess.user.id,
+        action: 'schedule_followup',
+        targetType: 'FollowUp',
+        targetId: followUp.id,
+        previousState: {
+          leadId,
+          leadStatus: lead.status,
         },
       });
 

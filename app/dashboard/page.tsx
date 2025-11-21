@@ -116,7 +116,19 @@ export default function DashboardPage() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [mutate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen for undo events to refresh data
+  useEffect(() => {
+    const handleUndoPerformed = () => {
+      mutate();
+    };
+
+    window.addEventListener('undo-performed', handleUndoPerformed);
+    return () => window.removeEventListener('undo-performed', handleUndoPerformed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCardClick = (filter: string) => {
     router.push(`/dashboard/leads?filter=${filter}`);

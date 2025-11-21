@@ -21,7 +21,8 @@ import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/swr';
 import { formatDistanceToNow } from 'date-fns';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { playNotificationSound, requestNotificationPermission, showDesktopNotification } from '@/lib/notifications';
 
 interface Notification {
   id: string;
@@ -42,6 +43,7 @@ export default function NotificationBell() {
   const router = useRouter();
   const toast = useToast();
   const [isMarkingRead, setIsMarkingRead] = useState(false);
+  const previousUnreadCount = useRef<number>(0);
 
   // Fetch unread count for badge
   const { data: countData, mutate: mutateCount } = useSWR<{ data: { unreadCount: number } }>(
@@ -59,6 +61,56 @@ export default function NotificationBell() {
       unreadCount: number;
     };
   }>('/api/notifications?limit=10', fetcher);
+
+  const unreadCount = countData?.data?.unreadCount || 0;
+
+  // Play sound and show desktop notification when new notifications arrive
+  useEffect(() => {
+    // Only trigger on unread count increase (not on first load)
+    if (unreadCount > previousUnreadCount.current && previousUnreadCount.current > 0) {
+      const newNotifications = notificationsData?.data?.notifications?.filter(n => !n.isRead) || [];
+      
+      if (newNotifications.length > 0) {
+        const latestNotification = newNotifications[0];
+        
+        // Play different sounds based on notification type
+        if (latestNotification.type === 'lead_assigned' || 
+            latestNotification.type === 'assignment' || 
+            latestNotification.type === 'new_lead') {
+          playNotificationSound('new_lead');
+          
+          // Show desktop notification
+          showDesktopNotification(latestNotification.title, {
+            body: latestNotification.message,
+            tag: latestNotification.id,
+            requireInteraction: true,
+            playSound: false, // Already played above
+            soundType: 'new_lead',
+          });
+        } else if (latestNotification.type === 'follow_up_due') {
+          playNotificationSound('follow_up');
+          
+          showDesktopNotification(latestNotification.title, {
+            body: latestNotification.message,
+            tag: latestNotification.id,
+            playSound: false,
+            soundType: 'follow_up',
+          });
+        } else {
+          playNotificationSound('general');
+        }
+      }
+    }
+    
+    // Update the ref AFTER checking
+    previousUnreadCount.current = unreadCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadCount]); // Only depend on unreadCount, not notificationsData
+
+  // Request notification permission on mount
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   const handleNotificationClick = async (notification: Notification) => {
     // Mark as read if unread
@@ -115,7 +167,6 @@ export default function NotificationBell() {
     router.push('/dashboard/notifications');
   };
 
-  const unreadCount = countData?.data?.unreadCount || 0;
   const notifications = notificationsData?.data?.notifications || [];
 
   return (
