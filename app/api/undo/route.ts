@@ -48,6 +48,19 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        case 'update_status': {
+          const previousState = undoLog.previousState as Record<string, unknown>;
+          undoResult = await prisma.lead.update({
+            where: { id: undoLog.targetId },
+            data: {
+              status: previousState.status as string,
+              notes: previousState.notes as string | null,
+              metadata: previousState.metadata as Record<string, unknown> | null,
+            },
+          });
+          break;
+        }
+
         case 'delete_lead': {
           const previousState = undoLog.previousState as Record<string, unknown>;
           undoResult = await prisma.lead.create({
@@ -76,6 +89,38 @@ export async function POST(request: NextRequest) {
               assignedToId: previousState.assignedToId as string | null,
             },
           });
+          break;
+        }
+
+        case 'add_call': {
+          const previousState = undoLog.previousState as Record<string, unknown>;
+          // Delete the call log
+          await prisma.callLog.delete({
+            where: { id: undoLog.targetId },
+          });
+          // Restore lead status if needed
+          if (previousState.leadStatus) {
+            undoResult = await prisma.lead.update({
+              where: { id: previousState.leadId as string },
+              data: { status: previousState.leadStatus as string },
+            });
+          }
+          break;
+        }
+
+        case 'schedule_followup': {
+          const previousState = undoLog.previousState as Record<string, unknown>;
+          // Delete the follow-up
+          await prisma.followUp.delete({
+            where: { id: undoLog.targetId },
+          });
+          // Restore lead status
+          if (previousState.leadStatus) {
+            undoResult = await prisma.lead.update({
+              where: { id: previousState.leadId as string },
+              data: { status: previousState.leadStatus as string },
+            });
+          }
           break;
         }
 

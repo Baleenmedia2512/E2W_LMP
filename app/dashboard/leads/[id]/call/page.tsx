@@ -14,10 +14,12 @@ import {
   Card,
   CardBody,
   Text,
+  HStack,
 } from '@chakra-ui/react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import VoiceInputButton from '@/components/VoiceInputButton';
 
 export default function NewCallLogPage() {
   const { data: session, status } = useSession();
@@ -122,6 +124,13 @@ export default function NewCallLogPage() {
     });
   };
 
+  const handleVoiceTranscript = useCallback((text: string) => {
+    setFormData(prev => ({
+      ...prev,
+      remarks: prev.remarks ? `${prev.remarks} ${text}` : text
+    }));
+  }, []);
+
   return (
     <Box p={8}>
       <Heading size="lg" mb={6}>
@@ -166,7 +175,15 @@ export default function NewCallLogPage() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Remarks / Notes</FormLabel>
+                <FormLabel>
+                  <HStack justify="space-between">
+                    <Text>Remarks / Notes</Text>
+                    <VoiceInputButton 
+                      onTranscript={handleVoiceTranscript}
+                      label="Use voice to add remarks"
+                    />
+                  </HStack>
+                </FormLabel>
                 <Textarea
                   name="remarks"
                   value={formData.remarks}
@@ -174,6 +191,9 @@ export default function NewCallLogPage() {
                   placeholder="Enter call notes, customer feedback, next steps, etc."
                   rows={6}
                 />
+                <Text fontSize="xs" color="gray.600" mt={1}>
+                  💡 Tip: Click the microphone icon to use voice-to-text
+                </Text>
               </FormControl>
 
               <Box display="flex" gap={4}>

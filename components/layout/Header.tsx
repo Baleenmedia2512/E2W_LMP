@@ -9,10 +9,14 @@ import {
   Button,
   useBreakpointValue,
   HStack,
+  Tooltip,
+  Badge,
 } from '@chakra-ui/react';
 import { FiLogOut, FiRotateCcw, FiMenu } from 'react-icons/fi';
 import { signOut } from 'next-auth/react';
 import NotificationBell from '@/components/NotificationBell';
+import { useUndo } from '@/lib/hooks/useUndo';
+import { useEffect, useState } from 'react';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -22,26 +26,31 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const isMobile = useBreakpointValue({ base: true, lg: false });
+  
+  const { 
+    undoAvailable, 
+    latestAction, 
+    isUndoing, 
+    performUndo, 
+    getTimeRemaining,
+    formatActionName,
+  } = useUndo();
+
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    if (undoAvailable) {
+      const updateTimer = () => {
+        setTimeLeft(getTimeRemaining());
+      };
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [undoAvailable, getTimeRemaining]);
 
   const handleSignOut = () => {
     signOut({ callbackUrl: '/auth/signin' });
-  };
-
-  const handleUndo = async () => {
-    try {
-      const response = await fetch('/api/undo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      
-      if (response.ok) {
-        // Refresh the page or update state
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error('Undo failed:', error);
-    }
   };
 
   return (
@@ -67,25 +76,60 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
         <Flex align="center" gap={{ base: 2, md: 3 }}>
           {/* Undo Button */}
-          <Button
-            leftIcon={<FiRotateCcw />}
-            size="sm"
-            variant="ghost"
-            colorScheme="brand"
-            onClick={handleUndo}
-            display={{ base: 'none', md: 'flex' }}
-          >
-            Undo
-          </Button>
-          <IconButton
-            icon={<FiRotateCcw />}
-            size="sm"
-            variant="ghost"
-            colorScheme="brand"
-            onClick={handleUndo}
-            aria-label="Undo"
-            display={{ base: 'flex', md: 'none' }}
-          />
+          {undoAvailable && (
+            <>
+              <Tooltip
+                label={
+                  latestAction 
+                    ? `Undo: ${formatActionName(latestAction.action)} (${timeLeft}s)`
+                    : 'Undo last action'
+                }
+                placement="bottom"
+              >
+                <Button
+                  leftIcon={<FiRotateCcw />}
+                  size="sm"
+                  variant="solid"
+                  colorScheme="orange"
+                  onClick={performUndo}
+                  isLoading={isUndoing}
+                  display={{ base: 'none', md: 'flex' }}
+                  position="relative"
+                >
+                  Undo
+                  {timeLeft > 0 && timeLeft <= 10 && (
+                    <Badge
+                      ml={2}
+                      colorScheme="red"
+                      fontSize="xs"
+                      borderRadius="full"
+                    >
+                      {timeLeft}s
+                    </Badge>
+                  )}
+                </Button>
+              </Tooltip>
+              <Tooltip
+                label={
+                  latestAction 
+                    ? `Undo: ${formatActionName(latestAction.action)} (${timeLeft}s)`
+                    : 'Undo last action'
+                }
+                placement="bottom"
+              >
+                <IconButton
+                  icon={<FiRotateCcw />}
+                  size="sm"
+                  variant="solid"
+                  colorScheme="orange"
+                  onClick={performUndo}
+                  isLoading={isUndoing}
+                  aria-label="Undo"
+                  display={{ base: 'flex', md: 'none' }}
+                />
+              </Tooltip>
+            </>
+          )}
 
           {/* Notifications Bell */}
           <NotificationBell />

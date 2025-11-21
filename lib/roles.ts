@@ -38,7 +38,7 @@ export const ROLE_PERMISSIONS: Record<RoleName, RolePermissions> = {
     users: { read: true, assign: true },
   },
   Finance: {
-    leads: { read: 'all' },
+    leads: { read: 'all' }, // Can see all leads, especially won/lost for reconciliation
     dashboard: { read: true },
     dsr: { read: 'all', export: true },
     reports: { read: true },
@@ -51,7 +51,7 @@ export const ROLE_PERMISSIONS: Record<RoleName, RolePermissions> = {
     reports: { read: true },
   },
   Procurement: {
-    leads: { read: 'all' },
+    leads: { read: 'all' }, // Can see all leads, especially won for post-sale operations
     dashboard: { read: true },
     dsr: { read: false },
     reports: { read: true },
