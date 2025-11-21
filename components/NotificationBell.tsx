@@ -43,6 +43,7 @@ export default function NotificationBell() {
   const router = useRouter();
   const toast = useToast();
   const [isMarkingRead, setIsMarkingRead] = useState(false);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const previousUnreadCount = useRef<number>(0);
 
   // Fetch unread count for badge
@@ -63,6 +64,7 @@ export default function NotificationBell() {
   }>('/api/notifications?limit=10', fetcher);
 
   const unreadCount = countData?.data?.unreadCount || 0;
+  const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
 
   // Play sound and show desktop notification when new notifications arrive
   useEffect(() => {
@@ -191,7 +193,7 @@ export default function NotificationBell() {
             minW="20px"
             textAlign="center"
           >
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {displayCount}
           </Badge>
         )}
       </MenuButton>
@@ -203,9 +205,22 @@ export default function NotificationBell() {
               Notifications
             </Text>
             {unreadCount > 0 && (
-              <Badge colorScheme="red" borderRadius="full">
-                {unreadCount} new
-              </Badge>
+              <HStack spacing={2}>
+                <Badge colorScheme="red" borderRadius="full">
+                  {displayCount} new
+                </Badge>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="blue"
+                  leftIcon={<FiCheck />}
+                  onClick={handleMarkAllRead}
+                  isLoading={isMarkingAllRead}
+                  loadingText="Marking..."
+                >
+                  Mark all read
+                </Button>
+              </HStack>
             )}
           </HStack>
         </Box>

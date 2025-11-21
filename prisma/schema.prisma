@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
 // ========================================
@@ -130,6 +131,10 @@ model Lead {
   @@index([source])
   @@index([createdAt])
   @@index([phone])
+  @@index([email])
+  @@index([status, assignedToId])
+  @@index([createdAt, status])
+  @@index([updatedAt])
 }
 
 model LeadRaw {
@@ -183,6 +188,8 @@ model CallLog {
   @@index([leadId])
   @@index([callerId])
   @@index([startedAt])
+  @@index([leadId, startedAt])
+  @@index([callerId, startedAt])
 }
 
 model FollowUp {
