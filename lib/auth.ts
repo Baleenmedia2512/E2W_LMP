@@ -1,11 +1,11 @@
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import prisma from './prisma';
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // NOTE: PrismaAdapter removed to prevent auto-creating users from Google OAuth
+  // We manually handle user verification and account linking in callbacks
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || '',
@@ -90,42 +90,63 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async session({ session, token }) {
-      if (session.user && token.sub) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.sub },
-          include: { role: true },
-        });
-
-        if (dbUser) {
-          session.user.id = dbUser.id;
-          session.user.role = dbUser.role.name;
-          session.user.roleId = dbUser.roleId;
-          session.user.isActive = dbUser.isActive;
-        }
+      if (session.user && token.id) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.user.roleId = token.roleId as string;
+        session.user.isActive = token.isActive as boolean;
       }
       return session;
     },
     async jwt({ token, user, account }) {
-      if (user) {
+      // Handle Google OAuth login
+      if (account?.provider === 'google' && user?.email) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email },
+          include: { role: true },
+        });
+
+        if (dbUser) {
+          // Link Google account if not already linked
+          const existingAccount = await prisma.account.findFirst({
+            where: {
+              provider: 'google',
+              providerAccountId: account.providerAccountId,
+            },
+          });
+
+          if (!existingAccount) {
+            await prisma.account.create({
+              data: {
+                userId: dbUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: account.access_token,
+                refresh_token: account.refresh_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+              },
+            });
+          }
+
+          // Set token data
+          token.id = dbUser.id;
+          token.role = dbUser.role.name;
+          token.roleId = dbUser.roleId;
+          token.isActive = dbUser.isActive;
+        }
+      }
+
+      // Handle credentials login (role already set in authorize)
+      if (user && !account) {
         token.id = user.id;
         token.role = user.role;
         token.roleId = user.roleId;
-        
-        // For credentials login, role is already set in authorize()
-        // For Google login, fetch from database
-        if (account?.provider === 'google') {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            include: { role: true },
-          });
-          
-          if (dbUser) {
-            token.role = dbUser.role.name;
-            token.roleId = dbUser.roleId;
-            token.isActive = dbUser.isActive;
-          }
-        }
       }
+
       return token;
     },
   },
