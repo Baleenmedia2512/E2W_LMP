@@ -37,6 +37,8 @@ export const authOptions: NextAuthOptions = {
               email: user.email,
               name: user.name,
               image: user.image,
+              role: user.role.name,
+              roleId: user.roleId,
             };
           }
         }
@@ -53,35 +55,36 @@ export const authOptions: NextAuthOptions = {
       }
 
       if (account?.provider === 'google') {
-        // Check if user exists
+        if (!user.email) {
+          return false;
+        }
+
+        // Check if user exists in database
         const existingUser = await prisma.user.findUnique({
-          where: { email: user.email || '' },
+          where: { email: user.email },
           include: { role: true },
         });
 
         if (!existingUser) {
-          // New user - assign default Agent role
-          const agentRole = await prisma.role.findUnique({
-            where: { name: 'Agent' },
-          });
+          // User doesn't exist - DENY ACCESS
+          console.log(`Access denied for unregistered email: ${user.email}`);
+          return '/auth/error?error=NotRegistered';
+        }
 
-          if (agentRole && user.email) {
-            await prisma.user.update({
-              where: { email: user.email },
-              data: {
-                roleId: agentRole.id,
-                googleId: account.providerAccountId,
-              },
-            });
-          }
-        } else if (!existingUser.googleId && user.email) {
-          // Update existing user with googleId
+        // User exists - update googleId if not set
+        if (!existingUser.googleId) {
           await prisma.user.update({
             where: { email: user.email },
             data: {
               googleId: account.providerAccountId,
             },
           });
+        }
+
+        // Check if user is active
+        if (!existingUser.isActive) {
+          console.log(`Access denied for inactive user: ${user.email}`);
+          return '/auth/error?error=AccountInactive';
         }
       }
       return true;
@@ -105,9 +108,12 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
+        token.role = user.role;
+        token.roleId = user.roleId;
         
-        // Fetch user role for credentials login
-        if (account?.provider === 'credentials') {
+        // For credentials login, role is already set in authorize()
+        // For Google login, fetch from database
+        if (account?.provider === 'google') {
           const dbUser = await prisma.user.findUnique({
             where: { id: user.id },
             include: { role: true },
