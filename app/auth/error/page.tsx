@@ -12,6 +12,8 @@ export default function AuthErrorPage() {
     Configuration: 'There is a problem with the server configuration.',
     AccessDenied: 'Access denied. You do not have permission to sign in.',
     Verification: 'The verification token has expired or has already been used.',
+    NotRegistered: 'Your email is not registered in our system. Please contact your administrator to request access.',
+    AccountInactive: 'Your account has been deactivated. Please contact your administrator for assistance.',
     Default: 'An error occurred during authentication.',
   };
 
