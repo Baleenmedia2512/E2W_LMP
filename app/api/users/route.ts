@@ -9,9 +9,10 @@ export async function GET(request: NextRequest) {
       const sess = session as Session;
       const searchParams = request.nextUrl.searchParams;
       const role = searchParams.get('role');
+      const includeInactive = searchParams.get('includeInactive') === 'true';
 
       // Build where clause
-      const where: Record<string, unknown> = {
+      const where: Record<string, unknown> = includeInactive ? {} : {
         isActive: true,
       };
 
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
           id: true,
           name: true,
           email: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
           role: {
             select: {
               id: true,
@@ -36,11 +40,25 @@ export async function GET(request: NextRequest) {
           },
         },
         orderBy: {
-          name: 'asc',
+          createdAt: 'desc',
         },
       });
 
-      return createApiResponse(users);
+      // Format for compatibility with manage users page
+      const formattedUsers = users.map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role.name,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }));
+
+      return createApiResponse({
+        users: formattedUsers,
+        total: formattedUsers.length,
+      });
     } catch (error) {
       console.error('Get users error:', error);
       return createApiError('Failed to fetch users', 500);
