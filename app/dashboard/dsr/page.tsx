@@ -1,859 +1,686 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box,
-  Button,
   Heading,
-  HStack,
-  VStack,
-  Text,
-  SimpleGrid,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  FormControl,
-  FormLabel,
-  Input,
-  Select,
-  Spinner,
   Table,
   Thead,
   Tbody,
   Tr,
   Th,
   Td,
-  useToast,
-  Card,
-  CardBody,
-  CardHeader,
   Badge,
   Flex,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
-  useDisclosure,
+  Button,
+  Select,
+  Input,
+  SimpleGrid,
+  Card,
+  CardBody,
+  VStack,
+  HStack,
+  Text,
   Divider,
-  Progress,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
+  Icon,
+  useToast,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
-import useSWR from 'swr';
-import { fetcher } from '@/lib/swr';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
-import {
-  FiPhone,
-  FiUsers,
-  FiCheckCircle,
-  FiXCircle,
-  FiClock,
-  FiTrendingUp,
-  FiDownload,
-  FiEye,
-  FiCalendar,
-} from 'react-icons/fi';
+import { HiFilter, HiUsers, HiPhone, HiUserAdd, HiClipboardList, HiBan, HiExclamation, HiCheckCircle, HiXCircle } from 'react-icons/hi';
+import { mockLeads, mockCallLogs, mockFollowUps } from '@/lib/mock-data';
+import { formatDate } from '@/lib/date-utils';
+import DSRCard from '@/components/DSRCard';
 
-// Simple Chart Components
-const PieChart = ({ data }: { data: Array<{ status: string; count: number; percentage: number }> }) => {
-  const colors = {
-    new: '#3182CE',
-    followup: '#38A169',
-    unreach: '#E53E3E',
-    unqualified: '#DD6B20',
-    contacted: '#805AD5',
-    qualified: '#D69E2E',
-    converted: '#48BB78',
-  };
-
-  return (
-    <VStack spacing={4} align="stretch">
-      <SimpleGrid columns={2} spacing={4}>
-        {data.map((item, index) => (
-          <Box key={index}>
-            <HStack justify="space-between" mb={2}>
-              <HStack>
-                <Box
-                  w={3}
-                  h={3}
-                  borderRadius="full"
-                  bg={colors[item.status as keyof typeof colors] || 'gray.400'}
-                />
-                <Text fontSize="sm" textTransform="capitalize">
-                  {item.status}
-                </Text>
-              </HStack>
-              <Text fontSize="sm" fontWeight="bold">
-                {item.percentage}%
-              </Text>
-            </HStack>
-            <Progress
-              value={item.percentage}
-              size="sm"
-              colorScheme={
-                item.status === 'converted' ? 'green' :
-                item.status === 'unreach' ? 'red' :
-                item.status === 'followup' ? 'green' : 'blue'
-              }
-              borderRadius="full"
-            />
-            <Text fontSize="xs" color="gray.600" mt={1}>
-              {item.count} leads
-            </Text>
-          </Box>
-        ))}
-      </SimpleGrid>
-    </VStack>
-  );
+// Custom color theme
+const THEME_COLORS = {
+  primary: '#9c5342',
+  dark: '#0b1316',
+  light: '#b4a097',
+  medium: '#7a5f58',
+  accent: '#8c9b96',
 };
 
-const LineChart = ({ data }: { data: Array<{ date: string; avgCallsPerLead: number; totalCalls: number }> }) => {
-  const maxValue = Math.max(...data.map(d => d.avgCallsPerLead), 1);
-  
-  return (
-    <VStack spacing={2} align="stretch">
-      <SimpleGrid columns={7} spacing={2}>
-        {data.map((item, index) => {
-          const heightPercent = (item.avgCallsPerLead / maxValue) * 100;
-          
-          return (
-            <VStack key={index} spacing={1}>
-              <Box
-                bg="blue.500"
-                w="100%"
-                h={`${Math.max(heightPercent, 5)}px`}
-                maxH="120px"
-                borderRadius="md"
-                position="relative"
-                _hover={{
-                  bg: 'blue.600',
-                  cursor: 'pointer',
-                }}
-                title={`${item.avgCallsPerLead.toFixed(2)} avg calls`}
-              />
-              <Text fontSize="xs" color="gray.600">
-                {item.date}
-              </Text>
-              <Text fontSize="xs" fontWeight="bold" color="blue.600">
-                {item.avgCallsPerLead.toFixed(1)}
-              </Text>
-            </VStack>
-          );
-        })}
-      </SimpleGrid>
-    </VStack>
-  );
-};
+// Dropdown options
+const DROPDOWN_OPTIONS = [
+  { value: 'all', label: 'All Agents' },
+  { value: 'ABC', label: 'ABC' },
+  { value: 'EFG', label: 'EFG' },
+  { value: 'HIGK', label: 'HIGK' },
+  { value: 'John Doe', label: 'John Doe' },
+  { value: 'Jane Smith', label: 'Jane Smith' },
+  { value: 'Mike Johnson', label: 'Mike Johnson' },
+  { value: 'Sarah Williams', label: 'Sarah Williams' },
+  { value: 'Tom Brown', label: 'Tom Brown' },
+];
 
 export default function DSRPage() {
-  const { data: session } = useSession();
   const toast = useToast();
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  
+  // Get today's date and set default date range
+  const today = new Date();
+  const todayString = today.toISOString().split('T')[0];
+  
+  // Filter state
+  const [startDate, setStartDate] = useState(todayString);
+  const [endDate, setEndDate] = useState(todayString);
+  const [selectedOption, setSelectedOption] = useState('all');
+  const [isFiltered, setIsFiltered] = useState(false);
+  const [activeCard, setActiveCard] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateRangePreset, setDateRangePreset] = useState('all_time');
 
-  // Date filters
-  const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
-  const [customStartDate, setCustomStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  // Temporary state for filters before applying
+  const [tempStartDate, setTempStartDate] = useState(todayString);
+  const [tempEndDate, setTempEndDate] = useState(todayString);
+  const [tempSelectedOption, setTempSelectedOption] = useState('all');
+  const [tempDateRangePreset, setTempDateRangePreset] = useState('all_time');
 
-  // Calculate date range based on filter
-  const { startDate, endDate } = useMemo(() => {
+  // Handle date range preset changes
+  const handleDateRangePresetChange = (preset: string) => {
+    setTempDateRangePreset(preset);
     const now = new Date();
-    switch (dateFilter) {
-      case 'today':
-        return {
-          startDate: format(startOfDay(now), 'yyyy-MM-dd'),
-          endDate: format(endOfDay(now), 'yyyy-MM-dd'),
-        };
-      case 'yesterday':
-        const yesterday = subDays(now, 1);
-        return {
-          startDate: format(startOfDay(yesterday), 'yyyy-MM-dd'),
-          endDate: format(endOfDay(yesterday), 'yyyy-MM-dd'),
-        };
-      case 'week':
-        return {
-          startDate: format(subDays(now, 6), 'yyyy-MM-dd'),
-          endDate: format(now, 'yyyy-MM-dd'),
-        };
-      case 'month':
-        return {
-          startDate: format(subDays(now, 29), 'yyyy-MM-dd'),
-          endDate: format(now, 'yyyy-MM-dd'),
-        };
-      case 'custom':
-        return {
-          startDate: customStartDate,
-          endDate: customEndDate,
-        };
-      default:
-        return {
-          startDate: format(now, 'yyyy-MM-dd'),
-          endDate: format(now, 'yyyy-MM-dd'),
-        };
-    }
-  }, [dateFilter, customStartDate, customEndDate]);
-
-  // Fetch my performance
-  const { data: myPerformance, isLoading: loadingPerf } = useSWR(
-    `/api/dsr/my-performance?from=${startDate}&to=${endDate}`,
-    fetcher
-  );
-
-  // Fetch agent performance (admin only)
-  const { data: agentPerformance, isLoading: loadingAgents } = useSWR(
-    session?.user?.role === 'SuperAgent' 
-      ? `/api/dsr/agent-performance?from=${startDate}&to=${endDate}`
-      : null,
-    fetcher
-  );
-
-  // Fetch status breakdown
-  const { data: statusBreakdown, isLoading: loadingStatus } = useSWR(
-    `/api/dsr/status-breakdown?from=${startDate}&to=${endDate}`,
-    fetcher
-  );
-
-  // Fetch average calls per lead
-  const { data: avgCallsData, isLoading: loadingAvg } = useSWR(
-    `/api/dsr/average-calls-per-lead?from=${startDate}&to=${endDate}`,
-    fetcher
-  );
-
-  // Fetch most contacted lead
-  const { data: mostContactedLead, isLoading: loadingMostContacted } = useSWR(
-    `/api/dsr/most-contacted-lead?from=${startDate}&to=${endDate}`,
-    fetcher
-  );
-
-  // Fetch attempts for selected lead
-  const { data: attemptsData } = useSWR(
-    selectedLeadId ? `/api/dsr/attempts/${selectedLeadId}` : null,
-    fetcher
-  );
-
-  const handleExportExcel = async () => {
-    try {
-      // Validate data is loaded
-      if (!myPerformance?.data || loadingPerf) {
-        toast({
-          title: 'Data Loading',
-          description: 'Please wait for data to load before exporting',
-          status: 'warning',
-          duration: 3000,
-        });
-        return;
-      }
-
-      toast({
-        title: 'Export Started',
-        description: 'Preparing Excel export...',
-        status: 'info',
-        duration: 2000,
-      });
-
-      // Import export utility dynamically
-      const { exportToExcel } = await import('@/lib/export-utils');
-
-      // Prepare export data with fallbacks
-      const exportData = {
-        performance: myPerformance.data || {},
-        statusBreakdown: statusBreakdown?.data || { breakdown: [] },
-        avgCalls: avgCallsData?.data || {},
-        mostContacted: mostContactedLead?.data || {},
-        agentPerformance: agentPerformance?.data || [],
-        dateRange: {
-          startDate: startDate,
-          endDate: endDate,
-        },
-        userName: session?.user?.name || 'Agent',
-      };
-
-      // Trigger export
-      exportToExcel(exportData);
-
-      toast({
-        title: 'Export Complete',
-        description: 'Excel file downloaded successfully',
-        status: 'success',
-        duration: 3000,
-      });
-    } catch (error) {
-      console.error('Excel export error:', error);
-      toast({
-        title: 'Export Failed',
-        description: error instanceof Error ? error.message : 'Unable to generate Excel file. Please try again.',
-        status: 'error',
-        duration: 4000,
-      });
-    }
-  };
-
-  const handleExportPDF = async () => {
-    try {
-      // Validate data is loaded
-      if (!myPerformance?.data || loadingPerf) {
-        toast({
-          title: 'Data Loading',
-          description: 'Please wait for data to load before exporting',
-          status: 'warning',
-          duration: 3000,
-        });
-        return;
-      }
-
-      toast({
-        title: 'Export Started',
-        description: 'Preparing PDF export...',
-        status: 'info',
-        duration: 2000,
-      });
-
-      // Import export utility dynamically
-      const { exportToPDF } = await import('@/lib/export-utils');
-
-      // Prepare export data with fallbacks
-      const exportData = {
-        performance: myPerformance.data || {},
-        statusBreakdown: statusBreakdown?.data || { breakdown: [] },
-        avgCalls: avgCallsData?.data || {},
-        mostContacted: mostContactedLead?.data || {},
-        agentPerformance: agentPerformance?.data || [],
-        dateRange: {
-          startDate: startDate,
-          endDate: endDate,
-        },
-        userName: session?.user?.name || 'Agent',
-      };
-
-      // Trigger export
-      exportToPDF(exportData);
-
-      toast({
-        title: 'Export Complete',
-        description: 'PDF ready. Use Print dialog to save as PDF.',
-        status: 'success',
-        duration: 4000,
-      });
-    } catch (error) {
-      console.error('PDF export error:', error);
-      toast({
-        title: 'Export Failed',
-        description: error instanceof Error ? error.message : 'Unable to generate PDF file. Please try again.',
-        status: 'error',
-        duration: 4000,
-      });
-    }
-  };
-
-  const handleViewAttempts = (leadId: string) => {
-    setSelectedLeadId(leadId);
-    onOpen();
-  };
-
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    const todayStr = now.toISOString().split('T')[0];
     
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
+    if (preset === 'today') {
+      setTempStartDate(todayStr);
+      setTempEndDate(todayStr);
+    } else if (preset === 'last_week') {
+      const lastWeek = new Date(now);
+      lastWeek.setDate(now.getDate() - 7);
+      setTempStartDate(lastWeek.toISOString().split('T')[0]);
+      setTempEndDate(todayStr);
+    } else if (preset === 'last_month') {
+      const lastMonth = new Date(now);
+      lastMonth.setMonth(now.getMonth() - 1);
+      setTempStartDate(lastMonth.toISOString().split('T')[0]);
+      setTempEndDate(todayStr);
+    } else if (preset === 'all_time') {
+      // For all time, use a very old date to current date
+      const oldDate = new Date(now);
+      oldDate.setFullYear(now.getFullYear() - 5);
+      setTempStartDate(oldDate.toISOString().split('T')[0]);
+      setTempEndDate(todayStr);
     }
-    return `${secs}s`;
+    // For 'custom', don't change dates - user will set them manually
   };
 
-  const isLoading = loadingPerf || loadingStatus || loadingAvg || loadingMostContacted;
+  // Apply filters
+  const handleApplyFilters = () => {
+    setStartDate(tempStartDate);
+    setEndDate(tempEndDate);
+    setSelectedOption(tempSelectedOption);
+    setDateRangePreset(tempDateRangePreset);
+    setIsFiltered(true);
+    
+    toast({
+      title: 'Filters Applied',
+      description: 'DSR data has been updated based on your filters.',
+      status: 'success',
+      duration: 2000,
+      isClosable: true,
+      position: 'top-right',
+    });
+  };
 
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <Spinner size="xl" color="brand.500" />
-      </Box>
-    );
-  }
+  // Reset filters
+  const handleResetFilters = () => {
+    setTempStartDate(todayString);
+    setTempEndDate(todayString);
+    setTempSelectedOption('all');
+    setTempDateRangePreset('all_time');
+    setStartDate(todayString);
+    setEndDate(todayString);
+    setSelectedOption('all');
+    setDateRangePreset('all_time');
+    setIsFiltered(false);
+    setActiveCard(null);
+    setSearchQuery('');
+    
+    toast({
+      title: 'Filters Reset',
+      description: 'All filters have been cleared.',
+      status: 'info',
+      duration: 2000,
+      isClosable: true,
+      position: 'top-right',
+    });
+  };
 
-  const perf = myPerformance?.data || {};
-  const breakdown = statusBreakdown?.data?.breakdown || [];
-  const avgCalls = avgCallsData?.data || {};
-  const mostContacted = mostContactedLead?.data || {};
+  // Handle card click
+  const handleCardClick = (type: string) => {
+    setActiveCard(activeCard === type ? null : type);
+    
+    const cardLabels: Record<string, string> = {
+      newLeads: 'New Leads',
+      followUps: 'Follow-ups',
+      unqualified: 'Unqualified',
+      unreachable: 'Unreachable',
+      win: 'Won Deals',
+      lose: 'Lost Deals',
+    };
+    
+    toast({
+      title: `${cardLabels[type]} Card Selected`,
+      description: `Viewing details for ${cardLabels[type].toLowerCase()}`,
+      status: 'info',
+      duration: 2000,
+      isClosable: true,
+      position: 'top-right',
+    });
+  };
+
+  // Filter and calculate stats
+  const stats = useMemo(() => {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // Filter leads by selected option
+    const filteredLeads = selectedOption === 'all' 
+      ? mockLeads 
+      : mockLeads.filter(lead => 
+          lead.assignedTo?.name === selectedOption || 
+          selectedOption === 'ABC' || 
+          selectedOption === 'EFG' || 
+          selectedOption === 'HIGK'
+        );
+
+    // 1. New Leads Handled Today (within date range)
+    const newLeadsHandledToday = filteredLeads.filter(lead => {
+      const leadDate = new Date(lead.createdAt);
+      return leadDate >= start && leadDate <= end;
+    }).length;
+
+    // 2. Total New Leads (all time for selected option)
+    const totalNewLeads = filteredLeads.length;
+
+    // 3. Follow-ups Handled Today (within date range)
+    const followUpsHandledToday = mockFollowUps.filter(followUp => {
+      const followUpDate = new Date(followUp.scheduledFor);
+      const isInDateRange = followUpDate >= start && followUpDate <= end;
+      
+      const lead = filteredLeads.find(l => l.id === followUp.leadId);
+      return isInDateRange && lead && followUp.status === 'pending';
+    }).length;
+
+    // Total follow-ups
+    const totalFollowUps = mockFollowUps.filter(followUp => {
+      const lead = filteredLeads.find(l => l.id === followUp.leadId);
+      return lead !== undefined;
+    }).length;
+
+    // 4. Unqualified Today
+    const unqualifiedToday = filteredLeads.filter(lead => {
+      const leadDate = new Date(lead.updatedAt);
+      return leadDate >= start && leadDate <= end && lead.status === 'unqualified';
+    }).length;
+
+    // 5. Unreachable Today
+    const unreachableToday = filteredLeads.filter(lead => {
+      const leadDate = new Date(lead.updatedAt);
+      return leadDate >= start && leadDate <= end && lead.status === 'unreach';
+    }).length;
+
+    // 6. Won Deals Today
+    const wonToday = filteredLeads.filter(lead => {
+      const leadDate = new Date(lead.updatedAt);
+      return leadDate >= start && leadDate <= end && lead.status === 'won';
+    }).length;
+
+    // 7. Lost Deals Today
+    const lostToday = filteredLeads.filter(lead => {
+      const leadDate = new Date(lead.updatedAt);
+      return leadDate >= start && leadDate <= end && lead.status === 'lost';
+    }).length;
+
+    return {
+      newLeadsHandledToday,
+      totalNewLeads,
+      followUpsHandledToday,
+      totalFollowUps,
+      unqualifiedToday,
+      unreachableToday,
+      wonToday,
+      lostToday,
+    };
+  }, [startDate, endDate, selectedOption]);
+
+  // Filtered leads for the table
+  const filteredLeads = useMemo(() => {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    let filtered = selectedOption === 'all' 
+      ? [...mockLeads] 
+      : mockLeads.filter(lead => 
+          lead.assignedTo?.name === selectedOption || 
+          selectedOption === 'ABC' || 
+          selectedOption === 'EFG' || 
+          selectedOption === 'HIGK'
+        );
+
+    // Filter by date range (either created date or has follow-up in range)
+    filtered = filtered.filter(lead => {
+      const leadDate = new Date(lead.createdAt);
+      const isLeadInRange = leadDate >= start && leadDate <= end;
+
+      // Check if lead has follow-up in date range
+      const hasFollowUpInRange = mockFollowUps.some(followUp => {
+        const followUpDate = new Date(followUp.scheduledFor);
+        return followUp.leadId === lead.id && 
+               followUpDate >= start && 
+               followUpDate <= end;
+      });
+
+      return isLeadInRange || hasFollowUpInRange;
+    });
+
+    // If a card is active, filter further
+    if (activeCard === 'newLeads') {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.createdAt);
+        return leadDate >= start && leadDate <= end;
+      });
+    } else if (activeCard === 'followUps') {
+      const followUpLeadIds = mockFollowUps
+        .filter(followUp => {
+          const followUpDate = new Date(followUp.scheduledFor);
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          return followUpDate >= start && followUpDate <= end && followUp.status === 'pending';
+        })
+        .map(f => f.leadId);
+      
+      filtered = filtered.filter(lead => followUpLeadIds.includes(lead.id));
+    } else if (activeCard === 'unqualified') {
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.updatedAt);
+        return lead.status === 'unqualified' && leadDate >= start && leadDate <= end;
+      });
+    } else if (activeCard === 'unreachable') {
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.updatedAt);
+        return lead.status === 'unreach' && leadDate >= start && leadDate <= end;
+      });
+    } else if (activeCard === 'win') {
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.updatedAt);
+        return lead.status === 'won' && leadDate >= start && leadDate <= end;
+      });
+    } else if (activeCard === 'lose') {
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.updatedAt);
+        return lead.status === 'lost' && leadDate >= start && leadDate <= end;
+      });
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(lead => 
+        lead.name.toLowerCase().includes(query) ||
+        lead.phone.includes(query) ||
+        (lead.email && lead.email.toLowerCase().includes(query))
+      );
+    }
+
+    return filtered;
+  }, [startDate, endDate, selectedOption, activeCard, searchQuery]);
 
   return (
     <Box>
-      {/* Header */}
       <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
-        <Heading size={{ base: 'md', md: 'lg' }}>📊 Daily Sales Report (DSR)</Heading>
-        <HStack spacing={2}>
-          <Button
-            leftIcon={<FiDownload />}
-            colorScheme="green"
-            size={{ base: 'sm', md: 'md' }}
-            onClick={handleExportExcel}
+        <Heading size={{ base: 'md', md: 'lg' }} color={THEME_COLORS.dark}>
+          Daily Sales Report (DSR)
+        </Heading>
+        {isFiltered && (
+          <Badge 
+            colorScheme="blue" 
+            fontSize="md" 
+            px={3} 
+            py={1}
+            bg={THEME_COLORS.primary}
+            color="white"
           >
-            Export Excel
-          </Button>
-          <Button
-            leftIcon={<FiDownload />}
-            colorScheme="red"
-            size={{ base: 'sm', md: 'md' }}
-            onClick={handleExportPDF}
-          >
-            Export PDF
-          </Button>
-        </HStack>
+            Filtered Results
+          </Badge>
+        )}
       </Flex>
 
-      {/* Date Filters */}
-      <Card mb={6}>
-        <CardBody>
+      {/* Search Bar */}
+      <Card mb={4} boxShadow="md">
+        <CardBody p={{ base: 3, md: 4 }}>
+          <Input
+            placeholder="Search name, phone or email"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size={{ base: 'md', md: 'lg' }}
+            borderColor={THEME_COLORS.light}
+            _hover={{ borderColor: THEME_COLORS.primary }}
+            _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+            fontSize={{ base: 'sm', md: 'md' }}
+          />
+        </CardBody>
+      </Card>
+
+      {/* Filters Section */}
+      <Card mb={6} boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.primary}>
+        <CardBody p={{ base: 4, md: 6 }}>
           <VStack spacing={4} align="stretch">
-            <HStack spacing={4} flexWrap="wrap">
-              <FormControl maxW={{ base: 'full', md: '200px' }}>
-                <FormLabel fontSize="sm">Date Range</FormLabel>
-                <Select
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value as any)}
-                  size="sm"
-                >
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="custom">Custom Range</option>
-                </Select>
-              </FormControl>
-
-              {dateFilter === 'custom' && (
-                <>
-                  <FormControl maxW={{ base: 'full', md: '180px' }}>
-                    <FormLabel fontSize="sm">Start Date</FormLabel>
-                    <Input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      size="sm"
-                    />
-                  </FormControl>
-                  <FormControl maxW={{ base: 'full', md: '180px' }}>
-                    <FormLabel fontSize="sm">End Date</FormLabel>
-                    <Input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      size="sm"
-                    />
-                  </FormControl>
-                </>
-              )}
-            </HStack>
-
-            <HStack>
-              <FiCalendar />
-              <Text fontSize="sm" color="gray.600">
-                Showing data from <strong>{format(new Date(startDate), 'MMM dd, yyyy')}</strong> to{' '}
-                <strong>{format(new Date(endDate), 'MMM dd, yyyy')}</strong>
+            <Heading size={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.dark}>
+              <Icon as={HiFilter} mr={2} color={THEME_COLORS.primary} />
+              Filter Options
+            </Heading>
+            
+            {/* Date Range Preset Dropdown */}
+            <Box>
+              <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                Date Range
               </Text>
-            </HStack>
+              <Select
+                value={tempDateRangePreset}
+                onChange={(e) => handleDateRangePresetChange(e.target.value)}
+                borderColor={THEME_COLORS.light}
+                _hover={{ borderColor: THEME_COLORS.primary }}
+                _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                size={{ base: 'sm', md: 'md' }}
+              >
+                <option value="all_time">All Time</option>
+                <option value="today">Today</option>
+                <option value="last_week">Last Week</option>
+                <option value="last_month">Last Month</option>
+                <option value="custom">Custom</option>
+              </Select>
+            </Box>
+
+            {/* Conditional Date Inputs - Only show when Custom is selected */}
+            {tempDateRangePreset === 'custom' && (
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
+                <Box>
+                  <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                    Start Date
+                  </Text>
+                  <Input
+                    type="date"
+                    value={tempStartDate}
+                    onChange={(e) => setTempStartDate(e.target.value)}
+                    max={tempEndDate}
+                    borderColor={THEME_COLORS.light}
+                    _hover={{ borderColor: THEME_COLORS.primary }}
+                    _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                    size={{ base: 'sm', md: 'md' }}
+                  />
+                </Box>
+
+                <Box>
+                  <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                    End Date
+                  </Text>
+                  <Input
+                    type="date"
+                    value={tempEndDate}
+                    onChange={(e) => setTempEndDate(e.target.value)}
+                    min={tempStartDate}
+                    borderColor={THEME_COLORS.light}
+                    _hover={{ borderColor: THEME_COLORS.primary }}
+                    _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                    size={{ base: 'sm', md: 'md' }}
+                  />
+                </Box>
+              </SimpleGrid>
+            )}
+            
+            <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
+              <Box>
+                <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                  Select Option
+                </Text>
+                <Select
+                  value={tempSelectedOption}
+                  onChange={(e) => setTempSelectedOption(e.target.value)}
+                  borderColor={THEME_COLORS.light}
+                  _hover={{ borderColor: THEME_COLORS.primary }}
+                  _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                  size={{ base: 'sm', md: 'md' }}
+                >
+                  {DROPDOWN_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </Box>
+
+              <Flex align="flex-end" gap={2} direction={{ base: 'column', sm: 'row' }} width={{ base: 'full', sm: 'auto' }}>
+                <Button
+                  bg={THEME_COLORS.primary}
+                  color="white"
+                  leftIcon={<HiFilter />}
+                  onClick={handleApplyFilters}
+                  flex={{ base: '1', sm: 'auto' }}
+                  width={{ base: 'full', sm: 'auto' }}
+                  size={{ base: 'sm', md: 'md' }}
+                  _hover={{ bg: THEME_COLORS.medium }}
+                  _active={{ bg: THEME_COLORS.dark }}
+                >
+                  Apply Filters
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleResetFilters}
+                  borderColor={THEME_COLORS.light}
+                  color={THEME_COLORS.medium}
+                  width={{ base: 'full', sm: 'auto' }}
+                  size={{ base: 'sm', md: 'md' }}
+                  _hover={{ bg: THEME_COLORS.light, color: 'white' }}
+                >
+                  Reset
+                </Button>
+              </Flex>
+            </SimpleGrid>
+
+            {(isFiltered || searchQuery) && (
+              <Box>
+                <Divider my={2} borderColor={THEME_COLORS.light} />
+                <Text fontSize="sm" color={THEME_COLORS.medium}>
+                  Showing results from <strong>{formatDate(new Date(startDate))}</strong> to{' '}
+                  <strong>{formatDate(new Date(endDate))}</strong>
+                  {selectedOption !== 'all' && (
+                    <> for option <strong>{selectedOption}</strong></>
+                  )}
+                  {searchQuery && (
+                    <> matching search <strong>"{searchQuery}"</strong></>
+                  )}
+                </Text>
+              </Box>
+            )}
           </VStack>
         </CardBody>
       </Card>
 
-      <Tabs colorScheme="blue" variant="enclosed">
-        <TabList>
-          <Tab>My Performance</Tab>
-          {session?.user?.role === 'SuperAgent' && <Tab>Team Performance</Tab>}
-          <Tab>Analytics</Tab>
-        </TabList>
+      {/* Stats Grid - Clickable DSR Cards - All 6 in one row */}
+      <SimpleGrid columns={{ base: 2, sm: 3, lg: 6 }} spacing={{ base: 3, md: 4 }} mb={6}>
+        {/* New Leads Card */}
+        <DSRCard
+          label="New Leads Handled"
+          value={stats.newLeadsHandledToday}
+          total={stats.totalNewLeads}
+          helpText="Within selected date range"
+          icon={HiUserAdd}
+          colorScheme="primary"
+          type="newLeads"
+          onClick={handleCardClick}
+          isActive={activeCard === 'newLeads'}
+        />
 
-        <TabPanels>
-          {/* US-024: My Daily Performance */}
-          <TabPanel px={0}>
-            <VStack spacing={6} align="stretch">
-              {/* Performance Metrics */}
-              <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={4}>
-                <Card>
-                  <CardBody>
-                    <Stat>
-                      <HStack mb={2}>
-                        <Box p={2} bg="blue.100" borderRadius="md">
-                          <FiPhone color="blue" />
-                        </Box>
-                      </HStack>
-                      <StatLabel>Total Calls Made</StatLabel>
-                      <StatNumber fontSize="3xl">{perf.totalCalls || 0}</StatNumber>
-                      <StatHelpText>
-                        <HStack spacing={4} fontSize="xs">
-                          <Badge colorScheme="green">✓ {perf.answeredCalls || 0}</Badge>
-                          <Badge colorScheme="red">✗ {perf.notAnsweredCalls || 0}</Badge>
-                        </HStack>
-                      </StatHelpText>
-                    </Stat>
-                  </CardBody>
-                </Card>
+        {/* Follow-ups Card */}
+        <DSRCard
+          label="Follow-ups Handled"
+          value={stats.followUpsHandledToday}
+          total={stats.totalFollowUps}
+          helpText="Pending follow-ups in range"
+          icon={HiClipboardList}
+          colorScheme="medium"
+          type="followUps"
+          onClick={handleCardClick}
+          isActive={activeCard === 'followUps'}
+        />
 
-                <Card>
-                  <CardBody>
-                    <Stat>
-                      <HStack mb={2}>
-                        <Box p={2} bg="purple.100" borderRadius="md">
-                          <FiClock color="purple" />
-                        </Box>
-                      </HStack>
-                      <StatLabel>Total Talk Time</StatLabel>
-                      <StatNumber fontSize="3xl">
-                        {formatDuration(perf.totalTalkTime || 0)}
-                      </StatNumber>
-                      <StatHelpText>
-                        Avg: {formatDuration(perf.avgCallDuration || 0)} per call
-                      </StatHelpText>
-                    </Stat>
-                  </CardBody>
-                </Card>
+        {/* Unqualified Card */}
+        <DSRCard
+          label="Unqualified Today"
+          value={stats.unqualifiedToday}
+          helpText="Leads marked unqualified"
+          icon={HiBan}
+          colorScheme="accent"
+          type="unqualified"
+          onClick={handleCardClick}
+          isActive={activeCard === 'unqualified'}
+        />
 
-                <Card>
-                  <CardBody>
-                    <Stat>
-                      <HStack mb={2}>
-                        <Box p={2} bg="orange.100" borderRadius="md">
-                          <FiUsers color="orange" />
-                        </Box>
-                      </HStack>
-                      <StatLabel>Leads Contacted</StatLabel>
-                      <StatNumber fontSize="3xl">{perf.uniqueLeadsContacted || 0}</StatNumber>
-                      <StatHelpText>
-                        {perf.newLeadsHandled || 0} new leads
-                      </StatHelpText>
-                    </Stat>
-                  </CardBody>
-                </Card>
+        {/* Unreachable Card */}
+        <DSRCard
+          label="Unreachable Today"
+          value={stats.unreachableToday}
+          helpText="Leads marked unreachable"
+          icon={HiExclamation}
+          colorScheme="dark"
+          type="unreachable"
+          onClick={handleCardClick}
+          isActive={activeCard === 'unreachable'}
+        />
 
-                <Card>
-                  <CardBody>
-                    <Stat>
-                      <HStack mb={2}>
-                        <Box p={2} bg="green.100" borderRadius="md">
-                          <FiCheckCircle color="green" />
-                        </Box>
-                      </HStack>
-                      <StatLabel>Follow-ups</StatLabel>
-                      <StatNumber fontSize="3xl">
-                        {perf.followUpsCompleted || 0}/{perf.followUpsScheduled || 0}
-                      </StatNumber>
-                      <StatHelpText>
-                        {perf.followUpsScheduled > 0
-                          ? `${Math.round((perf.followUpsCompleted / perf.followUpsScheduled) * 100)}% completed`
-                          : 'No follow-ups'}
-                      </StatHelpText>
-                    </Stat>
-                  </CardBody>
-                </Card>
-              </SimpleGrid>
+        {/* Won Deals Card */}
+        <DSRCard
+          label="Won Deals Today"
+          value={stats.wonToday}
+          helpText="Successfully closed deals"
+          icon={HiCheckCircle}
+          colorScheme="primary"
+          type="win"
+          onClick={handleCardClick}
+          isActive={activeCard === 'win'}
+        />
 
-              {/* Additional Metrics */}
-              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-                <Card bg="red.50" borderLeft="4px solid" borderColor="red.500">
-                  <CardBody>
-                    <Stat>
-                      <StatLabel color="red.700">Unreachable</StatLabel>
-                      <StatNumber color="red.600">{perf.unreachableCount || 0}</StatNumber>
-                      <StatHelpText>Leads marked unreachable</StatHelpText>
-                    </Stat>
-                  </CardBody>
-                </Card>
+        {/* Lost Deals Card */}
+        <DSRCard
+          label="Lost Deals Today"
+          value={stats.lostToday}
+          helpText="Deals marked as lost"
+          icon={HiXCircle}
+          colorScheme="medium"
+          type="lose"
+          onClick={handleCardClick}
+          isActive={activeCard === 'lose'}
+        />
+      </SimpleGrid>
 
-                <Card bg="orange.50" borderLeft="4px solid" borderColor="orange.500">
-                  <CardBody>
-                    <Stat>
-                      <StatLabel color="orange.700">Unqualified</StatLabel>
-                      <StatNumber color="orange.600">{perf.unqualifiedCount || 0}</StatNumber>
-                      <StatHelpText>Leads marked unqualified</StatHelpText>
-                    </Stat>
-                  </CardBody>
-                </Card>
-
-                <Card bg="blue.50" borderLeft="4px solid" borderColor="blue.500">
-                  <CardBody>
-                    <Stat>
-                      <StatLabel color="blue.700">Follow-up Calls</StatLabel>
-                      <StatNumber color="blue.600">{perf.followUpCalls || 0}</StatNumber>
-                      <StatHelpText>Calls on existing leads</StatHelpText>
-                    </Stat>
-                  </CardBody>
-                </Card>
-              </SimpleGrid>
-            </VStack>
-          </TabPanel>
-
-          {/* US-025: All Agent Performance */}
-          {session?.user?.role === 'SuperAgent' && (
-            <TabPanel px={0}>
-              <Card>
-                <CardHeader>
-                  <Heading size="md">Team Performance Overview</Heading>
-                </CardHeader>
-                <CardBody>
-                  {loadingAgents ? (
-                    <Flex justify="center" py={8}>
-                      <Spinner />
-                    </Flex>
-                  ) : (
-                    <Box overflowX="auto">
-                      <Table variant="simple" size="sm">
-                        <Thead bg="gray.50">
-                          <Tr>
-                            <Th>Agent Name</Th>
-                            <Th isNumeric>Total Calls</Th>
-                            <Th isNumeric>Answered</Th>
-                            <Th isNumeric>Not Answered</Th>
-                            <Th isNumeric>Follow-ups</Th>
-                            <Th isNumeric>Talk Time</Th>
-                            <Th isNumeric>Avg Duration</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {agentPerformance?.data?.map((agent: any) => (
-                            <Tr key={agent.agentId} _hover={{ bg: 'gray.50' }}>
-                              <Td>
-                                <VStack align="start" spacing={0}>
-                                  <Text fontWeight="medium">{agent.agentName}</Text>
-                                  <Text fontSize="xs" color="gray.500">
-                                    {agent.agentEmail}
-                                  </Text>
-                                </VStack>
-                              </Td>
-                              <Td isNumeric fontWeight="bold">{agent.totalCalls}</Td>
-                              <Td isNumeric>
-                                <Badge colorScheme="green">{agent.answeredCalls}</Badge>
-                              </Td>
-                              <Td isNumeric>
-                                <Badge colorScheme="red">{agent.notAnsweredCalls}</Badge>
-                              </Td>
-                              <Td isNumeric>{agent.followUps}</Td>
-                              <Td isNumeric>{formatDuration(agent.totalTalkTime)}</Td>
-                              <Td isNumeric>{formatDuration(agent.avgDuration)}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </Box>
-                  )}
-                </CardBody>
-              </Card>
-            </TabPanel>
-          )}
-
-          {/* Analytics Tab */}
-          <TabPanel px={0}>
-            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-              {/* US-026: Status Breakdown */}
-              <Card>
-                <CardHeader>
-                  <Heading size="md">Status Distribution</Heading>
-                  <Text fontSize="sm" color="gray.600" mt={1}>
-                    Lead status breakdown for selected period
-                  </Text>
-                </CardHeader>
-                <CardBody>
-                  {breakdown.length > 0 ? (
-                    <PieChart data={breakdown} />
-                  ) : (
-                    <Text color="gray.500" textAlign="center" py={8}>
-                      No data available
-                    </Text>
-                  )}
-                </CardBody>
-              </Card>
-
-              {/* US-028: Average Calls Per Lead */}
-              <Card>
-                <CardHeader>
-                  <Heading size="md">Average Calls Per Lead</Heading>
-                  <Text fontSize="sm" color="gray.600" mt={1}>
-                    Last 7 days trend
-                  </Text>
-                </CardHeader>
-                <CardBody>
-                  <VStack spacing={4} align="stretch">
-                    <SimpleGrid columns={3} spacing={4}>
-                      <Box>
-                        <Text fontSize="xs" color="gray.600">Total Leads</Text>
-                        <Text fontSize="2xl" fontWeight="bold">
-                          {avgCalls.totalLeadsWorked || 0}
-                        </Text>
-                      </Box>
-                      <Box>
-                        <Text fontSize="xs" color="gray.600">Total Calls</Text>
-                        <Text fontSize="2xl" fontWeight="bold">
-                          {avgCalls.totalCalls || 0}
-                        </Text>
-                      </Box>
-                      <Box>
-                        <Text fontSize="xs" color="gray.600">Average</Text>
-                        <Text fontSize="2xl" fontWeight="bold" color="blue.600">
-                          {avgCalls.avgCallsPerLead?.toFixed(2) || '0.00'}
-                        </Text>
-                      </Box>
-                    </SimpleGrid>
-                    
-                    <Divider />
-                    
-                    {avgCalls.trend && avgCalls.trend.length > 0 ? (
-                      <LineChart data={avgCalls.trend} />
-                    ) : (
-                      <Text color="gray.500" textAlign="center" py={4}>
-                        No trend data available
-                      </Text>
-                    )}
-                  </VStack>
-                </CardBody>
-              </Card>
-
-              {/* US-029: Most Contacted Lead */}
-              <Card gridColumn={{ base: '1', lg: 'span 2' }}>
-                <CardHeader>
-                  <Heading size="md">Most Contacted Lead</Heading>
-                  <Text fontSize="sm" color="gray.600" mt={1}>
-                    Lead with highest number of call attempts
-                  </Text>
-                </CardHeader>
-                <CardBody>
-                  {mostContacted.lead ? (
-                    <HStack
-                      p={4}
-                      bg="blue.50"
-                      borderRadius="lg"
-                      justify="space-between"
-                      flexWrap="wrap"
-                      spacing={4}
-                    >
-                      <VStack align="start" spacing={2} flex="1">
-                        <Text fontWeight="bold" fontSize="lg" color="blue.700">
-                          {mostContacted.lead.name}
-                        </Text>
-                        <HStack spacing={4} flexWrap="wrap">
-                          <HStack>
-                            <FiPhone size={14} />
-                            <Text fontSize="sm">{mostContacted.lead.phone}</Text>
-                          </HStack>
-                          <Badge colorScheme="blue" fontSize="sm">
-                            {mostContacted.attemptCount} attempts
-                          </Badge>
-                          <Badge
-                            colorScheme={
-                              mostContacted.lastCallStatus === 'answered' ? 'green' : 'orange'
-                            }
-                            fontSize="sm"
-                          >
-                            Last: {mostContacted.lastCallStatus || 'N/A'}
-                          </Badge>
-                        </HStack>
-                      </VStack>
-                      <Button
-                        leftIcon={<FiEye />}
-                        colorScheme="blue"
-                        size="sm"
-                        onClick={() => handleViewAttempts(mostContacted.lead.id)}
-                      >
-                        View Attempts
-                      </Button>
-                    </HStack>
-                  ) : (
-                    <Text color="gray.500" textAlign="center" py={8}>
-                      No call data available for this period
-                    </Text>
-                  )}
-                </CardBody>
-              </Card>
-            </SimpleGrid>
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
-
-      {/* Modal for viewing call attempts */}
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Call Attempts History</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            {attemptsData?.data ? (
-              <VStack spacing={4} align="stretch">
-                <Box p={4} bg="gray.50" borderRadius="md">
-                  <Text fontWeight="bold" fontSize="lg">
-                    {attemptsData.data.lead?.name}
-                  </Text>
-                  <Text fontSize="sm" color="gray.600">
-                    {attemptsData.data.lead?.phone}
-                  </Text>
-                  <Badge mt={2} colorScheme="blue">
-                    Total Attempts: {attemptsData.data.totalAttempts}
-                  </Badge>
-                </Box>
-
-                <Divider />
-
-                <VStack spacing={3} align="stretch" maxH="400px" overflowY="auto">
-                  {attemptsData.data.attempts?.map((attempt: any, index: number) => (
-                    <Box
-                      key={attempt.id}
-                      p={3}
-                      bg="white"
-                      borderWidth="1px"
-                      borderRadius="md"
-                      _hover={{ bg: 'gray.50' }}
-                    >
-                      <HStack justify="space-between" mb={2}>
-                        <Badge colorScheme="gray">Attempt #{index + 1}</Badge>
-                        <Badge
-                          colorScheme={
-                            attempt.callStatus === 'answered'
-                              ? 'green'
-                              : attempt.callStatus === 'not_answered'
-                              ? 'red'
-                              : 'orange'
-                          }
-                        >
-                          {attempt.callStatus || 'N/A'}
-                        </Badge>
-                      </HStack>
-                      <VStack align="start" spacing={1} fontSize="sm">
-                        <HStack>
-                          <FiClock size={12} />
-                          <Text>
-                            {format(new Date(attempt.startedAt), 'MMM dd, yyyy HH:mm')}
-                          </Text>
-                        </HStack>
-                        {attempt.duration && (
-                          <Text color="gray.600">
-                            Duration: {formatDuration(attempt.duration)}
-                          </Text>
-                        )}
-                        {attempt.remarks && (
-                          <Text color="gray.600" fontSize="xs">
-                            Remarks: {attempt.remarks}
-                          </Text>
-                        )}
-                      </VStack>
-                    </Box>
-                  ))}
-                </VStack>
-              </VStack>
-            ) : (
-              <Flex justify="center" py={8}>
-                <Spinner />
-              </Flex>
+      {/* Filtered Leads Table */}
+      <Card boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.primary}>
+        <CardBody p={0}>
+          <Box p={4} bg={THEME_COLORS.light} bgGradient={`linear(to-r, ${THEME_COLORS.light}, ${THEME_COLORS.accent})`} borderTopRadius="lg">
+            <Flex justify="space-between" align="center">
+              <Heading size="md" color="white">
+                {activeCard ? `Filtered by ${activeCard}` : 'All Filtered Leads'}
+              </Heading>
+              <Badge 
+                bg="white" 
+                color={THEME_COLORS.primary}
+                fontSize="md"
+                px={3}
+                py={1}
+              >
+                {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
+              </Badge>
+            </Flex>
+            {activeCard && (
+              <Text fontSize="sm" color="white" mt={2}>
+                Click the card again to view all leads
+              </Text>
             )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+          </Box>
+
+          <Box overflowX="auto">
+            <Table variant="simple">
+              <Thead bg="gray.50">
+                <Tr>
+                  <Th color={THEME_COLORS.dark}>Lead Name</Th>
+                  <Th color={THEME_COLORS.dark}>Phone</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', md: 'table-cell' }}>Email</Th>
+                  <Th color={THEME_COLORS.dark}>Status</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Source</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Assigned To</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', sm: 'table-cell' }}>Created Date</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Campaign</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {filteredLeads.length > 0 ? (
+                  filteredLeads.map((lead) => (
+                    <Tr 
+                      key={lead.id} 
+                      _hover={{ bg: `${THEME_COLORS.light}20` }}
+                      transition="all 0.2s"
+                    >
+                      <Td fontWeight="medium" color={THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
+                        {lead.name}
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">{lead.phone}</Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', md: 'table-cell' }}>{lead.email || '-'}</Td>
+                      <Td>
+                        <Badge
+                          bg={
+                            lead.status === 'new' ? THEME_COLORS.primary :
+                            lead.status === 'followup' ? THEME_COLORS.medium :
+                            lead.status === 'qualified' ? THEME_COLORS.accent :
+                            lead.status === 'won' ? THEME_COLORS.accent :
+                            lead.status === 'lost' ? THEME_COLORS.dark :
+                            THEME_COLORS.light
+                          }
+                          color="white"
+                          fontSize={{ base: 'xs', md: 'sm' }}
+                        >
+                          {lead.status.toUpperCase()}
+                        </Badge>
+                      </Td>
+                      <Td display={{ base: 'none', lg: 'table-cell' }}>
+                        <Badge 
+                          bg={THEME_COLORS.accent}
+                          color="white"
+                          variant="subtle"
+                          fontSize={{ base: 'xs', md: 'sm' }}
+                        >
+                          {lead.source}
+                        </Badge>
+                      </Td>
+                      <Td color={THEME_COLORS.medium} fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>{lead.assignedTo?.name || 'Unassigned'}</Td>
+                      <Td whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', sm: 'table-cell' }}>{formatDate(lead.createdAt)}</Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>{lead.campaign || '-'}</Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td colSpan={8} textAlign="center" py={8}>
+                      <Text color={THEME_COLORS.medium}>
+                        No leads found for the selected filters
+                      </Text>
+                    </Td>
+                  </Tr>
+                )}
+              </Tbody>
+            </Table>
+          </Box>
+        </CardBody>
+      </Card>
     </Box>
   );
 }

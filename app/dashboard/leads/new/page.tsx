@@ -1,327 +1,241 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import {
   Box,
-  Button,
-  FormControl,
-  FormLabel,
+  Heading,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Badge,
+  Text,
+  HStack,
+  VStack,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  IconButton,
+  InputGroup,
+  InputLeftElement,
   Input,
   Select,
-  Textarea,
-  VStack,
-  Heading,
-  useToast,
-  Card,
-  CardBody,
-  SimpleGrid,
-  Text,
+  Button,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { mutate } from 'swr';
-import useSWR from 'swr';
-import { fetcher } from '@/lib/swr';
+import { HiDotsVertical, HiEye, HiPhone, HiSearch } from 'react-icons/hi';
+import { mockLeads } from '@/lib/mock-data';
+import { formatDate } from '@/lib/date-utils';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: {
-    name: string;
-  };
-}
-
-interface UsersResponse {
-  success: boolean;
-  data: User[];
-}
-
-export default function NewLeadPage() {
-  const { data: session, status } = useSession();
+export default function NewLeadsPage() {
   const router = useRouter();
-  const toast = useToast();
-  const [loading, setLoading] = useState(false);
+  
+  // State for filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  // Fetch agents for SuperAgent assignment dropdown
-  const { data: usersResponse } = useSWR<UsersResponse>(
-    session?.user?.role === 'SuperAgent' ? '/api/users?role=Agent' : null,
-    fetcher
-  );
+  // Filter new leads
+  const newLeads = useMemo(() => {
+    let filtered = mockLeads.filter(lead => lead.status === 'new');
 
-  const agents = usersResponse?.data || [];
-  const isSuperAgent = session?.user?.role === 'SuperAgent';
-
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    alternatePhone: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    source: 'Website',
-    campaign: '',
-    priority: 'medium',
-    assignedToId: '',
-    notes: '',
-  });
-
-  if (status === 'loading') {
-    return <Box p={8}>Loading...</Box>;
-  }
-
-  if (!session) {
-    router.push('/auth/signin');
-    return null;
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      // Prepare payload - remove assignedToId if empty string
-      const payload = {
-        ...formData,
-        assignedToId: formData.assignedToId || null,
-      };
-
-      const response = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create lead');
-      }
-
-      toast({
-        title: 'Lead created successfully',
-        description: result.message || 'The lead has been added to the system',
-        status: 'success',
-        duration: 3000,
-      });
-
-      // Refresh the leads list cache
-      mutate('/api/leads');
-
-      router.push('/dashboard/leads');
-    } catch (error) {
-      toast({
-        title: 'Error creating lead',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        status: 'error',
-        duration: 5000,
-      });
-    } finally {
-      setLoading(false);
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (lead) =>
+          lead.name.toLowerCase().includes(query) ||
+          lead.phone.toLowerCase().includes(query) ||
+          lead.email?.toLowerCase().includes(query)
+      );
     }
-  };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+    // Date filter
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      filtered = filtered.filter((lead) => {
+        const leadDate = new Date(lead.createdAt);
+        const leadDay = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
+        
+        if (dateFilter === 'today') {
+          return leadDay.getTime() === today.getTime();
+        } else if (dateFilter === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return leadDay >= weekAgo;
+        } else if (dateFilter === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          return leadDay >= monthAgo;
+        } else if (dateFilter === 'custom' && startDate && endDate) {
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          return leadDate >= start && leadDate <= end;
+        }
+        return true;
+      });
+    }
+
+    return filtered;
+  }, [searchQuery, dateFilter, startDate, endDate]);
 
   return (
-    <Box p={8}>
+    <Box>
       <Heading size="lg" mb={6}>
-        Create New Lead
+        New Leads ({newLeads.length})
       </Heading>
 
-      <Card>
-        <CardBody>
-          <form onSubmit={handleSubmit}>
-            <VStack spacing={6} align="stretch">
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Name</FormLabel>
-                  <Input
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Enter lead name"
-                  />
-                </FormControl>
+      {/* Filter Section */}
+      <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
+        <VStack spacing={3} align="stretch">
+          <HStack spacing={{ base: 2, md: 4 }} flexWrap="wrap">
+            <InputGroup maxW={{ base: 'full', md: '300px' }} flex={{ base: '1 1 100%', md: '0 1 auto' }}>
+              <InputLeftElement>
+                <HiSearch />
+              </InputLeftElement>
+              <Input
+                placeholder="Search name, phone or email"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                size={{ base: 'sm', md: 'md' }}
+              />
+            </InputGroup>
 
-                <FormControl isRequired>
-                  <FormLabel>Phone</FormLabel>
-                  <Input
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+919876543210"
-                  />
-                </FormControl>
+            <Select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as 'all' | 'today' | 'week' | 'month' | 'custom')}
+              maxW={{ base: 'full', sm: '150px', md: '200px' }}
+              flex={{ base: '1 1 48%', md: '0 1 auto' }}
+              size={{ base: 'sm', md: 'md' }}
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last Week</option>
+              <option value="month">Last Month</option>
+              <option value="custom">Custom</option>
+            </Select>
 
-                <FormControl>
-                  <FormLabel>Email</FormLabel>
-                  <Input
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="lead@example.com"
-                  />
-                </FormControl>
+            {(searchQuery || dateFilter !== 'all') && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSearchQuery('');
+                  setDateFilter('all');
+                  setStartDate('');
+                  setEndDate('');
+                }}
+              >
+                Clear Filters
+              </Button>
+            )}
+          </HStack>
 
-                <FormControl>
-                  <FormLabel>Alternate Phone</FormLabel>
-                  <Input
-                    name="alternatePhone"
-                    value={formData.alternatePhone}
-                    onChange={handleChange}
-                    placeholder="+919876543211"
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>City</FormLabel>
-                  <Input
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                    placeholder="Enter city"
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>State</FormLabel>
-                  <Input
-                    name="state"
-                    value={formData.state}
-                    onChange={handleChange}
-                    placeholder="Enter state"
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Pincode</FormLabel>
-                  <Input
-                    name="pincode"
-                    value={formData.pincode}
-                    onChange={handleChange}
-                    placeholder="560001"
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel>Source</FormLabel>
-                  <Select name="source" value={formData.source} onChange={handleChange}>
-                    <option value="Website">Website</option>
-                    <option value="Meta">Meta</option>
-                    <option value="Referral">Referral</option>
-                    <option value="Cold Call">Cold Call</option>
-                    <option value="WhatsApp">WhatsApp</option>
-                    <option value="Direct">Direct</option>
-                  </Select>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Campaign</FormLabel>
-                  <Input
-                    name="campaign"
-                    value={formData.campaign}
-                    onChange={handleChange}
-                    placeholder="Campaign name"
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel>Priority</FormLabel>
-                  <Select name="priority" value={formData.priority} onChange={handleChange}>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </Select>
-                </FormControl>
-
-                {/* Show Assign To dropdown only for SuperAgent */}
-                {isSuperAgent && (
-                  <FormControl>
-                    <FormLabel>Assign To</FormLabel>
-                    <Select
-                      name="assignedToId"
-                      value={formData.assignedToId}
-                      onChange={handleChange}
-                      placeholder="Leave Unassigned"
-                    >
-                      {agents.map((agent) => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.name} ({agent.email})
-                        </option>
-                      ))}
-                    </Select>
-                    <Text fontSize="xs" color="gray.600" mt={1}>
-                      Leave empty to keep lead unassigned
-                    </Text>
-                  </FormControl>
-                )}
-
-                {/* Show info message for regular agents */}
-                {!isSuperAgent && (
-                  <Box
-                    p={3}
-                    bg="blue.50"
-                    borderRadius="md"
-                    borderLeft="4px solid"
-                    borderColor="blue.500"
-                  >
-                    <Text fontSize="sm" color="blue.700">
-                      This lead will be automatically assigned to you
-                    </Text>
-                  </Box>
-                )}
-              </SimpleGrid>
-
-              <FormControl>
-                <FormLabel>Address</FormLabel>
-                <Textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  placeholder="Enter full address"
-                  rows={2}
+          {/* Custom Date Range */}
+          {dateFilter === 'custom' && (
+            <HStack spacing={3} flexWrap="wrap">
+              <Box flex={{ base: '1 1 100%', sm: '1 1 48%', md: '0 1 auto' }}>
+                <Text fontSize="sm" mb={1} fontWeight="medium">
+                  Start Date
+                </Text>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  size={{ base: 'sm', md: 'md' }}
                 />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Notes</FormLabel>
-                <Textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  placeholder="Additional notes about the lead"
-                  rows={4}
-                />
-              </FormControl>
-
-              <Box display="flex" gap={4}>
-                <Button
-                  type="submit"
-                  colorScheme="blue"
-                  isLoading={loading}
-                  loadingText="Creating..."
-                >
-                  Create Lead
-                </Button>
-                <Button variant="outline" onClick={() => router.back()}>
-                  Cancel
-                </Button>
               </Box>
-            </VStack>
-          </form>
-        </CardBody>
-      </Card>
+              <Box flex={{ base: '1 1 100%', sm: '1 1 48%', md: '0 1 auto' }}>
+                <Text fontSize="sm" mb={1} fontWeight="medium">
+                  End Date
+                </Text>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate}
+                  size={{ base: 'sm', md: 'md' }}
+                />
+              </Box>
+            </HStack>
+          )}
+        </VStack>
+      </Box>
+
+      <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+        <Box overflowX="auto">
+          <Table variant="simple">
+            <Thead>
+              <Tr>
+                <Th>Name</Th>
+                <Th>Phone</Th>
+                <Th>Email</Th>
+                <Th>Source</Th>
+                <Th>Campaign</Th>
+                <Th>Assigned To</Th>
+                <Th>Created At</Th>
+                <Th>Actions</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {newLeads.map((lead) => (
+                <Tr key={lead.id}>
+                  <Td fontWeight="medium">{lead.name}</Td>
+                  <Td>{lead.phone}</Td>
+                  <Td>{lead.email || '-'}</Td>
+                  <Td>
+                    <Badge colorScheme="purple">{lead.source}</Badge>
+                  </Td>
+                  <Td>{lead.campaign || '-'}</Td>
+                  <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
+                  <Td>{formatDate(lead.createdAt)}</Td>
+                  <Td>
+                    <Menu>
+                      <MenuButton
+                        as={IconButton}
+                        icon={<HiDotsVertical />}
+                        variant="ghost"
+                        size="sm"
+                      />
+                      <MenuList>
+                        <MenuItem
+                          icon={<HiEye />}
+                          onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                        >
+                          View Details
+                        </MenuItem>
+                        <MenuItem
+                          icon={<HiPhone />}
+                          onClick={() => router.push(`/dashboard/leads/${lead.id}/call`)}
+                        >
+                          Call Lead
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Box>
+
+        {newLeads.length === 0 && (
+          <Box p={8} textAlign="center">
+            <Text color="gray.500">
+              {searchQuery || dateFilter !== 'all'
+                ? 'No new leads match your filters'
+                : 'No new leads'}
+            </Text>
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 }

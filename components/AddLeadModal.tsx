@@ -15,28 +15,9 @@ import {
   VStack,
   SimpleGrid,
   useToast,
-  Text,
-  Box,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
 import { useState } from 'react';
-import { mutate } from 'swr';
-import useSWR from 'swr';
-import { fetcher } from '@/lib/swr';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: {
-    name: string;
-  };
-}
-
-interface UsersResponse {
-  success: boolean;
-  data: User[];
-}
+import { mockUsers, addLead } from '@/lib/mock-data';
 
 interface AddLeadModalProps {
   isOpen: boolean;
@@ -44,18 +25,11 @@ interface AddLeadModalProps {
 }
 
 export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
-  const { data: session } = useSession();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Fetch agents for SuperAgent assignment dropdown
-  const { data: usersResponse } = useSWR<UsersResponse>(
-    session?.user?.role === 'SuperAgent' ? '/api/users?role=Agent' : null,
-    fetcher
-  );
-
-  const agents = usersResponse?.data || [];
-  const isSuperAgent = session?.user?.role === 'SuperAgent';
+  // Get agents from mock data
+  const agents = mockUsers.filter(user => user.role.name === 'Agent' || user.role.name === 'SuperAgent');
 
   // Get current date and time
   const now = new Date();
@@ -90,40 +64,39 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
     setLoading(true);
 
     try {
-      // Prepare payload matching your API schema
-      const payload = {
+      // Find the selected agent
+      const selectedAgent = formData.assignedToId 
+        ? agents.find(a => a.id === formData.assignedToId)
+        : undefined;
+
+      // Add lead to mock data
+      const newLead = addLead({
         name: formData.name,
         phone: formData.phone,
         email: formData.email || null,
+        alternatePhone: null,
+        address: null,
+        city: null,
+        state: null,
+        pincode: null,
+        status: 'new',
         source: formData.source,
         campaign: formData.campaign || null,
-        priority: 'medium',
-        assignedToId: formData.assignedToId || null,
-        // Store date/time in notes for reference
-        notes: `Lead created on ${formData.date} at ${formData.time}`,
-      };
-
-      const response = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        assignedTo: selectedAgent ? {
+          id: selectedAgent.id,
+          name: selectedAgent.name,
+          email: selectedAgent.email,
+        } : undefined,
+        notes: `Lead created on ${formData.date} at ${formData.time}${formData.campaign ? '. Campaign: ' + formData.campaign : ''}`,
+        callAttempts: 0,
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create lead');
-      }
 
       toast({
         title: 'Lead created successfully',
-        description: result.message || 'The lead has been added to the system',
+        description: `${newLead.name} has been added to the system`,
         status: 'success',
         duration: 3000,
       });
-
-      // Refresh the leads list cache
-      mutate('/api/leads');
 
       // Reset form
       setFormData({
@@ -137,15 +110,18 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
         assignedToId: '',
       });
 
+      setLoading(false);
       onClose();
+      
+      // Reload the page to show new lead
+      window.location.reload();
     } catch (error) {
       toast({
         title: 'Error creating lead',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        description: 'Something went wrong',
         status: 'error',
-        duration: 5000,
+        duration: 3000,
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -173,19 +149,19 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="xl">
+    <Modal isOpen={isOpen} onClose={handleClose} size={{ base: 'full', md: 'xl' }}>
       <ModalOverlay />
-      <ModalContent>
-        <ModalHeader color="blue.500" fontSize="2xl">
+      <ModalContent mx={{ base: 0, md: 4 }} my={{ base: 0, md: 16 }}>
+        <ModalHeader color="blue.500" fontSize={{ base: 'lg', md: '2xl' }}>
           Add New Lead
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody pb={6}>
           <form onSubmit={handleSubmit}>
             <VStack spacing={4} align="stretch">
-              <SimpleGrid columns={2} spacing={4}>
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
                 <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="600">
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                     Date:
                   </FormLabel>
                   <Input
@@ -193,12 +169,12 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                     name="date"
                     value={formData.date}
                     onChange={handleChange}
-                    size="md"
+                    size={{ base: 'sm', md: 'md' }}
                   />
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="600">
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                     Time:
                   </FormLabel>
                   <Input
@@ -206,14 +182,14 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                     name="time"
                     value={formData.time}
                     onChange={handleChange}
-                    size="md"
+                    size={{ base: 'sm', md: 'md' }}
                   />
                 </FormControl>
               </SimpleGrid>
 
-              <SimpleGrid columns={2} spacing={4}>
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="600">
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                     Client Platform:
                   </FormLabel>
                   <Select
@@ -221,6 +197,7 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                     value={formData.source}
                     onChange={handleChange}
                     placeholder="Select a Platform"
+                    size={{ base: 'sm', md: 'md' }}
                   >
                     <option value="Website">Website</option>
                     <option value="Meta">Meta</option>
@@ -232,7 +209,7 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                 </FormControl>
 
                 <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="600">
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                     Client Name:
                   </FormLabel>
                   <Input
@@ -240,13 +217,14 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="Enter client name"
+                    size={{ base: 'sm', md: 'md' }}
                   />
                 </FormControl>
               </SimpleGrid>
 
-              <SimpleGrid columns={2} spacing={4}>
+              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
                 <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="600">
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                     Ad Enquiry:
                   </FormLabel>
                   <Input
@@ -254,11 +232,12 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                     value={formData.campaign}
                     onChange={handleChange}
                     placeholder="Campaign/Ad details"
+                    size={{ base: 'sm', md: 'md' }}
                   />
                 </FormControl>
 
                 <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="600">
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                     Client Contact:
                   </FormLabel>
                   <Input
@@ -266,12 +245,13 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                     value={formData.phone}
                     onChange={handleChange}
                     placeholder="Phone number"
+                    size={{ base: 'sm', md: 'md' }}
                   />
                 </FormControl>
               </SimpleGrid>
 
               <FormControl>
-                <FormLabel fontSize="sm" fontWeight="600">
+                <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                   Client Email Address:
                 </FormLabel>
                 <Input
@@ -280,37 +260,33 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="Email address (optional)"
+                  size={{ base: 'sm', md: 'md' }}
                 />
               </FormControl>
 
-              <FormControl isRequired={isSuperAgent}>
-                <FormLabel fontSize="sm" fontWeight="600">
+              <FormControl>
+                <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                   Handled By:
                 </FormLabel>
-                {isSuperAgent ? (
-                  <Select
-                    name="assignedToId"
-                    value={formData.assignedToId}
-                    onChange={handleChange}
-                    placeholder="Select a Handled By"
-                  >
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} ({agent.email})
-                      </option>
-                    ))}
-                  </Select>
-                ) : (
-                  <Select isDisabled value={session?.user?.id}>
-                    <option>{session?.user?.name} (You)</option>
-                  </Select>
-                )}
+                <Select
+                  name="assignedToId"
+                  value={formData.assignedToId}
+                  onChange={handleChange}
+                  placeholder="Select a Handled By"
+                  size={{ base: 'sm', md: 'md' }}
+                >
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} ({agent.email})
+                    </option>
+                  ))}
+                </Select>
               </FormControl>
 
               <Button
                 type="submit"
                 colorScheme="blue"
-                size="lg"
+                size={{ base: 'md', md: 'lg' }}
                 width="full"
                 isLoading={loading}
                 loadingText="Creating..."

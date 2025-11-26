@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box,
-  Button,
   Heading,
   Table,
   Thead,
@@ -12,211 +11,227 @@ import {
   Th,
   Td,
   Badge,
+  Text,
   HStack,
   VStack,
-  useToast,
-  Spinner,
-  Text,
-  IconButton,
   Menu,
   MenuButton,
   MenuList,
   MenuItem,
-  Input,
+  IconButton,
   InputGroup,
   InputLeftElement,
-  Card,
-  CardBody,
+  Input,
+  Select,
+  Button,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import useSWR from 'swr';
-import { fetcher } from '@/lib/swr';
-import { Lead } from '@/types';
-import { HiDotsVertical, HiEye, HiPencil, HiSearch } from 'react-icons/hi';
-import { format } from 'date-fns';
-
-interface LeadsData {
-  data: Lead[];
-  total: number;
-  page: number;
-  pageSize: number;
-  hasMore: boolean;
-}
-
-interface LeadsResponse {
-  success: boolean;
-  data: LeadsData;
-}
+import { HiDotsVertical, HiEye, HiSearch } from 'react-icons/hi';
+import { mockLeads } from '@/lib/mock-data';
+import { formatDate } from '@/lib/date-utils';
 
 export default function UnqualifiedLeadsPage() {
-  const { data: session } = useSession();
   const router = useRouter();
-  const toast = useToast();
-
+  
+  // State for filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 500);
+  // Filter unqualified leads
+  const unqualifiedLeads = useMemo(() => {
+    let filtered = mockLeads.filter(lead => lead.status === 'unqualified');
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (lead) =>
+          lead.name.toLowerCase().includes(query) ||
+          lead.phone.toLowerCase().includes(query) ||
+          lead.email?.toLowerCase().includes(query)
+      );
+    }
 
-  // Build query params - always filter by unqualified status
-  const buildQueryString = () => {
-    const params = new URLSearchParams();
-    params.append('status', 'unqualified');
-    if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
-    return `?${params.toString()}`;
-  };
+    // Date filter
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      filtered = filtered.filter((lead) => {
+        const leadDate = new Date(lead.updatedAt);
+        const leadDay = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
+        
+        if (dateFilter === 'today') {
+          return leadDay.getTime() === today.getTime();
+        } else if (dateFilter === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return leadDay >= weekAgo;
+        } else if (dateFilter === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          return leadDay >= monthAgo;
+        } else if (dateFilter === 'custom' && startDate && endDate) {
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          return leadDate >= start && leadDate <= end;
+        }
+        return true;
+      });
+    }
 
-  const { data: response, isLoading, error, mutate } = useSWR<LeadsResponse>(
-    `/api/leads${buildQueryString()}`,
-    fetcher
-  );
-
-  const leads = response?.data?.data || [];
-
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <Spinner size="xl" color="brand.500" />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box p={8}>
-        <VStack spacing={4}>
-          <Text color="red.500" fontSize="lg" fontWeight="bold">
-            Error loading unqualified leads
-          </Text>
-          <Text color="gray.600">{error?.message || 'Failed to fetch data'}</Text>
-          <Button onClick={() => mutate()} colorScheme="blue">
-            Retry
-          </Button>
-        </VStack>
-      </Box>
-    );
-  }
+    return filtered;
+  }, [searchQuery, dateFilter, startDate, endDate]);
 
   return (
     <Box>
-      <HStack justify="space-between" mb={6}>
-        <Heading size="lg">Unqualified Leads</Heading>
-        <Button colorScheme="blue" onClick={() => router.push('/dashboard/leads')}>
-          Back to All Leads
-        </Button>
-      </HStack>
+      <Heading size="lg" mb={6}>
+        Unqualified Leads ({unqualifiedLeads.length})
+      </Heading>
 
-      {/* Search */}
-      <Box bg="white" p={4} borderRadius="lg" boxShadow="sm" mb={4}>
-        <HStack spacing={4}>
-          <InputGroup maxW="400px">
-            <InputLeftElement>
-              <HiSearch />
-            </InputLeftElement>
-            <Input
-              placeholder="Search unqualified leads..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </InputGroup>
-          {searchQuery && (
-            <Button size="sm" variant="ghost" onClick={() => setSearchQuery('')}>
-              Clear
-            </Button>
+      {/* Filter Section */}
+      <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
+        <VStack spacing={3} align="stretch">
+          <HStack spacing={{ base: 2, md: 4 }} flexWrap="wrap">
+            <InputGroup maxW={{ base: 'full', md: '300px' }} flex={{ base: '1 1 100%', md: '0 1 auto' }}>
+              <InputLeftElement>
+                <HiSearch />
+              </InputLeftElement>
+              <Input
+                placeholder="Search name, phone or email"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                size={{ base: 'sm', md: 'md' }}
+              />
+            </InputGroup>
+
+            <Select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as 'all' | 'today' | 'week' | 'month' | 'custom')}
+              maxW={{ base: 'full', sm: '150px', md: '200px' }}
+              flex={{ base: '1 1 48%', md: '0 1 auto' }}
+              size={{ base: 'sm', md: 'md' }}
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last Week</option>
+              <option value="month">Last Month</option>
+              <option value="custom">Custom</option>
+            </Select>
+
+            {(searchQuery || dateFilter !== 'all') && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSearchQuery('');
+                  setDateFilter('all');
+                  setStartDate('');
+                  setEndDate('');
+                }}
+              >
+                Clear Filters
+              </Button>
+            )}
+          </HStack>
+
+          {/* Custom Date Range */}
+          {dateFilter === 'custom' && (
+            <HStack spacing={3} flexWrap="wrap">
+              <Box flex={{ base: '1 1 100%', sm: '1 1 48%', md: '0 1 auto' }}>
+                <Text fontSize="sm" mb={1} fontWeight="medium">
+                  Start Date
+                </Text>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  size={{ base: 'sm', md: 'md' }}
+                />
+              </Box>
+              <Box flex={{ base: '1 1 100%', sm: '1 1 48%', md: '0 1 auto' }}>
+                <Text fontSize="sm" mb={1} fontWeight="medium">
+                  End Date
+                </Text>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate}
+                  size={{ base: 'sm', md: 'md' }}
+                />
+              </Box>
+            </HStack>
           )}
-        </HStack>
+        </VStack>
       </Box>
 
-      {/* Stats */}
-      <Box bg="yellow.50" p={4} borderRadius="lg" mb={4} borderLeft="4px solid" borderColor="yellow.500">
-        <Text fontSize="sm" color="yellow.800" fontWeight="medium">
-          Total Unqualified Leads: <strong>{response?.data?.total || 0}</strong>
-        </Text>
+      <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+        {unqualifiedLeads.length > 0 ? (
+          <Table variant="simple">
+            <Thead bg="gray.50">
+              <Tr>
+                <Th>Name</Th>
+                <Th>Phone</Th>
+                <Th>Email</Th>
+                <Th>Source</Th>
+                <Th>Assigned To</Th>
+                <Th>Last Updated</Th>
+                <Th>Reason</Th>
+                <Th>Actions</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {unqualifiedLeads.map((lead) => (
+                <Tr key={lead.id} _hover={{ bg: 'gray.50' }}>
+                  <Td fontWeight="medium">{lead.name}</Td>
+                  <Td>{lead.phone}</Td>
+                  <Td>{lead.email || '-'}</Td>
+                  <Td>
+                    <Badge colorScheme="purple">{lead.source}</Badge>
+                  </Td>
+                  <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
+                  <Td>{formatDate(lead.updatedAt)}</Td>
+                  <Td>
+                    <Text noOfLines={2} fontSize="sm">
+                      {lead.notes || 'Not specified'}
+                    </Text>
+                  </Td>
+                  <Td>
+                    <Menu>
+                      <MenuButton
+                        as={IconButton}
+                        icon={<HiDotsVertical />}
+                        variant="ghost"
+                        size="sm"
+                      />
+                      <MenuList>
+                        <MenuItem
+                          icon={<HiEye />}
+                          onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                        >
+                          View Details
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        ) : (
+          <Box p={8} textAlign="center">
+            <Text color="gray.500">
+              {searchQuery || dateFilter !== 'all'
+                ? 'No unqualified leads match your filters'
+                : 'No unqualified leads'}
+            </Text>
+          </Box>
+        )}
       </Box>
-
-      {/* Table */}
-      <Card>
-        <CardBody>
-          {leads.length === 0 ? (
-            <VStack py={8}>
-              <Text color="gray.500" fontSize="lg">
-                No unqualified leads found
-              </Text>
-              <Text color="gray.400" fontSize="sm">
-                {searchQuery ? 'Try adjusting your search' : 'All leads are still qualified'}
-              </Text>
-            </VStack>
-          ) : (
-            <Box overflowX="auto">
-              <Table variant="simple">
-                <Thead>
-                  <Tr>
-                    <Th>Name</Th>
-                    <Th>Phone</Th>
-                    <Th>Email</Th>
-                    <Th>Source</Th>
-                    <Th>Assigned To</Th>
-                    <Th>Created</Th>
-                    <Th>Notes</Th>
-                    <Th>Actions</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {leads.map((lead) => (
-                    <Tr key={lead.id}>
-                      <Td fontWeight="medium">{lead.name}</Td>
-                      <Td>{lead.phone}</Td>
-                      <Td>{lead.email || '-'}</Td>
-                      <Td>
-                        <Badge colorScheme="purple">{lead.source}</Badge>
-                      </Td>
-                      <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
-                      <Td fontSize="sm" color="gray.600">
-                        {format(new Date(lead.createdAt), 'MMM dd, yyyy')}
-                      </Td>
-                      <Td maxW="300px" fontSize="sm" color="gray.600" noOfLines={2}>
-                        {lead.notes || '-'}
-                      </Td>
-                      <Td>
-                        <Menu>
-                          <MenuButton
-                            as={IconButton}
-                            icon={<HiDotsVertical />}
-                            variant="ghost"
-                            size="sm"
-                          />
-                          <MenuList>
-                            <MenuItem
-                              icon={<HiEye />}
-                              onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                            >
-                              View Details
-                            </MenuItem>
-                            <MenuItem
-                              icon={<HiPencil />}
-                              onClick={() => router.push(`/dashboard/leads/${lead.id}/edit`)}
-                            >
-                              Edit Lead
-                            </MenuItem>
-                          </MenuList>
-                        </Menu>
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </Box>
-          )}
-        </CardBody>
-      </Card>
     </Box>
   );
 }

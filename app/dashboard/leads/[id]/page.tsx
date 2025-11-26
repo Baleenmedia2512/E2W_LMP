@@ -5,7 +5,6 @@ import {
   Heading,
   Card,
   CardBody,
-  Spinner,
   Text,
   Badge,
   SimpleGrid,
@@ -23,70 +22,17 @@ import {
   Tr,
   Th,
   Td,
-  useToast,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
-import useSWR from 'swr';
-import { fetcher } from '@/lib/swr';
-
-interface LeadResponse {
-  success: boolean;
-  data: any;
-}
+import { getLeadById, mockCallLogs, mockFollowUps } from '@/lib/mock-data';
+import { formatDate, formatDateTime } from '@/lib/date-utils';
 
 export default function LeadDetailPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
   const params = useParams();
-  const toast = useToast();
   const leadId = params?.id as string;
 
-  const { data: leadResponse, error, mutate, isLoading } = useSWR<LeadResponse>(
-    leadId ? `/api/leads/${leadId}` : null,
-    fetcher
-  );
-
-  const lead = leadResponse?.data;
-
-  if (status === 'loading' || isLoading) {
-    return (
-      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <VStack spacing={4}>
-          <Spinner size="xl" color="blue.500" />
-          <Text color="gray.600">Loading lead details...</Text>
-        </VStack>
-      </Box>
-    );
-  }
-
-  if (!session) {
-    router.push('/auth/signin');
-    return null;
-  }
-
-  if (error) {
-    return (
-      <Box p={8}>
-        <VStack spacing={4}>
-          <Text color="red.500" fontSize="lg" fontWeight="bold">
-            Error loading lead
-          </Text>
-          <Text color="gray.600">
-            {error?.info?.error || error?.message || 'Failed to fetch lead details'}
-          </Text>
-          <HStack>
-            <Button onClick={() => mutate()} colorScheme="blue">
-              Retry
-            </Button>
-            <Button onClick={() => router.back()} variant="outline">
-              Go Back
-            </Button>
-          </HStack>
-        </VStack>
-      </Box>
-    );
-  }
+  const lead = getLeadById(leadId);
 
   if (!lead) {
     return (
@@ -103,6 +49,10 @@ export default function LeadDetailPage() {
     );
   }
 
+  // Get related data
+  const leadCallLogs = mockCallLogs.filter(call => call.leadId === leadId);
+  const leadFollowUps = mockFollowUps.filter(followup => followup.leadId === leadId);
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       new: 'blue',
@@ -111,15 +61,6 @@ export default function LeadDetailPage() {
       unqualified: 'yellow',
     };
     return colors[status] || 'gray';
-  };
-
-  const getPriorityColor = (priority: string) => {
-    const colors: Record<string, string> = {
-      low: 'gray',
-      medium: 'yellow',
-      high: 'red',
-    };
-    return colors[priority] || 'gray';
   };
 
   return (
@@ -143,14 +84,9 @@ export default function LeadDetailPage() {
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
                 <Heading size="md">{lead.name}</Heading>
-                <HStack>
-                  <Badge colorScheme={getStatusColor(lead.status)}>
-                    {lead.status.toUpperCase()}
-                  </Badge>
-                  <Badge colorScheme={getPriorityColor(lead.priority)}>
-                    {lead.priority.toUpperCase()}
-                  </Badge>
-                </HStack>
+                <Badge colorScheme={getStatusColor(lead.status)}>
+                  {lead.status.toUpperCase()}
+                </Badge>
               </HStack>
 
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -255,13 +191,13 @@ export default function LeadDetailPage() {
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Created At
                   </Text>
-                  <Text>{new Date(lead.createdAt).toLocaleString()}</Text>
+                  <Text>{formatDateTime(lead.createdAt)}</Text>
                 </Box>
                 <Box>
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Updated At
                   </Text>
-                  <Text>{new Date(lead.updatedAt).toLocaleString()}</Text>
+                  <Text>{formatDateTime(lead.updatedAt)}</Text>
                 </Box>
               </SimpleGrid>
             </VStack>
@@ -273,8 +209,8 @@ export default function LeadDetailPage() {
           <CardBody>
             <Tabs>
               <TabList>
-                <Tab>Call Logs ({lead.callLogs?.length || 0})</Tab>
-                <Tab>Follow-ups ({lead.followUps?.length || 0})</Tab>
+                <Tab>Call Logs ({leadCallLogs.length})</Tab>
+                <Tab>Follow-ups ({leadFollowUps.length})</Tab>
                 <Tab>Activity History</Tab>
               </TabList>
 
@@ -290,7 +226,7 @@ export default function LeadDetailPage() {
                       + Log New Call
                     </Button>
 
-                    {lead.callLogs && lead.callLogs.length > 0 ? (
+                    {leadCallLogs && leadCallLogs.length > 0 ? (
                       <Table size="sm">
                         <Thead>
                           <Tr>
@@ -301,9 +237,9 @@ export default function LeadDetailPage() {
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {lead.callLogs.map((call: any) => (
+                          {leadCallLogs.map((call: any) => (
                             <Tr key={call.id}>
-                              <Td>{new Date(call.startedAt).toLocaleString()}</Td>
+                              <Td>{formatDateTime(call.createdAt)}</Td>
                               <Td>
                                 {call.duration
                                   ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
@@ -334,7 +270,7 @@ export default function LeadDetailPage() {
                       + Schedule Follow-up
                     </Button>
 
-                    {lead.followUps && lead.followUps.length > 0 ? (
+                    {leadFollowUps && leadFollowUps.length > 0 ? (
                       <Table size="sm">
                         <Thead>
                           <Tr>
@@ -345,14 +281,9 @@ export default function LeadDetailPage() {
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {lead.followUps.map((followup: any) => (
+                          {leadFollowUps.map((followup: any) => (
                             <Tr key={followup.id}>
-                              <Td>{new Date(followup.scheduledAt).toLocaleString()}</Td>
-                              <Td>
-                                <Badge colorScheme={getPriorityColor(followup.priority)}>
-                                  {followup.priority}
-                                </Badge>
-                              </Td>
+                              <Td>{formatDateTime(followup.scheduledFor)}</Td>
                               <Td>
                                 <Badge
                                   colorScheme={

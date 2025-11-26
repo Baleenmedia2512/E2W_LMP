@@ -17,7 +17,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useState } from 'react';
-import { mutate } from 'swr';
+import { updateLeadStatus } from '@/lib/mock-data';
 
 interface ConvertToUnqualifiedModalProps {
   isOpen: boolean;
@@ -51,26 +51,12 @@ export default function ConvertToUnqualifiedModal({
     setLoading(true);
 
     try {
-      const notesText = competitor
-        ? `Marked as Unqualified: ${reason}\nCompetitor/Notes: ${competitor}`
+      // Update lead status in mock data
+      const notes = competitor
+        ? `Marked as Unqualified: ${reason}. Competitor/Notes: ${competitor}`
         : `Marked as Unqualified: ${reason}`;
-
-      const response = await fetch(`/api/leads/${leadId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'unqualified',
-          reason,
-          notes: notesText,
-          metadata: competitor ? { competitor } : undefined,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update status');
-      }
+      
+      updateLeadStatus(leadId, 'unqualified', notes);
 
       toast({
         title: 'Lead marked as unqualified',
@@ -79,21 +65,20 @@ export default function ConvertToUnqualifiedModal({
         duration: 3000,
       });
 
-      // Refresh all leads data
-      mutate('/api/leads');
-      mutate(`/api/leads/${leadId}`);
-
       setReason('');
       setCompetitor('');
+      setLoading(false);
       onClose();
+      
+      // Reload to show updated status
+      setTimeout(() => window.location.reload(), 500);
     } catch (error) {
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to update lead',
+        description: 'Failed to update lead status',
         status: 'error',
-        duration: 5000,
+        duration: 3000,
       });
-    } finally {
       setLoading(false);
     }
   };

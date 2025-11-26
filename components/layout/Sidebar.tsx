@@ -1,8 +1,7 @@
 'use client';
 
-import { Box, Flex, VStack, Text, Icon, useColorModeValue, Avatar } from '@chakra-ui/react';
+import { Box, Flex, VStack, Text, Icon, useColorModeValue } from '@chakra-ui/react';
 import { usePathname } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 interface SidebarProps {
@@ -19,28 +18,30 @@ import {
   FiUserX,
   FiAlertCircle,
   FiBell,
+  FiUserPlus,
+  FiCheckCircle,
+  FiXCircle,
 } from 'react-icons/fi';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: FiHome, roles: ['Agent', 'SuperAgent', 'Finance', 'HR', 'Procurement'] },
   { name: 'Leads', href: '/dashboard/leads', icon: FiUsers, roles: ['Agent', 'SuperAgent'] },
+  { name: 'New Lead', href: '/dashboard/leads/new', icon: FiUserPlus, roles: ['Agent', 'SuperAgent'] },
+  { name: 'Win', href: '/dashboard/leads/win', icon: FiCheckCircle, roles: ['Agent', 'SuperAgent'] },
+  { name: 'Lose', href: '/dashboard/leads/lose', icon: FiXCircle, roles: ['Agent', 'SuperAgent'] },
   { name: 'Unqualified', href: '/dashboard/leads/unqualified', icon: FiUserX, roles: ['Agent', 'SuperAgent'] },
   { name: 'Unreachable', href: '/dashboard/leads/unreachable', icon: FiAlertCircle, roles: ['Agent', 'SuperAgent'] },
-  { name: 'Calls', href: '/dashboard/calls', icon: FiPhone, roles: ['Agent', 'SuperAgent'] },
   { name: 'Follow-ups', href: '/dashboard/followups', icon: FiClock, roles: ['Agent', 'SuperAgent'] },
-  { name: 'Notifications', href: '/dashboard/notifications', icon: FiBell, roles: ['Agent', 'SuperAgent'] },
   { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, roles: ['Agent', 'SuperAgent', 'Finance', 'HR'] },
   { name: 'Reports', href: '/dashboard/reports', icon: FiFileText, roles: ['SuperAgent', 'Finance', 'HR'] },
-  { name: 'Settings', href: '/dashboard/settings', icon: FiSettings, roles: ['Agent', 'SuperAgent', 'Finance', 'HR', 'Procurement'] },
 ];
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname();
-  const { data: session } = useSession();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
 
-  const userRole = session?.user?.role || 'Agent';
+  const userRole = 'Agent';
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(userRole));
 
@@ -95,13 +96,12 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {/* User Profile */}
         <Box p={4} borderTop="1px" borderColor={borderColor}>
           <Flex align="center" gap={3}>
-            <Avatar size="sm" name={session?.user?.name || ''} src={session?.user?.image || ''} />
             <Box flex="1" minW="0">
               <Text fontSize="sm" fontWeight="600" noOfLines={1}>
-                {session?.user?.name}
+                Demo User
               </Text>
               <Text fontSize="xs" color="gray.500" noOfLines={1}>
-                {session?.user?.role}
+                Agent
               </Text>
             </Box>
           </Flex>

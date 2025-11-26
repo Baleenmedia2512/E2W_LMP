@@ -2,6 +2,7 @@
 
 import {
   Box,
+  Heading,
   Button,
   FormControl,
   FormLabel,
@@ -9,50 +10,63 @@ import {
   Select,
   Textarea,
   VStack,
-  Heading,
-  useToast,
+  SimpleGrid,
   Card,
   CardBody,
-  Text,
+  useToast,
   HStack,
+  Text,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useState, useCallback } from 'react';
-import VoiceInputButton from '@/components/VoiceInputButton';
+import { getLeadById, addCallLog, updateLead } from '@/lib/mock-data';
 
-export default function NewCallLogPage() {
-  const { data: session, status } = useSession();
+export default function LogCallPage() {
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
+  const [loading, setLoading] = useState(false);
   const leadId = params?.id as string;
 
-  const [loading, setLoading] = useState(false);
+  const lead = getLeadById(leadId);
+
+  const now = new Date();
   const [formData, setFormData] = useState({
-    startedAt: new Date().toISOString().slice(0, 16),
-    endedAt: '',
-    callStatus: 'answered',
-    remarks: '',
+    date: now.toISOString().split('T')[0],
+    time: now.toTimeString().slice(0, 5),
+    duration: '',
+    status: 'completed' as 'completed' | 'missed' | 'voicemail',
+    notes: '',
+    nextAction: 'none' as 'none' | 'followup' | 'qualified' | 'unreach' | 'unqualified',
   });
 
-  if (status === 'loading') {
-    return <Box p={8}>Loading...</Box>;
+  if (!lead) {
+    return (
+      <Box p={8}>
+        <VStack spacing={4}>
+          <Heading>Lead not found</Heading>
+          <Button onClick={() => router.back()} colorScheme="blue">
+            Go Back
+          </Button>
+        </VStack>
+      </Box>
+    );
   }
 
-  if (!session) {
-    router.push('/auth/signin');
-    return null;
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate that leadId exists
-    if (!leadId) {
+
+    if (!formData.notes.trim()) {
       toast({
-        title: 'Error',
-        description: 'Lead ID is missing',
+        title: 'Notes required',
+        description: 'Please provide call notes',
         status: 'error',
         duration: 3000,
       });
@@ -62,153 +76,161 @@ export default function NewCallLogPage() {
     setLoading(true);
 
     try {
-      const startedAt = new Date(formData.startedAt);
-      const endedAt = formData.endedAt ? new Date(formData.endedAt) : null;
-      
-      // Validate that endedAt is after startedAt
-      if (endedAt && endedAt <= startedAt) {
-        throw new Error('End time must be after start time');
-      }
-      
-      const duration = endedAt
-        ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
-        : null;
+      // Parse duration (in minutes) to seconds
+      const durationInSeconds = formData.duration ? parseInt(formData.duration) * 60 : 0;
 
-      const payload = {
-        leadId,
-        startedAt: startedAt.toISOString(),
-        endedAt: endedAt?.toISOString() || null,
-        duration,
-        callStatus: formData.callStatus,
-        remarks: formData.remarks || null,
-      };
-
-      const response = await fetch('/api/calls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      // Add call log
+      addCallLog({
+        leadId: lead.id,
+        leadName: lead.name,
+        duration: durationInSeconds,
+        status: formData.status,
+        notes: formData.notes,
+        userId: '2', // Mock current user
+        userName: 'John Doe',
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to log call');
-      }
+      // Update lead call attempts
+      const currentAttempts = lead.callAttempts || 0;
+      updateLead(lead.id, {
+        callAttempts: currentAttempts + 1,
+        status: formData.nextAction !== 'none' ? formData.nextAction : lead.status,
+        notes: `Call logged on ${formData.date} at ${formData.time}. ${formData.notes}`,
+      });
 
       toast({
         title: 'Call logged successfully',
-        description: result.message || 'Call log has been saved',
+        description: `Call with ${lead.name} has been logged`,
         status: 'success',
         duration: 3000,
       });
 
+      setLoading(false);
       router.push(`/dashboard/leads/${leadId}`);
     } catch (error) {
       toast({
         title: 'Error logging call',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        description: 'Something went wrong',
         status: 'error',
-        duration: 5000,
+        duration: 3000,
       });
-    } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleVoiceTranscript = useCallback((text: string) => {
-    setFormData(prev => ({
-      ...prev,
-      remarks: prev.remarks ? `${prev.remarks} ${text}` : text
-    }));
-  }, []);
-
   return (
     <Box p={8}>
-      <Heading size="lg" mb={6}>
-        Log Call
-      </Heading>
+      <HStack justify="space-between" mb={6}>
+        <Heading size="lg">Log Call - {lead.name}</Heading>
+        <Button variant="outline" onClick={() => router.back()}>
+          Cancel
+        </Button>
+      </HStack>
 
-      <Card maxW="600px">
+      <Card>
         <CardBody>
           <form onSubmit={handleSubmit}>
-            <VStack spacing={4} align="stretch">
+            <VStack spacing={6} align="stretch">
+              <Box bg="blue.50" p={4} borderRadius="md">
+                <Text fontWeight="semibold">Lead: {lead.name}</Text>
+                <Text fontSize="sm">Phone: {lead.phone}</Text>
+                <Text fontSize="sm">Call Attempts: {lead.callAttempts || 0}</Text>
+              </Box>
+
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl>
+                  <FormLabel>Call Date</FormLabel>
+                  <Input
+                    type="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Call Time</FormLabel>
+                  <Input
+                    type="time"
+                    name="time"
+                    value={formData.time}
+                    onChange={handleChange}
+                  />
+                </FormControl>
+              </SimpleGrid>
+
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl>
+                  <FormLabel>Duration (minutes)</FormLabel>
+                  <Input
+                    type="number"
+                    name="duration"
+                    value={formData.duration}
+                    onChange={handleChange}
+                    placeholder="e.g., 5"
+                    min="0"
+                  />
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>Call Status</FormLabel>
+                  <Select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                  >
+                    <option value="completed">Completed</option>
+                    <option value="missed">Missed/No Answer</option>
+                    <option value="voicemail">Voicemail</option>
+                  </Select>
+                </FormControl>
+              </SimpleGrid>
+
               <FormControl isRequired>
-                <FormLabel>Call Started At</FormLabel>
-                <Input
-                  name="startedAt"
-                  type="datetime-local"
-                  value={formData.startedAt}
-                  onChange={handleChange}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Call Ended At</FormLabel>
-                <Input
-                  name="endedAt"
-                  type="datetime-local"
-                  value={formData.endedAt}
-                  onChange={handleChange}
-                />
-                <Text fontSize="sm" color="gray.600" mt={1}>
-                  Leave empty for ongoing calls
-                </Text>
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel>Call Status</FormLabel>
-                <Select name="callStatus" value={formData.callStatus} onChange={handleChange}>
-                  <option value="answered">Answered</option>
-                  <option value="not_answered">Not Answered</option>
-                  <option value="busy">Busy</option>
-                  <option value="invalid">Invalid Number</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>
-                  <HStack justify="space-between">
-                    <Text>Remarks / Notes</Text>
-                    <VoiceInputButton 
-                      onTranscript={handleVoiceTranscript}
-                      label="Use voice to add remarks"
-                    />
-                  </HStack>
-                </FormLabel>
+                <FormLabel>Call Notes</FormLabel>
                 <Textarea
-                  name="remarks"
-                  value={formData.remarks}
+                  name="notes"
+                  value={formData.notes}
                   onChange={handleChange}
-                  placeholder="Enter call notes, customer feedback, next steps, etc."
+                  placeholder="Enter call details, discussion points, outcomes, etc."
                   rows={6}
                 />
-                <Text fontSize="xs" color="gray.600" mt={1}>
-                  💡 Tip: Click the microphone icon to use voice-to-text
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Next Action</FormLabel>
+                <Select
+                  name="nextAction"
+                  value={formData.nextAction}
+                  onChange={handleChange}
+                >
+                  <option value="none">No Status Change</option>
+                  <option value="followup">Schedule Follow-up</option>
+                  <option value="qualified">Mark as Qualified</option>
+                  <option value="unreach">Mark as Unreachable</option>
+                  <option value="unqualified">Mark as Unqualified</option>
+                </Select>
+                <Text fontSize="sm" color="gray.600" mt={1}>
+                  Optionally update lead status based on this call
                 </Text>
               </FormControl>
 
-              <Box display="flex" gap={4}>
+              <HStack spacing={4} justify="flex-end">
                 <Button
-                  type="submit"
-                  colorScheme="blue"
-                  isLoading={loading}
-                  loadingText="Saving..."
+                  variant="outline"
+                  onClick={() => router.back()}
                 >
-                  Save Call Log
-                </Button>
-                <Button variant="outline" onClick={() => router.back()}>
                   Cancel
                 </Button>
-              </Box>
+                <Button
+                  type="submit"
+                  colorScheme="green"
+                  isLoading={loading}
+                  loadingText="Logging..."
+                >
+                  Log Call
+                </Button>
+              </HStack>
             </VStack>
           </form>
         </CardBody>

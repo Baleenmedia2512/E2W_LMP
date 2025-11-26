@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import {
   Box,
   SimpleGrid,
@@ -20,31 +20,14 @@ import {
   Td,
   Badge,
   Text,
-  Spinner,
-  Center,
   Button,
   Icon,
 } from '@chakra-ui/react';
 import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw } from 'react-icons/fi';
-import { useApi } from '@/lib/swr';
-import { Lead, FollowUp } from '@/types';
+import { mockLeads, mockFollowUps, mockDashboardStats } from '@/lib/mock-data';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-interface DashboardData {
-  stats: {
-    newLeadsToday: number;
-    followUpsDue: number;
-    callsToday: number;
-    conversionsToday: number;
-    totalLeads: number;
-    assignedLeads: number;
-    unassignedLeads: number;
-  };
-  recentLeads: Lead[];
-  todayFollowUps: FollowUp[];
-}
 
 const StatCard = ({
   label,
@@ -98,57 +81,25 @@ const StatCard = ({
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
     new: 'blue',
-    followup: 'orange',
-    unreach: 'gray',
+    contacted: 'purple',
+    qualified: 'green',
     unqualified: 'yellow',
+    unreachable: 'gray',
+    won: 'teal',
+    lost: 'red',
   };
   return colors[status] || 'gray';
 };
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { data, error, isLoading, mutate } = useApi<DashboardData>('/api/dashboard');
-
-  // Auto-refresh every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      mutate();
-    }, 30000);
-
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Listen for undo events to refresh data
-  useEffect(() => {
-    const handleUndoPerformed = () => {
-      mutate();
-    };
-
-    window.addEventListener('undo-performed', handleUndoPerformed);
-    return () => window.removeEventListener('undo-performed', handleUndoPerformed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleCardClick = (filter: string) => {
     router.push(`/dashboard/leads?filter=${filter}`);
   };
 
-  if (isLoading) {
-    return (
-      <Center h="400px">
-        <Spinner size="xl" color="brand.500" thickness="4px" />
-      </Center>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <Box bg="white" p={6} borderRadius="lg" textAlign="center">
-        <Text color="red.500">Failed to load dashboard data</Text>
-      </Box>
-    );
-  }
+  const todayFollowUps = mockFollowUps.filter(f => f.status === 'pending').slice(0, 5);
+  const recentLeads = mockLeads.slice(0, 5);
 
   return (
     <VStack spacing={{ base: 4, md: 6 }} align="stretch">
@@ -159,45 +110,44 @@ export default function DashboardPage() {
           leftIcon={<FiRefreshCw />}
           size="sm"
           variant="outline"
-          onClick={() => mutate()}
         >
           Refresh
         </Button>
       </Flex>
 
-      {/* Stats Grid - All Clickable */}
+      {/* Stats Grid */}
       <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={{ base: 4, md: 6 }}>
         <StatCard
-          label="New Leads Today"
-          value={data.stats.newLeadsToday}
-          helpText="Fresh leads - Click to view"
+          label="New Leads"
+          value={mockDashboardStats.newLeads}
+          helpText="Click to view"
           icon={FiUsers}
           colorScheme="blue"
-          onClick={() => handleCardClick('newToday')}
+          onClick={() => handleCardClick('new')}
         />
         <StatCard
           label="Follow-ups Due"
-          value={data.stats.followUpsDue}
-          helpText="Due today - Click to view"
+          value={todayFollowUps.length}
+          helpText="Due soon"
           icon={FiClock}
           colorScheme="orange"
-          onClick={() => handleCardClick('followupsToday')}
+          onClick={() => handleCardClick('followups')}
         />
         <StatCard
-          label="Calls Today"
-          value={data.stats.callsToday}
-          helpText="Total calls made"
+          label="Total Leads"
+          value={mockDashboardStats.totalLeads}
+          helpText="All time"
           icon={FiPhone}
           colorScheme="purple"
-          onClick={() => handleCardClick('callsToday')}
+          onClick={() => router.push('/dashboard/leads')}
         />
         <StatCard
-          label="Conversions Today"
-          value={data.stats.conversionsToday}
-          helpText="Successful conversions"
+          label="Won Deals"
+          value={mockDashboardStats.wonDeals}
+          helpText={`${mockDashboardStats.conversionRate}% conversion`}
           icon={FiCheckCircle}
           colorScheme="green"
-          onClick={() => handleCardClick('conversionsToday')}
+          onClick={() => handleCardClick('won')}
         />
       </SimpleGrid>
 
@@ -215,9 +165,9 @@ export default function DashboardPage() {
           onClick={() => router.push('/dashboard/leads')}
         >
           <Stat>
-            <StatLabel fontSize="sm">Total Leads</StatLabel>
-            <StatNumber>{data.stats.totalLeads}</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Click to view all</StatHelpText>
+            <StatLabel fontSize="sm">Qualified Leads</StatLabel>
+            <StatNumber>{mockDashboardStats.qualifiedLeads}</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">Ready to convert</StatHelpText>
           </Stat>
         </Box>
         <Box 
@@ -226,43 +176,33 @@ export default function DashboardPage() {
           borderRadius="lg" 
           boxShadow="sm" 
           borderWidth="1px"
-          cursor="pointer"
-          transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
-          onClick={() => handleCardClick('assigned')}
         >
           <Stat>
-            <StatLabel fontSize="sm">Assigned Leads</StatLabel>
-            <StatNumber>{data.stats.assignedLeads}</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Click to view assigned</StatHelpText>
+            <StatLabel fontSize="sm">Avg Response Time</StatLabel>
+            <StatNumber fontSize="2xl">{mockDashboardStats.avgResponseTime}</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">Team performance</StatHelpText>
           </Stat>
         </Box>
-        {data.stats.unassignedLeads > 0 && (
-          <Box 
-            bg="white" 
-            p={6} 
-            borderRadius="lg" 
-            boxShadow="sm" 
-            borderWidth="1px"
-            cursor="pointer"
-            transition="all 0.2s"
-            _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
-            onClick={() => handleCardClick('unassigned')}
-          >
-            <Stat>
-              <StatLabel fontSize="sm">Unassigned Leads</StatLabel>
-              <StatNumber color="orange.500">{data.stats.unassignedLeads}</StatNumber>
-              <StatHelpText fontSize="xs" color="gray.500">Click to view unassigned</StatHelpText>
-            </Stat>
-          </Box>
-        )}
+        <Box 
+          bg="white" 
+          p={6} 
+          borderRadius="lg" 
+          boxShadow="sm" 
+          borderWidth="1px"
+        >
+          <Stat>
+            <StatLabel fontSize="sm">Conversion Rate</StatLabel>
+            <StatNumber>{mockDashboardStats.conversionRate}%</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">Last 30 days</StatHelpText>
+          </Stat>
+        </Box>
       </SimpleGrid>
 
       {/* Today's Follow-ups */}
-      {data.todayFollowUps.length > 0 && (
+      {todayFollowUps.length > 0 && (
         <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
           <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
-            <Heading size={{ base: 'sm', md: 'md' }}>Today's Follow-ups</Heading>
+            <Heading size={{ base: 'sm', md: 'md' }}>Upcoming Follow-ups</Heading>
             <Button 
               size="sm" 
               colorScheme="blue" 
@@ -278,40 +218,28 @@ export default function DashboardPage() {
                 <Tr>
                   <Th>Time</Th>
                   <Th>Lead</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }}>Phone</Th>
-                  <Th>Status</Th>
-                  <Th display={{ base: 'none', sm: 'table-cell' }}>Priority</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }}>Status</Th>
+                  <Th display={{ base: 'none', sm: 'table-cell' }}>Notes</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {data.todayFollowUps.map((followUp) => (
+                {todayFollowUps.map((followUp) => (
                   <Tr key={followUp.id}>
-                    <Td>{format(new Date(followUp.scheduledAt), 'HH:mm')}</Td>
+                    <Td>{format(new Date(followUp.scheduledFor), 'MMM dd, HH:mm')}</Td>
                     <Td>
                       <Link href={`/dashboard/leads/${followUp.leadId}`}>
                         <Text color="brand.500" fontWeight="medium" noOfLines={1}>
-                          {followUp.lead?.name}
+                          {followUp.leadName}
                         </Text>
                       </Link>
                     </Td>
-                    <Td display={{ base: 'none', md: 'table-cell' }}>{followUp.lead?.phone}</Td>
-                    <Td>
-                      <Badge colorScheme={getStatusColor(followUp.lead?.status || 'new')}>
-                        {followUp.lead?.status}
+                    <Td display={{ base: 'none', md: 'table-cell' }}>
+                      <Badge colorScheme={followUp.status === 'pending' ? 'orange' : 'green'}>
+                        {followUp.status}
                       </Badge>
                     </Td>
                     <Td display={{ base: 'none', sm: 'table-cell' }}>
-                      <Badge
-                        colorScheme={
-                          followUp.priority === 'high'
-                            ? 'red'
-                            : followUp.priority === 'medium'
-                              ? 'orange'
-                              : 'gray'
-                        }
-                      >
-                        {followUp.priority}
-                      </Badge>
+                      <Text noOfLines={1} fontSize="sm">{followUp.notes}</Text>
                     </Td>
                   </Tr>
                 ))}
@@ -320,6 +248,55 @@ export default function DashboardPage() {
           </Box>
         </Box>
       )}
+
+      {/* Recent Leads */}
+      <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
+        <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
+          <Heading size={{ base: 'sm', md: 'md' }}>Recent Leads</Heading>
+          <Button 
+            size="sm" 
+            colorScheme="blue" 
+            variant="ghost"
+            onClick={() => router.push('/dashboard/leads')}
+          >
+            View All
+          </Button>
+        </HStack>
+        <Box overflowX="auto">
+          <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+            <Thead>
+              <Tr>
+                <Th>Name</Th>
+                <Th display={{ base: 'none', md: 'table-cell' }}>Company</Th>
+                <Th>Status</Th>
+                <Th display={{ base: 'none', sm: 'table-cell' }}>Source</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {recentLeads.map((lead) => (
+                <Tr key={lead.id}>
+                  <Td>
+                    <Link href={`/dashboard/leads/${lead.id}`}>
+                      <Text color="brand.500" fontWeight="medium" noOfLines={1}>
+                        {lead.name}
+                      </Text>
+                    </Link>
+                  </Td>
+                  <Td display={{ base: 'none', md: 'table-cell' }}>{lead.company}</Td>
+                  <Td>
+                    <Badge colorScheme={getStatusColor(lead.status)}>
+                      {lead.status}
+                    </Badge>
+                  </Td>
+                  <Td display={{ base: 'none', sm: 'table-cell' }}>
+                    <Text fontSize="sm">{lead.source}</Text>
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Box>
+      </Box>
     </VStack>
   );
 }
