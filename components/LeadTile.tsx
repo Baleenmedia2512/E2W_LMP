@@ -57,7 +57,7 @@ export default function LeadTile({
   return (
     <Box
       bg="white"
-      p={4}
+      p={{ base: 3, md: 4 }}
       borderRadius="lg"
       boxShadow="sm"
       _hover={{ boxShadow: 'md', transform: 'translateY(-2px)' }}
@@ -65,14 +65,14 @@ export default function LeadTile({
       border="1px solid"
       borderColor="gray.200"
     >
-      <Flex justify="space-between" align="start" mb={3}>
-        <HStack spacing={3}>
-          <Avatar name={lead.name} size="md" />
-          <VStack align="start" spacing={0}>
-            <Text fontWeight="bold" fontSize="lg">
+      <Flex justify="space-between" align="start" mb={3} gap={2} direction={{ base: 'column', sm: 'row' }}>
+        <HStack spacing={{ base: 2, md: 3 }} align="flex-start" flex="1" minW="0">
+          <Avatar name={lead.name} size={{ base: 'sm', md: 'md' }} />
+          <VStack align="start" spacing={0} flex="1" minW="0">
+            <Text fontWeight="bold" fontSize={{ base: 'sm', md: 'lg' }} noOfLines={1}>
               {lead.name}
             </Text>
-            <HStack spacing={2} mt={1}>
+            <HStack spacing={2} mt={1} flexWrap="wrap">
               <Badge colorScheme={getStatusColor(lead.status)} fontSize="xs">
                 {lead.status.toUpperCase()}
               </Badge>
@@ -94,26 +94,26 @@ export default function LeadTile({
       <VStack align="start" spacing={2}>
         {lead.phone && (
           <HStack spacing={2}>
-            <HiPhone color="gray" />
-            <Text fontSize="sm">{lead.phone}</Text>
+            <HiPhone color="gray" size={14} />
+            <Text fontSize={{ base: 'xs', md: 'sm' }} noOfLines={1}>{lead.phone}</Text>
           </HStack>
         )}
         {lead.email && (
           <HStack spacing={2}>
-            <HiMail color="gray" />
-            <Text fontSize="sm" isTruncated maxW="200px">
+            <HiMail color="gray" size={14} />
+            <Text fontSize={{ base: 'xs', md: 'sm' }} isTruncated maxW={{ base: '150px', md: '200px' }}>
               {lead.email}
             </Text>
           </HStack>
         )}
         {lead.city && (
-          <Text fontSize="sm" color="gray.600">
+          <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600">
             📍 {lead.city}
           </Text>
         )}
       </VStack>
 
-      <Flex justify="space-between" align="center" mt={4} pt={3} borderTop="1px solid" borderColor="gray.100">
+      <Flex justify="space-between" align="center" mt={4} pt={3} borderTop="1px solid" borderColor="gray.100" flexWrap="wrap" gap={2}>
         <HStack spacing={1}>
           <HiClock size={14} color="gray" />
           <Text fontSize="xs" color="gray.600">

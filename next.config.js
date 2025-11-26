@@ -16,9 +16,6 @@ const nextConfig = {
   
   // Experimental features
   experimental: {
-    serverActions: {
-      allowedOrigins: ['localhost:3000', 'localhost:3002'],
-    },
     optimizePackageImports: ['@chakra-ui/react', 'date-fns', 'react-icons'],
   },
   
@@ -68,7 +65,7 @@ const nextConfig = {
   
   // ESLint configuration
   eslint: {
-    dirs: ['app', 'components', 'lib', 'pages'],
+    dirs: ['app', 'components', 'lib'],
     ignoreDuringBuilds: false,
   },
   
@@ -81,10 +78,6 @@ const nextConfig = {
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on',
-          },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload',
           },
           {
             key: 'X-Content-Type-Options',

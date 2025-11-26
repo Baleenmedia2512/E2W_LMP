@@ -17,7 +17,8 @@ import {
   VStack,
   Text,
 } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { mockUsers, updateLead } from '@/lib/mock-data';
 
 interface User {
   id: string;
@@ -45,45 +46,14 @@ export default function AssignLeadModal({
   currentAssignee,
   onSuccess,
 }: AssignLeadModalProps) {
-  const [users, setUsers] = useState<User[]>([]);
+  // Get users from mock data
+  const users = mockUsers.filter(user => 
+    user.role.name === 'Agent' || user.role.name === 'SuperAgent'
+  );
   const [selectedUserId, setSelectedUserId] = useState('');
   const [reason, setReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isFetchingUsers, setIsFetchingUsers] = useState(false);
   const toast = useToast();
-
-  // Fetch users when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      fetchUsers();
-    }
-  }, [isOpen]);
-
-  const fetchUsers = async () => {
-    setIsFetchingUsers(true);
-    try {
-      const res = await fetch('/api/users');
-      const data = await res.json();
-      
-      if (data.success) {
-        // Filter only agents and super agents
-        const agents = data.data.filter((user: User) => 
-          user.role.name === 'Agent' || user.role.name === 'SuperAgent'
-        );
-        setUsers(agents);
-      }
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load users',
-        status: 'error',
-        duration: 3000,
-      });
-    } finally {
-      setIsFetchingUsers(false);
-    }
-  };
 
   const handleAssign = async () => {
     if (!selectedUserId) {
@@ -97,51 +67,53 @@ export default function AssignLeadModal({
     }
 
     setIsLoading(true);
+
     try {
-      const res = await fetch('/api/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId,
-          assignedToId: selectedUserId,
-          reason: reason || 'Manual assignment',
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        toast({
-          title: 'Success',
-          description: `Lead "${leadName}" assigned successfully`,
-          status: 'success',
-          duration: 3000,
-        });
-        
-        // Trigger notification refresh and undoable action event
-        window.dispatchEvent(new Event('undoable-action-created'));
-        
-        onSuccess();
-        onClose();
-        setSelectedUserId('');
-        setReason('');
-      } else {
+      // Find the selected user
+      const selectedUser = users.find(u => u.id === selectedUserId);
+      if (!selectedUser) {
         toast({
           title: 'Error',
-          description: data.error || 'Failed to assign lead',
+          description: 'Selected user not found',
           status: 'error',
           duration: 3000,
         });
+        setIsLoading(false);
+        return;
       }
+
+      // Update lead assignment in mock data
+      updateLead(leadId, {
+        assignedTo: {
+          id: selectedUser.id,
+          name: selectedUser.name,
+          email: selectedUser.email,
+        },
+        notes: reason || 'Manual assignment',
+      });
+
+      toast({
+        title: 'Success',
+        description: `Lead "${leadName}" assigned to ${selectedUser.name}`,
+        status: 'success',
+        duration: 3000,
+      });
+
+      onSuccess();
+      onClose();
+      setSelectedUserId('');
+      setReason('');
+      setIsLoading(false);
+      
+      // Reload to show updated assignment
+      setTimeout(() => window.location.reload(), 500);
     } catch (error) {
-      console.error('Assign error:', error);
       toast({
         title: 'Error',
         description: 'Failed to assign lead',
         status: 'error',
         duration: 3000,
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -166,10 +138,9 @@ export default function AssignLeadModal({
             <FormControl isRequired>
               <FormLabel>Assign To</FormLabel>
               <Select
-                placeholder={isFetchingUsers ? 'Loading users...' : 'Select user'}
+                placeholder="Select user"
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
-                isDisabled={isFetchingUsers}
               >
                 {users.map((user) => (
                   <option key={user.id} value={user.id}>

@@ -1,389 +1,286 @@
-# E2W Lead Management System (LMS)
+# E2W Lead Management System - Frontend Only
 
-A production-ready, full-stack Lead Management System built with Next.js, TypeScript, Prisma, MySQL, and Chakra UI.
+A fully functional UI-only lead management system built with Next.js and Chakra UI. This version has **no backend, no database, and no authentication** - perfect for demonstrations, prototyping, or UI testing.
 
-## 🚀 Features
+## 🎨 Custom Theme Colors
 
-### Core Functionality
-- ✅ **Google OAuth Authentication** - Secure sign-in with Google accounts only
-- ✅ **Role-Based Access Control** - 5 roles: Agent, SuperAgent, Finance, HR, Procurement
-- ✅ **Lead Management** - Complete CRUD operations with auto/manual assignment
-- ✅ **Today's Dashboard** - Real-time stats with 30s auto-refresh
-- ✅ **Call Workflow** - Start/end calls, remarks, status updates, attempt tracking
-- ✅ **Follow-up System** - Schedule and auto-trigger follow-ups at 9 AM
-- ✅ **DSR (Daily Sales Report)** - Individual & team performance with CSV export
-- ✅ **Search & Filters** - Advanced lead filtering and search
-- ✅ **Notifications** - In-app notification badges and alerts
-- ✅ **Undo Feature** - Undo last action within 60 seconds
-- ✅ **Audit Logging** - Complete action history and traceability
+The application uses a carefully crafted color palette:
 
-### Technical Highlights
-- 🎨 **Modern UI** - Sleek, accessible design with Chakra UI theme
-- 📱 **Responsive** - Mobile-first design that works on all devices
-- ⚡ **Fast** - Optimistic UI updates with SWR caching
-- 🔒 **Secure** - Parameterized queries, JWT validation, CSRF protection
-- 🧪 **Tested** - Unit tests (Jest) + E2E tests (Playwright)
-- 🚢 **Production-Ready** - CI/CD pipeline, error boundaries, logging
-- ☁️ **Serverless** - Deploys to Vercel with zero config changes
+- **Primary Brand**: `#9c5342` - Warm terracotta
+- **Dark**: `#0b1316` - Deep charcoal
+- **Neutral**: `#b4a097` - Soft taupe
+- **Warm**: `#7a5f58` - Rich brown
+- **Cool**: `#8c9b96` - Sage green
 
-## 📋 Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js 14 (App Router), React 18, TypeScript |
-| UI Framework | Chakra UI with custom theme |
-| Backend | Next.js API Routes (Serverless Functions) |
-| Database | MySQL 8.0+ |
-| ORM | Prisma 5.20 |
-| Authentication | NextAuth.js (Google OAuth) |
-| State Management | SWR (React Hooks) |
-| Testing | Jest + React Testing Library + Playwright |
-| Linting | ESLint + Prettier |
-| CI/CD | GitHub Actions |
-| Deployment | Vercel |
-
-## 🎨 Theme Colors
-
-- **Primary Brand**: `#9c5342`
-- **Dark**: `#0b1316`
-- **Neutral**: `#b4a097`
-- **Warm**: `#7a5f58`
-- **Cool**: `#8c9b96`
-
-## 📦 Prerequisites
-
-- **Node.js** >= 18.0.0
-- **npm** >= 9.0.0
-- **MySQL** >= 8.0
-- **Google OAuth Credentials** (Client ID & Secret)
-
-## 🛠️ Installation & Setup
-
-### 1. Clone the Repository
+## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/Baleenmedia2512/E2W_LMP.git
-cd E2W_LMP
-```
-
-### 2. Install Dependencies
-
-```bash
+# Install dependencies
 npm install
-```
 
-### 3. Configure Environment Variables
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and fill in your values:
-
-```env
-# Database
-DATABASE_URL="mysql://root:@localhost:3306/e2w_lms"
-
-# NextAuth.js
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-super-secret-key-change-this-in-production"
-
-# Google OAuth (Get from Google Cloud Console)
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-
-# Optional: Test user for seeding
-GOOGLE_TEST_EMAIL="admin@example.com"
-GOOGLE_TEST_ID="test-google-id"
-
-# App Configuration
-NODE_ENV="development"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-```
-
-### 4. Setup Database
-
-Create the MySQL database:
-
-```bash
-mysql -u root -p
-CREATE DATABASE e2w_lms;
-exit;
-```
-
-Run Prisma migrations:
-
-```bash
-npm run migrate:dev
-```
-
-### 5. Seed the Database
-
-Populate with test data (roles, users, sample leads):
-
-```bash
-npm run db:seed
-```
-
-This creates:
-- 5 roles (Agent, SuperAgent, Finance, HR, Procurement)
-- 4 test users (1 SuperAgent, 3 Agents)
-- 15 sample leads with various statuses
-- Call logs, follow-ups, and assignments
-
-### 6. Start Development Server
-
-```bash
+# Run development server
 npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## 🧪 Testing
-
-### Run Unit Tests
-
-```bash
-npm run test
-```
-
-### Run Tests with Coverage
-
-```bash
-npm run test:coverage
-```
-
-### Run E2E Tests
-
-```bash
-npm run test:e2e
-```
-
-### Run E2E Tests in UI Mode
-
-```bash
-npm run test:e2e:ui
-```
-
-## 🚀 Deployment
-
-### Deploy to Vercel
-
-1. **Install Vercel CLI**:
-   ```bash
-   npm i -g vercel
-   ```
-
-2. **Login to Vercel**:
-   ```bash
-   vercel login
-   ```
-
-3. **Deploy**:
-   ```bash
-   vercel
-   ```
-
-4. **Set Environment Variables in Vercel Dashboard**:
-   - `DATABASE_URL` - Your production MySQL connection string
-   - `NEXTAUTH_URL` - Your production URL (e.g., https://your-app.vercel.app)
-   - `NEXTAUTH_SECRET` - Generate with: `openssl rand -base64 32`
-   - `GOOGLE_CLIENT_ID` - Your Google OAuth Client ID
-   - `GOOGLE_CLIENT_SECRET` - Your Google OAuth Client Secret
-
-5. **Run Database Migrations**:
-   ```bash
-   npx prisma migrate deploy
-   ```
-
-### Production Checklist
-
-- [ ] Set strong `NEXTAUTH_SECRET`
-- [ ] Configure production `DATABASE_URL` with connection pooling
-- [ ] Add production Google OAuth redirect URLs
-- [ ] Enable Vercel Analytics (optional)
-- [ ] Set up Sentry for error tracking (optional)
-- [ ] Configure CORS if using external APIs
-- [ ] Review and adjust rate limiting
-- [ ] Set up database backups
-- [ ] Configure custom domain (optional)
+Visit [http://localhost:3000](http://localhost:3000) to view the application.
 
 ## 📁 Project Structure
 
 ```
-E2W_LMP/
-├── .github/
-│   └── workflows/
-│       └── ci.yml              # GitHub Actions CI/CD
-├── app/
-│   ├── api/                    # API Routes (Serverless)
-│   │   ├── auth/
-│   │   ├── leads/
-│   │   ├── assign/
-│   │   ├── dashboard/
-│   │   ├── calls/
-│   │   ├── followups/
-│   │   ├── dsr/
-│   │   ├── undo/
-│   │   └── notifications/
-│   ├── dashboard/              # Dashboard pages
-│   ├── auth/                   # Auth pages
-│   ├── layout.tsx              # Root layout
-│   └── page.tsx                # Home page
-├── components/
-│   ├── layout/                 # Layout components
-│   ├── ui/                     # Reusable UI components
-│   ├── forms/                  # Form components
-│   └── tables/                 # Table components
-├── lib/
-│   ├── prisma.ts               # Prisma client (with pooling)
-│   ├── auth.ts                 # NextAuth configuration
-│   ├── roles.ts                # Role permissions & helpers
-│   ├── validations.ts          # Zod schemas
-│   ├── errors.ts               # Error handling
-│   ├── swr.ts                  # SWR hooks
-│   ├── theme.ts                # Chakra UI theme
-│   └── api-middleware.ts       # API middleware
-├── prisma/
-│   ├── schema.prisma           # Database schema
-│   └── seed.ts                 # Seed script
-├── tests/
-│   ├── unit/                   # Jest unit tests
-│   └── e2e/                    # Playwright E2E tests
-├── types/
-│   ├── index.ts                # TypeScript types
-│   └── next-auth.d.ts          # NextAuth type extensions
-├── .env.example                # Environment variables template
-├── jest.config.js              # Jest configuration
-├── playwright.config.ts        # Playwright configuration
-├── next.config.js              # Next.js configuration
-├── tsconfig.json               # TypeScript configuration
-├── .eslintrc.json              # ESLint configuration
-├── .prettierrc                 # Prettier configuration
-└── package.json                # Dependencies & scripts
+├── app/                    # Next.js 14 App Router pages
+│   ├── dashboard/          # Dashboard pages
+│   │   ├── leads/          # Lead management
+│   │   ├── calls/          # Call logs
+│   │   ├── followups/      # Follow-up scheduling
+│   │   ├── reports/        # Reports and analytics
+│   │   └── settings/       # Settings pages
+│   ├── layout.tsx          # Root layout
+│   ├── page.tsx            # Home page (redirects to dashboard)
+│   └── providers.tsx       # Chakra UI provider
+├── components/             # Reusable UI components
+│   ├── layout/             # Layout components (Header, Sidebar)
+│   └── *.tsx               # Feature components
+├── lib/                    # Utilities and configurations
+│   ├── mock-data.ts        # Mock data for UI
+│   ├── theme.ts            # Chakra UI custom theme
+│   ├── validations.ts      # Form validation schemas
+│   └── hooks/              # Custom React hooks
+├── types/                  # TypeScript type definitions
+└── public/                 # Static assets
 ```
 
-## 🔑 Default Test Users
-
-After seeding, you can test with:
-
-| Email | Role | Password |
-|-------|------|----------|
-| admin@example.com | SuperAgent | Use Google OAuth |
-| agent1@example.com | Agent | Use Google OAuth |
-| agent2@example.com | Agent | Use Google OAuth |
-
-**Note**: In development, you'll need to configure Google OAuth or modify the seed script to use your actual Google IDs.
-
-## 📊 Database Models
-
-- **User** - System users with Google OAuth
-- **Role** - User roles with permissions
-- **Lead** - Lead information
-- **LeadRaw** - Raw lead data from external sources
-- **Assignment** - Lead assignment history
-- **CallLog** - Call tracking with attempt counter
-- **FollowUp** - Scheduled follow-ups
-- **DSRExport** - DSR export records
-- **AuditLog** - Complete audit trail
-- **UndoLog** - Undo action tracking
-- **Notification** - In-app notifications
-
-## 🎯 API Endpoints
-
-### Authentication
-- `GET/POST /api/auth/[...nextauth]` - NextAuth endpoints
-- `GET /api/auth/session` - Get current session
-
-### Leads
-- `GET /api/leads` - List leads (with filters & pagination)
-- `POST /api/leads` - Create new lead
-- `GET /api/leads/[id]` - Get lead details
-- `PUT /api/leads/[id]` - Update lead
-- `DELETE /api/leads/[id]` - Delete lead
-
-### Assignment
-- `POST /api/assign` - Manually assign lead
-- `GET /api/assign` - Auto-assign unassigned leads
+## ✨ Features
 
 ### Dashboard
-- `GET /api/dashboard` - Dashboard statistics
+- Overview statistics and metrics
+- Recent leads display
+- Upcoming follow-ups
+- Quick actions
 
-### Calls
-- `GET /api/calls` - List call logs
-- `POST /api/calls` - Create call log
+### Lead Management
+- **Table & Tile Views**: Switch between different viewing modes
+- **Filtering**: Filter by status, source, and date
+- **Search**: Real-time search across lead data
+- **Statuses**: New, Contacted, Qualified, Unqualified, Unreachable, Won, Lost
+
+### Call Logging
+- Track call attempts and duration
+- Call status (completed, missed, voicemail)
+- Notes and follow-up actions
 
 ### Follow-ups
-- `GET /api/followups` - List follow-ups
-- `POST /api/followups` - Create follow-up
-- `PUT /api/followups/[id]` - Update follow-up
+- Schedule follow-up tasks
+- Priority levels (low, medium, high)
+- Calendar view of upcoming tasks
 
-### DSR
-- `GET /api/dsr` - Generate DSR report
-- `POST /api/dsr` - Export DSR to CSV
+### Reports & Analytics
+- Lead conversion metrics
+- Source-based analytics
+- Agent performance statistics
+- Visual data representation
 
 ### Notifications
-- `GET /api/notifications` - Get notifications
-- `PUT /api/notifications` - Mark as read
+- Real-time notification bell
+- Unread count badge
+- Notification history
 
-### Undo
-- `GET /api/undo` - Get available undo actions
-- `POST /api/undo` - Undo last action
+## 🎯 Mock Data
 
-## 🔐 Security Features
+All data is stored in `/lib/mock-data.ts` and includes:
 
-- ✅ Google OAuth only (no password storage)
-- ✅ Session-based authentication
-- ✅ Role-based access control (RBAC)
-- ✅ API route protection with middleware
-- ✅ Parameterized database queries (SQL injection prevention)
-- ✅ CSRF protection (NextAuth built-in)
-- ✅ Input validation with Zod
-- ✅ Rate limiting ready (configure in production)
-- ✅ Secure session cookies
-- ✅ Audit logging for compliance
+- **8 Sample Leads** with varying statuses
+- **5 Call Logs** with different outcomes
+- **5 Follow-ups** with priority levels
+- **3 Notifications** (2 unread)
+- **4 Users** with different roles
+- **Dashboard Statistics**
+- **Report Data**
+
+### Customizing Mock Data
+
+Edit `/lib/mock-data.ts` to add, modify, or remove data:
+
+```typescript
+export const mockLeads: Lead[] = [
+  {
+    id: '1',
+    name: 'Your Lead Name',
+    email: 'email@example.com',
+    phone: '+1234567890',
+    status: 'new',
+    source: 'Website',
+    company: 'Company Name',
+    // ... more fields
+  },
+  // Add more leads
+];
+```
+
+## 🎨 Chakra UI Theme
+
+The custom theme is defined in `/lib/theme.ts` with:
+
+- **Custom Color Palettes**: Brand, dark, neutral, warm, and cool colors
+- **Component Variants**: Customized Button, Input, Select, Badge, Table
+- **Responsive Breakpoints**: Mobile-first responsive design
+- **Typography**: Inter font family
+- **Shadows and Effects**: Consistent visual language
+
+### Using Theme Colors
+
+```tsx
+import { Box } from '@chakra-ui/react';
+
+<Box bg="brand.500" color="white">
+  Primary brand color
+</Box>
+
+<Box bg="neutral.500">
+  Neutral background
+</Box>
+```
+
+## 📱 Responsive Design
+
+The application is fully responsive with breakpoints:
+
+- **Mobile**: < 768px
+- **Tablet**: 768px - 1024px
+- **Desktop**: > 1024px
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **UI Library**: Chakra UI 2.8
+- **Language**: TypeScript
+- **Styling**: Emotion (via Chakra UI)
+- **Icons**: React Icons (Feather Icons)
+- **Date Handling**: date-fns
+- **Form Validation**: Zod
+
+## 📝 Component Examples
+
+### Adding a New Page
+
+Create a new page in `app/dashboard/yourpage/page.tsx`:
+
+```tsx
+'use client';
+
+import { Box, Heading } from '@chakra-ui/react';
+
+export default function YourPage() {
+  return (
+    <Box>
+      <Heading size="lg" mb={6}>
+        Your Page Title
+      </Heading>
+      {/* Your content */}
+    </Box>
+  );
+}
+```
+
+### Creating a Form
+
+```tsx
+import { Button, Input, VStack } from '@chakra-ui/react';
+import { useState } from 'react';
+
+export default function MyForm() {
+  const [formData, setFormData] = useState({ name: '', email: '' });
+  
+  const handleSubmit = () => {
+    // Simulate success
+    console.log('Form submitted:', formData);
+    // Show success message
+  };
+
+  return (
+    <VStack as="form" spacing={4}>
+      <Input
+        placeholder="Name"
+        value={formData.name}
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+      />
+      <Input
+        placeholder="Email"
+        type="email"
+        value={formData.email}
+        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+      />
+      <Button onClick={handleSubmit} colorScheme="brand">
+        Submit
+      </Button>
+    </VStack>
+  );
+}
+```
+
+## 🚫 What's NOT Included
+
+This is a **frontend-only** version. The following are removed:
+
+- ❌ No backend API routes
+- ❌ No database (MySQL, Prisma, Drizzle)
+- ❌ No authentication (Google OAuth, NextAuth)
+- ❌ No server-side functions
+- ❌ No data persistence (changes are not saved)
+- ❌ No real API calls
+
+All "actions" (create, update, delete) simulate success but don't persist data. Perfect for:
+
+- UI/UX demonstrations
+- Design reviews
+- Prototyping
+- Frontend development practice
+- Component testing
+
+## 📦 Dependencies
+
+```json
+{
+  "@chakra-ui/react": "^2.8.2",
+  "@chakra-ui/next-js": "^2.2.0",
+  "@emotion/react": "^11.11.4",
+  "@emotion/styled": "^11.11.5",
+  "date-fns": "^3.6.0",
+  "framer-motion": "^11.2.12",
+  "next": "^14.2.5",
+  "react": "^18.3.1",
+  "react-dom": "^18.3.1",
+  "react-icons": "^5.2.1",
+  "zod": "^3.23.8"
+}
+```
+
+## 🎓 Learning Resources
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Chakra UI Documentation](https://chakra-ui.com/docs)
+- [React Icons](https://react-icons.github.io/react-icons/)
+- [date-fns](https://date-fns.org/)
+
+## 📄 License
+
+This project is for demonstration purposes.
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+Since this is a UI-only demo version, contributions should focus on:
 
-### Commit Convention
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat: add new feature
-fix: bug fix
-docs: documentation changes
-style: formatting, missing semi colons, etc
-refactor: code refactoring
-test: adding tests
-chore: maintain
-```
-
-## 📝 License
-
-This project is proprietary and confidential.
-
-## 🆘 Support
-
-For issues, questions, or feature requests:
-- Create an issue in the GitHub repository
-- Contact the development team
-
-## 🙏 Acknowledgments
-
-- Next.js team for the amazing framework
-- Chakra UI for the beautiful component library
-- Prisma for the excellent ORM
-- All open-source contributors
+- UI/UX improvements
+- Additional mock data scenarios
+- New component variants
+- Accessibility enhancements
+- Responsive design improvements
 
 ---
 
-**Built with ❤️ by E2W Development Team**
+**Built with ❤️ using Next.js and Chakra UI**

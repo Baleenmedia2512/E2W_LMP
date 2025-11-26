@@ -2,6 +2,7 @@
 
 import {
   Box,
+  Heading,
   Button,
   FormControl,
   FormLabel,
@@ -9,77 +10,26 @@ import {
   Select,
   Textarea,
   VStack,
-  Heading,
-  useToast,
+  SimpleGrid,
   Card,
   CardBody,
-  SimpleGrid,
-  Spinner,
-  Text,
+  useToast,
+  HStack,
 } from '@chakra-ui/react';
-import { useSession } from 'next-auth/react';
-import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import useSWR, { mutate as globalMutate } from 'swr';
-import { fetcher } from '@/lib/swr';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: {
-    name: string;
-  };
-}
-
-interface LeadResponse {
-  success: boolean;
-  data: {
-    id: string;
-    name: string;
-    phone: string;
-    email: string | null;
-    alternatePhone: string | null;
-    address: string | null;
-    city: string | null;
-    state: string | null;
-    pincode: string | null;
-    source: string;
-    campaign: string | null;
-    status: string;
-    priority: string;
-    assignedToId: string | null;
-    notes: string | null;
-  };
-}
-
-interface UsersResponse {
-  success: boolean;
-  data: User[];
-}
+import { useRouter, useParams } from 'next/navigation';
+import { mockUsers, getLeadById, updateLead } from '@/lib/mock-data';
 
 export default function EditLeadPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
+  const [loading, setLoading] = useState(false);
   const leadId = params?.id as string;
 
-  const { data: leadResponse, error, isLoading: leadLoading } = useSWR<LeadResponse>(
-    leadId ? `/api/leads/${leadId}` : null,
-    fetcher
-  );
+  const agents = mockUsers.filter(user => user.role.name === 'Agent' || user.role.name === 'SuperAgent');
+  const lead = getLeadById(leadId);
 
-  const { data: usersResponse } = useSWR<UsersResponse>(
-    session?.user?.role === 'SuperAgent' ? '/api/users?role=Agent' : null,
-    fetcher
-  );
-
-  const lead = leadResponse?.data;
-  const agents = usersResponse?.data || [];
-  const isSuperAgent = session?.user?.role === 'SuperAgent';
-
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -89,76 +39,38 @@ export default function EditLeadPage() {
     city: '',
     state: '',
     pincode: '',
-    source: 'Website',
+    source: '',
     campaign: '',
-    status: 'new',
-    priority: 'medium',
+    status: 'new' as any,
     assignedToId: '',
-    notes: '',
+    notes: ''
   });
 
   useEffect(() => {
     if (lead) {
       setFormData({
-        name: lead.name || '',
-        phone: lead.phone || '',
+        name: lead.name,
+        phone: lead.phone,
         email: lead.email || '',
         alternatePhone: lead.alternatePhone || '',
         address: lead.address || '',
         city: lead.city || '',
         state: lead.state || '',
         pincode: lead.pincode || '',
-        source: lead.source || 'Website',
+        source: lead.source,
         campaign: lead.campaign || '',
-        status: lead.status || 'new',
-        priority: lead.priority || 'medium',
-        assignedToId: lead.assignedToId || '',
-        notes: lead.notes || '',
+        status: lead.status,
+        assignedToId: lead.assignedTo?.id || '',
+        notes: lead.notes || ''
       });
     }
   }, [lead]);
-
-  if (status === 'loading' || leadLoading) {
-    return (
-      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <VStack spacing={4}>
-          <Spinner size="xl" color="blue.500" />
-          <Text color="gray.600">Loading lead data...</Text>
-        </VStack>
-      </Box>
-    );
-  }
-
-  if (!session) {
-    router.push('/auth/signin');
-    return null;
-  }
-
-  if (error) {
-    return (
-      <Box p={8}>
-        <VStack spacing={4}>
-          <Text color="red.500" fontSize="lg" fontWeight="bold">
-            Error loading lead
-          </Text>
-          <Text color="gray.600">
-            {error?.info?.error || error?.message || 'Failed to fetch lead data'}
-          </Text>
-          <Button onClick={() => router.back()} colorScheme="blue">
-            Go Back
-          </Button>
-        </VStack>
-      </Box>
-    );
-  }
 
   if (!lead) {
     return (
       <Box p={8}>
         <VStack spacing={4}>
-          <Text color="gray.600" fontSize="lg">
-            Lead not found
-          </Text>
+          <Heading>Lead not found</Heading>
           <Button onClick={() => router.back()} colorScheme="blue">
             Go Back
           </Button>
@@ -167,67 +79,81 @@ export default function EditLeadPage() {
     );
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      // Prepare payload - handle assignedToId properly
-      const payload = {
-        ...formData,
-        assignedToId: formData.assignedToId || null,
-      };
-
-      const response = await fetch(`/api/leads/${leadId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update lead');
-      }
-
-      toast({
-        title: 'Lead updated successfully',
-        description: result.message || 'Changes have been saved',
-        status: 'success',
-        duration: 3000,
-      });
-
-      // Refresh cache
-      globalMutate(`/api/leads/${leadId}`);
-      globalMutate('/api/leads');
-
-      router.push(`/dashboard/leads/${leadId}`);
-    } catch (error) {
-      toast({
-        title: 'Error updating lead',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        status: 'error',
-        duration: 5000,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.name || !formData.phone || !formData.source) {
+      toast({
+        title: 'Missing required fields',
+        description: 'Please fill in Name, Phone, and Source',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const selectedAgent = formData.assignedToId 
+        ? agents.find(a => a.id === formData.assignedToId)
+        : undefined;
+
+      updateLead(leadId, {
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || null,
+        alternatePhone: formData.alternatePhone || null,
+        address: formData.address || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        pincode: formData.pincode || null,
+        source: formData.source,
+        campaign: formData.campaign || null,
+        status: formData.status,
+        assignedTo: selectedAgent ? {
+          id: selectedAgent.id,
+          name: selectedAgent.name,
+          email: selectedAgent.email,
+        } : undefined,
+        notes: formData.notes || null,
+      });
+
+      toast({
+        title: 'Lead updated successfully',
+        description: `${formData.name} has been updated`,
+        status: 'success',
+        duration: 3000,
+      });
+
+      setLoading(false);
+      router.push(`/dashboard/leads/${leadId}`);
+    } catch (error) {
+      toast({
+        title: 'Error updating lead',
+        description: 'Something went wrong',
+        status: 'error',
+        duration: 3000,
+      });
+      setLoading(false);
+    }
+  };
+
   return (
-    <Box p={8}>
-      <Heading size="lg" mb={6}>
-        Edit Lead
-      </Heading>
+    <Box>
+      <HStack justify="space-between" mb={6}>
+        <Heading size="lg">Edit Lead</Heading>
+        <Button variant="outline" onClick={() => router.back()}>
+          Cancel
+        </Button>
+      </HStack>
 
       <Card>
         <CardBody>
@@ -250,18 +176,20 @@ export default function EditLeadPage() {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="+919876543210"
+                    placeholder="Enter phone number"
                   />
                 </FormControl>
+              </SimpleGrid>
 
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <FormControl>
                   <FormLabel>Email</FormLabel>
                   <Input
-                    name="email"
                     type="email"
+                    name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="lead@example.com"
+                    placeholder="Enter email address"
                   />
                 </FormControl>
 
@@ -271,10 +199,22 @@ export default function EditLeadPage() {
                     name="alternatePhone"
                     value={formData.alternatePhone}
                     onChange={handleChange}
-                    placeholder="+919876543211"
+                    placeholder="Enter alternate phone"
                   />
                 </FormControl>
+              </SimpleGrid>
 
+              <FormControl>
+                <FormLabel>Address</FormLabel>
+                <Input
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  placeholder="Enter address"
+                />
+              </FormControl>
+
+              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                 <FormControl>
                   <FormLabel>City</FormLabel>
                   <Input
@@ -301,13 +241,19 @@ export default function EditLeadPage() {
                     name="pincode"
                     value={formData.pincode}
                     onChange={handleChange}
-                    placeholder="560001"
+                    placeholder="Enter pincode"
                   />
                 </FormControl>
+              </SimpleGrid>
 
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <FormControl isRequired>
                   <FormLabel>Source</FormLabel>
-                  <Select name="source" value={formData.source} onChange={handleChange}>
+                  <Select
+                    name="source"
+                    value={formData.source}
+                    onChange={handleChange}
+                  >
                     <option value="Website">Website</option>
                     <option value="Meta">Meta</option>
                     <option value="Referral">Referral</option>
@@ -323,61 +269,45 @@ export default function EditLeadPage() {
                     name="campaign"
                     value={formData.campaign}
                     onChange={handleChange}
-                    placeholder="Campaign name"
+                    placeholder="Enter campaign name"
                   />
                 </FormControl>
+              </SimpleGrid>
 
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <FormControl isRequired>
                   <FormLabel>Status</FormLabel>
-                  <Select name="status" value={formData.status} onChange={handleChange}>
+                  <Select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                  >
                     <option value="new">New</option>
-                    <option value="followup">Followup</option>
-                    <option value="unreach">Unreach</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="followup">Follow-up</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="unreach">Unreachable</option>
                     <option value="unqualified">Unqualified</option>
+                    <option value="won">Won</option>
+                    <option value="lost">Lost</option>
                   </Select>
                 </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel>Priority</FormLabel>
-                  <Select name="priority" value={formData.priority} onChange={handleChange}>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </Select>
-                </FormControl>
-
-                {/* Show Assign To dropdown only for SuperAgent */}
-                {isSuperAgent && (
-                  <FormControl>
-                    <FormLabel>Assign To</FormLabel>
-                    <Select
-                      name="assignedToId"
-                      value={formData.assignedToId}
-                      onChange={handleChange}
-                      placeholder="Leave Unassigned"
-                    >
-                      {agents.map((agent) => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.name} ({agent.email})
-                        </option>
-                      ))}
-                    </Select>
-                    <Text fontSize="xs" color="gray.600" mt={1}>
-                      Change assignment or leave empty to unassign
-                    </Text>
-                  </FormControl>
-                )}
               </SimpleGrid>
 
               <FormControl>
-                <FormLabel>Address</FormLabel>
-                <Textarea
-                  name="address"
-                  value={formData.address}
+                <FormLabel>Assign To</FormLabel>
+                <Select
+                  name="assignedToId"
+                  value={formData.assignedToId}
                   onChange={handleChange}
-                  placeholder="Enter full address"
-                  rows={2}
-                />
+                  placeholder="Select agent (optional)"
+                >
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} ({agent.email})
+                    </option>
+                  ))}
+                </Select>
               </FormControl>
 
               <FormControl>
@@ -386,12 +316,18 @@ export default function EditLeadPage() {
                   name="notes"
                   value={formData.notes}
                   onChange={handleChange}
-                  placeholder="Additional notes about the lead"
+                  placeholder="Enter any notes about this lead"
                   rows={4}
                 />
               </FormControl>
 
-              <Box display="flex" gap={4}>
+              <HStack spacing={4} justify="flex-end">
+                <Button
+                  variant="outline"
+                  onClick={() => router.back()}
+                >
+                  Cancel
+                </Button>
                 <Button
                   type="submit"
                   colorScheme="blue"
@@ -400,10 +336,7 @@ export default function EditLeadPage() {
                 >
                   Update Lead
                 </Button>
-                <Button variant="outline" onClick={() => router.back()}>
-                  Cancel
-                </Button>
-              </Box>
+              </HStack>
             </VStack>
           </form>
         </CardBody>
