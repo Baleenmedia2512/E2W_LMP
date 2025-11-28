@@ -48,19 +48,20 @@ export default function ConvertToUnreachableModal({
     setLoading(true);
 
     try {
-      // Update lead status via API
+      // Update lead status via API with reason in customerRequirement field
       const response = await fetch(`/api/leads/${leadId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'unreach',
+          customerRequirement: reason,
           notes: `Marked as Unreachable: ${reason}`,
         }),
       });
 
       if (response.ok) {
         toast({
-          title: 'Lead marked as unreachable',
+          title: 'Success!',
           description: `${leadName} has been marked as unreachable`,
           status: 'success',
           duration: 3000,
@@ -91,17 +92,18 @@ export default function ConvertToUnreachableModal({
     <Modal isOpen={isOpen} onClose={onClose} size="md">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Mark as Unreachable</ModalHeader>
+        <ModalHeader>Mark Lead as Unreachable</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4} align="stretch">
             <FormControl isRequired>
-              <FormLabel>Reason</FormLabel>
+              <FormLabel fontWeight="600">Customer Requirement / Reason (Required)</FormLabel>
               <Textarea
-                placeholder="Why is this lead unreachable? (e.g., Phone not answering, Invalid number, etc.)"
+                placeholder="Why is this lead unreachable? (e.g., Phone not answering, Invalid number, Customer requested not to call, etc.)"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                rows={4}
+                rows={5}
+                autoFocus
               />
             </FormControl>
           </VStack>
@@ -111,10 +113,10 @@ export default function ConvertToUnreachableModal({
             Cancel
           </Button>
           <Button
-            colorScheme="gray"
+            colorScheme="orange"
             onClick={handleSubmit}
             isLoading={loading}
-            loadingText="Converting..."
+            loadingText="Updating..."
           >
             Mark as Unreachable
           </Button>

@@ -34,8 +34,9 @@ export interface Lead {
   source: string;
   campaign: string | null;
   customerRequirement: string | null;
-  status: 'new' | 'followup' | 'unreach' | 'unqualified';
+  status: 'new' | 'followup' | 'unreach' | 'unqualified' | 'contacted' | 'qualified' | 'won' | 'lost';
   priority: 'low' | 'medium' | 'high';
+  callAttempts: number;
   assignedToId: string | null;
   createdById: string | null;
   notes: string | null;

@@ -701,9 +701,16 @@ export default function LeadsPage() {
                     <Td whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }}>{lead.phone}</Td>
                     <Td whiteSpace="nowrap" display={{ base: 'none', lg: 'table-cell' }} fontSize={{ base: 'xs', md: 'sm' }}>{lead.campaign || '-'}</Td>
                     <Td>
-                      <Badge colorScheme={getStatusColor(lead.status)} fontSize={{ base: 'xs', md: 'sm' }}>
-                        {lead.status.replace('_', ' ').toUpperCase()}
-                      </Badge>
+                      <VStack spacing={1} align="flex-start">
+                        <Badge colorScheme={getStatusColor(lead.status)} fontSize={{ base: 'xs', md: 'sm' }}>
+                          {lead.status.replace('_', ' ').toUpperCase()}
+                        </Badge>
+                        {lead.callAttempts > 0 && (
+                          <Badge colorScheme={lead.callAttempts > 6 ? 'red' : lead.callAttempts > 3 ? 'orange' : 'blue'} fontSize={{ base: 'xs', md: 'xs' }}>
+                            📞 {lead.callAttempts}
+                          </Badge>
+                        )}
+                      </VStack>
                     </Td>
                     <Td whiteSpace="nowrap" display={{ base: 'none', sm: 'table-cell' }}>
                       <LeadAge createdAt={lead.createdAt} />

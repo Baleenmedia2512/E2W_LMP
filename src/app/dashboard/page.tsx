@@ -366,26 +366,36 @@ export default function DashboardPage() {
                 </Tr>
               </Thead>
               <Tbody>
-                {todayFollowUps.map((followUp) => (
-                  <Tr key={followUp.id}>
-                    <Td>{format(new Date(followUp.scheduledFor), 'MMM dd, HH:mm')}</Td>
-                    <Td>
-                      <Link href={`/dashboard/leads/${followUp.leadId}`}>
-                        <Text color="brand.500" fontWeight="medium" noOfLines={1}>
-                          {followUp.leadName}
-                        </Text>
-                      </Link>
-                    </Td>
-                    <Td display={{ base: 'none', md: 'table-cell' }}>
-                      <Badge colorScheme={followUp.status === 'pending' ? 'orange' : 'green'}>
-                        {followUp.status}
-                      </Badge>
-                    </Td>
-                    <Td display={{ base: 'none', sm: 'table-cell' }}>
-                      <Text noOfLines={1} fontSize="sm">{followUp.notes}</Text>
-                    </Td>
-                  </Tr>
-                ))}
+                {todayFollowUps.map((followUp) => {
+                  const scheduledDate = followUp.scheduledAt ? new Date(followUp.scheduledAt) : null;
+                  const isValidDate = scheduledDate && !isNaN(scheduledDate.getTime());
+                  
+                  return (
+                    <Tr key={followUp.id}>
+                      <Td>
+                        {isValidDate 
+                          ? format(scheduledDate, 'MMM dd, HH:mm')
+                          : 'Invalid date'
+                        }
+                      </Td>
+                      <Td>
+                        <Link href={`/dashboard/leads/${followUp.leadId}`}>
+                          <Text color="brand.500" fontWeight="medium" noOfLines={1}>
+                            {followUp.lead?.name || 'Unknown Lead'}
+                          </Text>
+                        </Link>
+                      </Td>
+                      <Td display={{ base: 'none', md: 'table-cell' }}>
+                        <Badge colorScheme={followUp.status === 'pending' ? 'orange' : 'green'}>
+                          {followUp.status}
+                        </Badge>
+                      </Td>
+                      <Td display={{ base: 'none', sm: 'table-cell' }}>
+                        <Text noOfLines={1} fontSize="sm">{followUp.notes || '-'}</Text>
+                      </Td>
+                    </Tr>
+                  );
+                })}
               </Tbody>
             </Table>
           </Box>
