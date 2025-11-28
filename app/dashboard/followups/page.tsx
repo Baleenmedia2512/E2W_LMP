@@ -18,23 +18,64 @@ import {
   MenuList,
   MenuItem,
   IconButton,
-  Select,
   useToast,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  Select,
+  Flex,
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { HiDotsVertical, HiEye, HiCheck, HiX, HiPlus } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiCheck, HiX, HiPlus, HiSearch } from 'react-icons/hi';
 import { mockFollowUps, updateFollowUpStatus } from '@/lib/mock-data';
 import { formatDateTime } from '@/lib/date-utils';
 
 export default function FollowUpsPage() {
   const router = useRouter();
   const toast = useToast();
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('all');
 
-  const filteredFollowUps = statusFilter === 'all' 
-    ? mockFollowUps 
-    : mockFollowUps.filter(f => f.status === statusFilter);
+  // Filter follow-ups based on search and date
+  const filteredFollowUps = useMemo(() => {
+    let filtered = [...mockFollowUps];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(followup => 
+        followup.leadName.toLowerCase().includes(query) ||
+        (followup.notes && followup.notes.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply date filter
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      filtered = filtered.filter(followup => {
+        const followupDate = new Date(followup.scheduledFor);
+        const followupDay = new Date(followupDate.getFullYear(), followupDate.getMonth(), followupDate.getDate());
+        
+        if (dateFilter === 'today') {
+          return followupDay.getTime() === today.getTime();
+        } else if (dateFilter === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(today.getDate() - 7);
+          return followupDay >= weekAgo && followupDay <= today;
+        } else if (dateFilter === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setMonth(today.getMonth() - 1);
+          return followupDay >= monthAgo && followupDay <= today;
+        }
+        return true;
+      });
+    }
+
+    return filtered;
+  }, [searchQuery, dateFilter]);
 
   const handleMarkCompleted = (id: string, leadName: string) => {
     updateFollowUpStatus(id, 'completed');
@@ -62,21 +103,34 @@ export default function FollowUpsPage() {
     <Box>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Follow-ups</Heading>
-        <HStack spacing={3} flexWrap="wrap">
-          <Select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            maxW="200px"
-            minW="150px"
-            size={{ base: 'sm', md: 'md' }}
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </Select>
-        </HStack>
       </HStack>
+
+      {/* Search and Filter Bar */}
+      <Flex gap={3} mb={4} flexWrap="wrap">
+        <InputGroup flex="1" minW={{ base: 'full', md: '300px' }}>
+          <InputLeftElement>
+            <HiSearch color="gray" />
+          </InputLeftElement>
+          <Input
+            placeholder="Search name, phone or email"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            bg="white"
+          />
+        </InputGroup>
+
+        <Select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          maxW={{ base: 'full', md: '200px' }}
+          bg="white"
+        >
+          <option value="all">All Time</option>
+          <option value="today">Today</option>
+          <option value="week">Last Week</option>
+          <option value="month">Last Month</option>
+        </Select>
+      </Flex>
 
       <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
         <Box overflowX="auto">

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   SimpleGrid,
@@ -22,8 +22,11 @@ import {
   Text,
   Button,
   Icon,
+  Input,
+  Card,
+  CardBody,
 } from '@chakra-ui/react';
-import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw } from 'react-icons/fi';
+import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
 import { mockLeads, mockFollowUps, mockDashboardStats } from '@/lib/mock-data';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -94,12 +97,57 @@ const getStatusColor = (status: string) => {
 export default function DashboardPage() {
   const router = useRouter();
 
+  // Get today's date and set default date range
+  const today = new Date();
+  const todayString = today.toISOString().split('T')[0];
+  
+  const [startDate, setStartDate] = useState(todayString);
+  const [endDate, setEndDate] = useState(todayString);
+
   const handleCardClick = (filter: string) => {
     router.push(`/dashboard/leads?filter=${filter}`);
   };
 
-  const todayFollowUps = mockFollowUps.filter(f => f.status === 'pending').slice(0, 5);
-  const recentLeads = mockLeads.slice(0, 5);
+  // Filter data based on date range
+  const filteredData = useMemo(() => {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const filteredLeads = mockLeads.filter(lead => {
+      const leadDate = new Date(lead.createdAt);
+      return leadDate >= start && leadDate <= end;
+    });
+
+    const filteredFollowUps = mockFollowUps.filter(followUp => {
+      const followUpDate = new Date(followUp.scheduledFor);
+      return followUp.status === 'pending' && followUpDate >= start && followUpDate <= end;
+    });
+
+    return { filteredLeads, filteredFollowUps };
+  }, [startDate, endDate]);
+
+  const todayFollowUps = filteredData.filteredFollowUps.slice(0, 5);
+  const recentLeads = filteredData.filteredLeads.slice(0, 5);
+
+  // Calculate overdue follow-ups
+  const now = new Date();
+  const overdueFollowUps = mockFollowUps.filter(f => {
+    const scheduledDate = new Date(f.scheduledFor);
+    return f.status === 'pending' && scheduledDate < now;
+  });
+
+  // Calculate stats based on filtered data
+  const stats = {
+    newLeads: filteredData.filteredLeads.filter(l => l.status === 'new').length,
+    qualifiedLeads: filteredData.filteredLeads.filter(l => l.status === 'qualified').length,
+    wonDeals: filteredData.filteredLeads.filter(l => l.status === 'won').length,
+    totalLeads: filteredData.filteredLeads.length,
+    conversionRate: filteredData.filteredLeads.length > 0 
+      ? Math.round((filteredData.filteredLeads.filter(l => l.status === 'won').length / filteredData.filteredLeads.length) * 100)
+      : 0,
+  };
 
   return (
     <VStack spacing={{ base: 4, md: 6 }} align="stretch">
@@ -110,16 +158,49 @@ export default function DashboardPage() {
           leftIcon={<FiRefreshCw />}
           size="sm"
           variant="outline"
+          onClick={() => window.location.reload()}
         >
           Refresh
         </Button>
       </Flex>
 
+      {/* Date Filter */}
+      <Card boxShadow="sm">
+        <CardBody>
+          <Flex gap={3} flexWrap="wrap" align="center">
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold" mb={2}>
+                Start Date
+              </Text>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                max={endDate}
+                size="md"
+              />
+            </Box>
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold" mb={2}>
+                End Date
+              </Text>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                min={startDate}
+                size="md"
+              />
+            </Box>
+          </Flex>
+        </CardBody>
+      </Card>
+
       {/* Stats Grid */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={{ base: 4, md: 6 }}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 5 }} spacing={{ base: 4, md: 6 }}>
         <StatCard
           label="New Leads"
-          value={mockDashboardStats.newLeads}
+          value={stats.newLeads}
           helpText="Click to view"
           icon={FiUsers}
           colorScheme="blue"
@@ -134,17 +215,25 @@ export default function DashboardPage() {
           onClick={() => handleCardClick('followups')}
         />
         <StatCard
+          label="Overdue"
+          value={overdueFollowUps.length}
+          helpText="Needs attention"
+          icon={FiAlertCircle}
+          colorScheme="red"
+          onClick={() => router.push('/dashboard/followups')}
+        />
+        <StatCard
           label="Total Leads"
-          value={mockDashboardStats.totalLeads}
-          helpText="All time"
+          value={stats.totalLeads}
+          helpText="In date range"
           icon={FiPhone}
           colorScheme="purple"
           onClick={() => router.push('/dashboard/leads')}
         />
         <StatCard
           label="Won Deals"
-          value={mockDashboardStats.wonDeals}
-          helpText={`${mockDashboardStats.conversionRate}% conversion`}
+          value={stats.wonDeals}
+          helpText={`${stats.conversionRate}% conversion`}
           icon={FiCheckCircle}
           colorScheme="green"
           onClick={() => handleCardClick('won')}
@@ -166,7 +255,7 @@ export default function DashboardPage() {
         >
           <Stat>
             <StatLabel fontSize="sm">Qualified Leads</StatLabel>
-            <StatNumber>{mockDashboardStats.qualifiedLeads}</StatNumber>
+            <StatNumber>{stats.qualifiedLeads}</StatNumber>
             <StatHelpText fontSize="xs" color="gray.500">Ready to convert</StatHelpText>
           </Stat>
         </Box>
@@ -192,8 +281,8 @@ export default function DashboardPage() {
         >
           <Stat>
             <StatLabel fontSize="sm">Conversion Rate</StatLabel>
-            <StatNumber>{mockDashboardStats.conversionRate}%</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Last 30 days</StatHelpText>
+            <StatNumber>{stats.conversionRate}%</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">In selected range</StatHelpText>
           </Stat>
         </Box>
       </SimpleGrid>

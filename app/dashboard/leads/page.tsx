@@ -30,6 +30,7 @@ import {
   useDisclosure,
   Divider,
   Stack,
+  Icon,
 } from '@chakra-ui/react';
 import {
   HiPlus,
@@ -58,21 +59,52 @@ import { categorizeAndSortLeads, formatTimeDifference } from '@/lib/utils/lead-c
 
 type ViewMode = 'table' | 'tiles' | 'list' | 'categorized';
 
+// Component to show elapsed time since lead creation
+const LeadAge = ({ createdAt }: { createdAt: string | Date }) => {
+  const [age, setAge] = useState('');
+
+  useEffect(() => {
+    const updateAge = () => {
+      const now = new Date();
+      const created = new Date(createdAt);
+      const diffMs = now.getTime() - created.getTime();
+      
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 0) {
+        const hours = diffHours % 24;
+        setAge(`${diffDays}d ${hours}h`);
+      } else if (diffHours > 0) {
+        const minutes = diffMinutes % 60;
+        setAge(`${diffHours}h ${minutes}m`);
+      } else {
+        setAge(`${diffMinutes}m`);
+      }
+    };
+
+    updateAge();
+    const timer = setInterval(updateAge, 60000); // Update every minute
+
+    return () => clearInterval(timer);
+  }, [createdAt]);
+
+  return (
+    <HStack spacing={1} fontSize="xs" color="gray.600">
+      <Icon as={HiClock} />
+      <Text>{age} old</Text>
+    </HStack>
+  );
+};
+
 // Lead management page with multiple view modes and categorization
 export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Get filters from URL
-  const urlStatus = searchParams.get('status') || '';
-  const urlSource = searchParams.get('source') || '';
-  const urlDate = (searchParams.get('date') as 'all' | 'today' | 'week' | 'month') || 'all';
-
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState(urlStatus);
-  const [sourceFilter, setSourceFilter] = useState(urlSource);
-  const [dateFilter, setDateFilter] = useState(urlDate);
   const [viewMode, setViewMode] = useState<ViewMode>('categorized');
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
@@ -104,7 +136,7 @@ export default function LeadsPage() {
   const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
   const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
 
-  // Filter leads based on search and filters
+  // Filter leads based on search
   const leads = useMemo(() => {
     let filtered = [...mockLeads];
 
@@ -119,42 +151,8 @@ export default function LeadsPage() {
       );
     }
 
-    // Status filter
-    if (statusFilter) {
-      filtered = filtered.filter((lead) => lead.status === statusFilter);
-    }
-
-    // Source filter
-    if (sourceFilter) {
-      filtered = filtered.filter((lead) => lead.source === sourceFilter);
-    }
-
-    // Date filter
-    if (dateFilter !== 'all') {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      filtered = filtered.filter((lead) => {
-        const leadDate = new Date(lead.createdAt);
-        const leadDay = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
-        
-        if (dateFilter === 'today') {
-          return leadDay.getTime() === today.getTime();
-        } else if (dateFilter === 'week') {
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return leadDay >= weekAgo;
-        } else if (dateFilter === 'month') {
-          const monthAgo = new Date(today);
-          monthAgo.setDate(monthAgo.getDate() - 30);
-          return leadDay >= monthAgo;
-        }
-        return true;
-      });
-    }
-
     return filtered;
-  }, [searchQuery, statusFilter, sourceFilter, dateFilter]);
+  }, [searchQuery]);
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
@@ -193,14 +191,7 @@ export default function LeadsPage() {
         direction={{ base: 'column', md: 'row' }}
         gap={{ base: 3, md: 0 }}
       >
-        <Heading size={{ base: 'md', md: 'lg' }}>
-          Leads
-          {dateFilter === 'today' && (
-            <Badge ml={2} colorScheme="blue" fontSize="sm">
-              Today
-            </Badge>
-          )}
-        </Heading>
+        <Heading size={{ base: 'md', md: 'lg' }}>Leads</Heading>
         <Button
           size={{ base: 'sm', md: 'md' }}
           colorScheme="blue"
@@ -212,11 +203,11 @@ export default function LeadsPage() {
         </Button>
       </Flex>
 
-      {/* Filters and View Toggle */}
+      {/* Search and View Toggle */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
-          <Stack spacing={{ base: 2, md: 3 }} direction={{ base: 'column', lg: 'row' }}>
-            <InputGroup flex={{ base: '1', lg: '1' }} maxW={{ lg: '300px' }}>
+          <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch">
+            <InputGroup flex="1">
               <InputLeftElement pointerEvents="none">
                 <HiSearch />
               </InputLeftElement>
@@ -227,69 +218,7 @@ export default function LeadsPage() {
                 size={{ base: 'sm', md: 'md' }}
               />
             </InputGroup>
-            <HStack spacing={2} flexWrap={{ base: 'wrap', sm: 'nowrap' }}>
-              <Select
-                placeholder="All Statuses"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                flex={{ base: '1 1 48%', sm: '1' }}
-                minW={{ base: '120px', md: '150px' }}
-                size={{ base: 'sm', md: 'md' }}
-              >
-                <option value="new">New</option>
-                <option value="contacted">Contacted</option>
-                <option value="followup">Followup</option>
-                <option value="qualified">Qualified</option>
-                <option value="unreach">Unreachable</option>
-                <option value="unqualified">Unqualified</option>
-                <option value="won">Won</option>
-                <option value="lost">Lost</option>
-              </Select>
-              <Select
-                placeholder="All Sources"
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value)}
-                flex={{ base: '1 1 48%', sm: '1' }}
-                minW={{ base: '120px', md: '150px' }}
-                size={{ base: 'sm', md: 'md' }}
-              >
-                <option value="Website">Website</option>
-                <option value="Meta">Meta</option>
-                <option value="Referral">Referral</option>
-                <option value="Direct">Direct</option>
-                <option value="WhatsApp">WhatsApp</option>
-                <option value="Cold Call">Cold Call</option>
-              </Select>
-              <Select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value as 'all' | 'today' | 'week' | 'month')}
-                flex={{ base: '1 1 48%', sm: '1' }}
-                minW={{ base: '120px', md: '150px' }}
-                size={{ base: 'sm', md: 'md' }}
-              >
-                <option value="all">All Time</option>
-                <option value="today">Today</option>
-                <option value="week">Last 7 Days</option>
-                <option value="month">Last 30 Days</option>
-              </Select>
-            </HStack>
-          </Stack>
-          {(statusFilter || sourceFilter || searchQuery || dateFilter !== 'all') && (
-            <Button
-              size="sm"
-              variant="ghost"
-              width={{ base: 'full', sm: 'auto' }}
-              onClick={() => {
-                setStatusFilter('');
-                setSourceFilter('');
-                setSearchQuery('');
-                setDateFilter('all');
-                router.push('/dashboard/leads');
-              }}
-            >
-              Clear Filters
-            </Button>
-          )}
+          </Flex>
 
           {/* View Toggle */}
           <HStack spacing={2} justify={{ base: 'center', md: 'flex-end' }} flexWrap="wrap">
@@ -379,6 +308,7 @@ export default function LeadsPage() {
                           <Text fontSize="sm" color="gray.600">
                             {lead.phone} • {lead.email || 'No email'}
                           </Text>
+                          <LeadAge createdAt={lead.createdAt} />
                           {followUp && (
                             <HStack mt={2} spacing={2} flexWrap="wrap">
                               <Badge colorScheme="red" fontSize={{ base: 'xs', md: 'sm' }}>
@@ -498,6 +428,7 @@ export default function LeadsPage() {
                         <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" noOfLines={1}>
                           {lead.phone} • {lead.email || 'No email'}
                         </Text>
+                        <LeadAge createdAt={lead.createdAt} />
                         <HStack mt={2} spacing={2} flexWrap="wrap">
                           <Badge colorScheme="blue" fontSize={{ base: 'xs', md: 'sm' }}>New</Badge>
                           <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
@@ -611,6 +542,7 @@ export default function LeadsPage() {
                           <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" noOfLines={1}>
                             {lead.phone} • {lead.email || 'No email'}
                           </Text>
+                          <LeadAge createdAt={lead.createdAt} />
                           {followUp && (
                             <HStack mt={2} spacing={2} flexWrap="wrap">
                               <Badge colorScheme="green" fontSize={{ base: 'xs', md: 'sm' }}>
@@ -688,10 +620,11 @@ export default function LeadsPage() {
                 <Th>Phone</Th>
                 <Th display={{ base: 'none', lg: 'table-cell' }}>Campaign</Th>
                 <Th>Status</Th>
+                <Th display={{ base: 'none', sm: 'table-cell' }}>Lead Age</Th>
                 <Th display={{ base: 'none', lg: 'table-cell' }}>Assigned To</Th>
                 <Th display={{ base: 'none', md: 'table-cell' }}>Call</Th>
                 <Th display={{ base: 'none', lg: 'table-cell' }}>Next Followup</Th>
-                <Th display={{ base: 'none', sm: 'table-cell' }}>Created</Th>
+                <Th display={{ base: 'none', sm: 'table-cell' }}>Origin</Th>
                 <Th display={{ base: 'none', lg: 'table-cell' }}>Last Edit</Th>
                 <Th>Actions</Th>
               </Tr>
@@ -721,6 +654,9 @@ export default function LeadsPage() {
                       <Badge colorScheme={getStatusColor(lead.status)} fontSize={{ base: 'xs', md: 'sm' }}>
                         {lead.status.replace('_', ' ').toUpperCase()}
                       </Badge>
+                    </Td>
+                    <Td whiteSpace="nowrap" display={{ base: 'none', sm: 'table-cell' }}>
+                      <LeadAge createdAt={lead.createdAt} />
                     </Td>
                     <Td whiteSpace="nowrap" display={{ base: 'none', lg: 'table-cell' }} fontSize={{ base: 'xs', md: 'sm' }}>{lead.assignedTo?.name || 'Unassigned'}</Td>
                     <Td whiteSpace="nowrap" display={{ base: 'none', md: 'table-cell' }}>
@@ -778,9 +714,7 @@ export default function LeadsPage() {
                 <Tr>
                   <Td colSpan={11} textAlign="center" py={8}>
                     <Text color="gray.500">
-                      {searchQuery || statusFilter || sourceFilter
-                        ? 'No leads match your filters'
-                        : 'No leads found'}
+                      {searchQuery ? 'No leads match your search' : 'No leads found'}
                     </Text>
                   </Td>
                 </Tr>
@@ -849,6 +783,7 @@ export default function LeadsPage() {
                           <Text fontSize="sm" color="gray.500">
                             {lead.email || '-'}
                           </Text>
+                          <LeadAge createdAt={lead.createdAt} />
                         </Box>
 
                         <Flex
@@ -977,9 +912,7 @@ export default function LeadsPage() {
           ) : (
             <Box bg="white" borderRadius="lg" boxShadow="sm" p={8} textAlign="center">
               <Text color="gray.500">
-                {searchQuery || statusFilter || sourceFilter
-                  ? 'No leads match your filters'
-                  : 'No leads found'}
+                {searchQuery ? 'No leads match your search' : 'No leads found'}
               </Text>
             </Box>
           )}
@@ -1058,6 +991,7 @@ export default function LeadsPage() {
                       <Badge colorScheme={getStatusColor(lead.status)} fontSize={{ base: 'xs', md: 'sm' }}>
                         {lead.status.replace('_', ' ').toUpperCase()}
                       </Badge>
+                      <LeadAge createdAt={lead.createdAt} />
                     </HStack>
 
                     <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mb={1} noOfLines={1}>
@@ -1136,9 +1070,7 @@ export default function LeadsPage() {
           ) : (
             <Box bg="white" borderRadius="lg" boxShadow="sm" p={8} textAlign="center">
               <Text color="gray.500">
-                {searchQuery || statusFilter || sourceFilter
-                  ? 'No leads match your filters'
-                  : 'No leads found'}
+                {searchQuery ? 'No leads match your search' : 'No leads found'}
               </Text>
             </Box>
           )}

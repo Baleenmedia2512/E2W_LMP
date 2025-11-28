@@ -551,7 +551,7 @@ export default function CallDialerModal({
                   }}
                   onFocus={(e) => {
                     if (!remarksInitialized && remarks === '') {
-                      // Auto-add date and time when focusing on empty field
+                      // Auto-add date, time, and agent name when focusing on empty field
                       const now = new Date();
                       const dateTimeStr = now.toLocaleString('en-US', {
                         year: 'numeric',
@@ -561,7 +561,8 @@ export default function CallDialerModal({
                         minute: '2-digit',
                         hour12: true
                       });
-                      setRemarks(`[${dateTimeStr}] `);
+                      const agentName = 'Demo User'; // You can replace this with actual logged-in user
+                      setRemarks(`[${dateTimeStr} - ${agentName}] `);
                       setRemarksInitialized(true);
                       // Move cursor to the end
                       const target = e.target;

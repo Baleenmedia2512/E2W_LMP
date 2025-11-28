@@ -591,9 +591,9 @@ export const mockDashboardStats = {
   totalLeads: mockLeads.length,
   newLeads: mockLeads.filter(l => l.status === 'new').length,
   qualifiedLeads: mockLeads.filter(l => l.status === 'qualified').length,
-  wonDeals: mockLeads.filter(l => l.status === 'won').length,
+  wonDeads: mockLeads.filter(l => l.status === 'won').length,
   conversionRate: 25, // percentage
-  avgResponseTime: '2.5 hours',
+  avgResponseTime: '5 min',
 };
 
 // Helper functions
