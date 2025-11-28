@@ -172,6 +172,26 @@ export default function LeadsPage() {
   const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
   const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
 
+  // Helper functions to get call and follow-up data for table/list/tiles views
+  const getLastCallForLead = (leadId: string) => {
+    // In a real app, you'd have call logs data
+    // For now, return null
+    return null;
+  };
+
+  const getNextFollowUpForLead = (leadId: string) => {
+    // Find the next pending follow-up for this lead
+    const leadFollowUps = followUps.filter(
+      (fu: any) => fu.leadId === leadId && fu.status === 'pending'
+    );
+    if (leadFollowUps.length === 0) return null;
+    
+    // Sort by scheduled date and return the earliest one
+    return leadFollowUps.sort((a: any, b: any) => 
+      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+    )[0];
+  };
+
   // Filter leads based on search
   const filteredLeads = useMemo(() => {
     let filtered = [...leads];
@@ -732,7 +752,7 @@ export default function LeadsPage() {
                     <Td whiteSpace="nowrap" display={{ base: 'none', lg: 'table-cell' }}>
                       {nextFollowUp ? (
                         <Text fontSize={{ base: 'xs', md: 'sm' }}>
-                          {formatDate(nextFollowUp.scheduledFor)}
+                          {formatDate(nextFollowUp.scheduledAt)}
                         </Text>
                       ) : (
                         '-'
@@ -917,7 +937,7 @@ export default function LeadsPage() {
                                 Next Follow-up
                               </Text>
                               <Text fontSize="sm" mt={1}>
-                                {formatDate(nextFollowUp.scheduledFor)}
+                                {formatDate(nextFollowUp.scheduledAt)}
                               </Text>
                             </Box>
                           )}
@@ -1100,7 +1120,7 @@ export default function LeadsPage() {
                     )}
                     {nextFollowUp && (
                       <Text fontSize="sm" color="gray.500">
-                        <strong>Next Follow-up:</strong> {formatDate(nextFollowUp.scheduledFor)}
+                        <strong>Next Follow-up:</strong> {formatDate(nextFollowUp.scheduledAt)}
                       </Text>
                     )}
                   </Box>

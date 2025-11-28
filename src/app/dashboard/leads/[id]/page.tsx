@@ -346,15 +346,6 @@ export default function LeadDetailPage() {
                 </Box>
               )}
 
-              {lead.notes && (
-                <Box>
-                  <Text fontWeight="bold" fontSize="sm" color="gray.600">
-                    Notes
-                  </Text>
-                  <Text>{lead.notes}</Text>
-                </Box>
-              )}
-
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <Box>
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">

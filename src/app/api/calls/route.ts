@@ -77,14 +77,32 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Auto-increment call attempts on the lead
+    // Get current lead to check status
+    const currentLead = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { status: true },
+    });
+
+    // Update lead: increment call attempts and update status if it's still 'new'
+    const updateData: any = {
+      callAttempts: {
+        increment: 1,
+      },
+    };
+
+    // If lead status is 'new', change it to 'contacted' after first call
+    if (currentLead?.status === 'new') {
+      updateData.status = 'contacted';
+    }
+
+    // Update customer requirement if provided
+    if (body.customerRequirement) {
+      updateData.customerRequirement = body.customerRequirement;
+    }
+
     await prisma.lead.update({
       where: { id: body.leadId },
-      data: {
-        callAttempts: {
-          increment: 1,
-        },
-      },
+      data: updateData,
     });
 
     // Log activity
