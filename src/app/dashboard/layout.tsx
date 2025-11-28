@@ -1,6 +1,7 @@
 ﻿'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Box, 
   Container, 
@@ -11,14 +12,37 @@ import {
   DrawerContent,
   DrawerCloseButton,
   DrawerBody,
-  useBreakpointValue
+  useBreakpointValue,
+  Center,
+  Spinner
 } from '@chakra-ui/react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 import Sidebar from '@/shared/components/layout/Sidebar';
 import Header from '@/shared/components/layout/Header';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const isMobile = useBreakpointValue({ base: true, lg: false });
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  if (isLoading) {
+    return (
+      <Center h="100vh">
+        <Spinner size="xl" color="purple.500" thickness="4px" />
+      </Center>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <Flex h="100vh" overflow="hidden">

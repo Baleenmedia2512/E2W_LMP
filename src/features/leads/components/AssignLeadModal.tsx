@@ -16,17 +16,18 @@ import {
   useToast,
   VStack,
   Text,
+  HStack,
+  Spinner,
+  Badge,
+  Box,
 } from '@chakra-ui/react';
-import { useState } from 'react';
-import { mockUsers, updateLead } from '@/shared/lib/mock-data';
+import { useState, useEffect } from 'react';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: {
-    name: string;
-  };
+  role?: string | { name: string };
 }
 
 interface AssignLeadModalProps {
@@ -46,14 +47,48 @@ export default function AssignLeadModal({
   currentAssignee,
   onSuccess,
 }: AssignLeadModalProps) {
-  // Get users from mock data
-  const users = mockUsers.filter(user => 
-    user.role.name === 'Agent' || user.role.name === 'SuperAgent'
-  );
+  const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [reason, setReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchUsers();
+    }
+  }, [isOpen]);
+
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      } else {
+        console.warn('Failed to fetch users, using empty list');
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: 'Warning',
+        description: 'Could not load all users',
+        status: 'warning',
+        duration: 2000,
+      });
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const getRoleDisplay = (role: string | { name: string } | undefined): string => {
+    if (!role) return 'User';
+    if (typeof role === 'string') return role;
+    return role.name || 'User';
+  };
 
   const handleAssign = async () => {
     if (!selectedUserId) {
@@ -69,51 +104,78 @@ export default function AssignLeadModal({
     setIsLoading(true);
 
     try {
-      // Find the selected user
       const selectedUser = users.find(u => u.id === selectedUserId);
-      if (!selectedUser) {
-        toast({
-          title: 'Error',
-          description: 'Selected user not found',
-          status: 'error',
-          duration: 3000,
-        });
-        setIsLoading(false);
-        return;
+      
+      // Update lead via API
+      const response = await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignedToId: selectedUserId,
+          notes: reason || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to assign lead');
       }
 
-      // Update lead assignment in mock data
-      updateLead(leadId, {
-        assignedTo: {
-          id: selectedUser.id,
-          name: selectedUser.name,
-          email: selectedUser.email,
-        },
-        notes: reason || 'Manual assignment',
-      });
+      // Create audit log entry
+      try {
+        await fetch('/api/activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId,
+            action: 'LEAD_ASSIGNED',
+            details: {
+              previousAssignee: currentAssignee || 'Unassigned',
+              newAssignee: selectedUser?.name || 'Unknown',
+              reason: reason || 'No reason provided',
+              assignmentType: 'MANUAL',
+            },
+          }),
+        }).catch(err => console.error('Failed to create audit log:', err));
+      } catch (error) {
+        console.error('Audit log error:', error);
+      }
+
+      // Create notification for assigned user
+      try {
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientId: selectedUserId,
+            title: 'Lead Assigned',
+            message: `Lead "${leadName}" has been assigned to you${reason ? ` - ${reason}` : ''}`,
+            type: 'LEAD_ASSIGNED',
+            relatedLeadId: leadId,
+          }),
+        }).catch(err => console.error('Failed to create notification:', err));
+      } catch (error) {
+        console.error('Notification error:', error);
+      }
 
       toast({
         title: 'Success',
-        description: `Lead "${leadName}" assigned to ${selectedUser.name}`,
+        description: `Lead assigned to ${selectedUser?.name}`,
         status: 'success',
         duration: 3000,
       });
-
       onSuccess();
       onClose();
       setSelectedUserId('');
       setReason('');
-      setIsLoading(false);
-      
-      // Reload to show updated assignment
-      setTimeout(() => window.location.reload(), 500);
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to assign lead',
+        description: error instanceof Error ? error.message : 'Failed to assign lead',
         status: 'error',
         duration: 3000,
       });
+      console.error(error);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -123,31 +185,44 @@ export default function AssignLeadModal({
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>Assign Lead</ModalHeader>
-        <ModalCloseButton />
+        <ModalCloseButton isDisabled={isLoading} />
         <ModalBody>
           <VStack spacing={4} align="stretch">
-            <Text fontSize="sm" color="gray.600">
-              Lead: <strong>{leadName}</strong>
-            </Text>
-            {currentAssignee && (
+            <Box p={3} bg="blue.50" borderRadius="md">
               <Text fontSize="sm" color="gray.600">
-                Currently assigned to: <strong>{currentAssignee}</strong>
+                Lead: <strong>{leadName}</strong>
               </Text>
-            )}
+              {currentAssignee && (
+                <Text fontSize="sm" color="gray.600" mt={1}>
+                  Currently assigned to: <Badge>{currentAssignee}</Badge>
+                </Text>
+              )}
+            </Box>
 
             <FormControl isRequired>
               <FormLabel>Assign To</FormLabel>
-              <Select
-                placeholder="Select user"
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-              >
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.role.name}) - {user.email}
-                  </option>
-                ))}
-              </Select>
+              {isLoadingUsers ? (
+                <HStack justify="center" py={4}>
+                  <Spinner size="sm" />
+                  <Text fontSize="sm">Loading agents...</Text>
+                </HStack>
+              ) : users.length === 0 ? (
+                <Text fontSize="sm" color="orange.600" py={2}>
+                  ⚠️ No agents available
+                </Text>
+              ) : (
+                <Select
+                  placeholder="Select user"
+                  value={selectedUserId}
+                  onChange={(e) => setSelectedUserId(e.target.value)}
+                >
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({getRoleDisplay(user.role)}) - {user.email}
+                    </option>
+                  ))}
+                </Select>
+              )}
             </FormControl>
 
             <FormControl>
@@ -163,13 +238,14 @@ export default function AssignLeadModal({
         </ModalBody>
 
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose}>
+          <Button variant="ghost" mr={3} onClick={onClose} isDisabled={isLoading}>
             Cancel
           </Button>
           <Button
             colorScheme="brand"
             onClick={handleAssign}
             isLoading={isLoading}
+            isDisabled={isLoadingUsers || users.length === 0}
             loadingText="Assigning..."
           >
             Assign Lead

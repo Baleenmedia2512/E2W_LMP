@@ -15,20 +15,38 @@ import {
   CardBody,
   useToast,
   HStack,
+  Spinner,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { mockUsers, getLeadById, updateLead } from '@/shared/lib/mock-data';
+
+interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  alternatePhone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  source?: string;
+  campaign?: string;
+  customerRequirement?: string;
+  status: string;
+  assignedTo?: { id: string; name: string; email: string };
+  notes?: string;
+}
 
 export default function EditLeadPage() {
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [loadingLead, setLoadingLead] = useState(true);
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [agents, setAgents] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const leadId = params?.id as string;
-
-  const agents = mockUsers.filter(user => user.role.name === 'Agent' || user.role.name === 'SuperAgent');
-  const lead = getLeadById(leadId);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -48,25 +66,70 @@ export default function EditLeadPage() {
   });
 
   useEffect(() => {
-    if (lead) {
-      setFormData({
-        name: lead.name,
-        phone: lead.phone,
-        email: lead.email || '',
-        alternatePhone: lead.alternatePhone || '',
-        address: lead.address || '',
-        city: lead.city || '',
-        state: lead.state || '',
-        pincode: lead.pincode || '',
-        source: lead.source,
-        campaign: lead.campaign || '',
-        customerRequirement: lead.customerRequirement || '',
-        status: lead.status,
-        assignedToId: lead.assignedTo?.id || '',
-        notes: lead.notes || ''
-      });
+    const fetchAgents = async () => {
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          setAgents(data.users || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error);
+      }
+    };
+
+    fetchAgents();
+  }, []);
+
+  useEffect(() => {
+    const fetchLead = async () => {
+      try {
+        const res = await fetch(`/api/leads/${leadId}`);
+        if (!res.ok) throw new Error('Lead not found');
+        const data = await res.json();
+        setLead(data);
+
+        setFormData({
+          name: data.name,
+          phone: data.phone,
+          email: data.email || '',
+          alternatePhone: data.alternatePhone || '',
+          address: data.address || '',
+          city: data.city || '',
+          state: data.state || '',
+          pincode: data.pincode || '',
+          source: data.source || '',
+          campaign: data.campaign || '',
+          customerRequirement: data.customerRequirement || '',
+          status: data.status,
+          assignedToId: data.assignedTo?.id || '',
+          notes: data.notes || ''
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load lead',
+          status: 'error',
+          duration: 3000,
+        });
+        router.push('/dashboard/leads');
+      } finally {
+        setLoadingLead(false);
+      }
+    };
+
+    if (leadId) {
+      fetchLead();
     }
-  }, [lead]);
+  }, [leadId, toast, router]);
+
+  if (loadingLead) {
+    return (
+      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <Spinner size="lg" color="blue.500" />
+      </Box>
+    );
+  }
 
   if (!lead) {
     return (
@@ -104,11 +167,7 @@ export default function EditLeadPage() {
     setLoading(true);
 
     try {
-      const selectedAgent = formData.assignedToId 
-        ? agents.find(a => a.id === formData.assignedToId)
-        : undefined;
-
-      updateLead(leadId, {
+      const updateData: any = {
         name: formData.name,
         phone: formData.phone,
         email: formData.email || null,
@@ -121,13 +180,20 @@ export default function EditLeadPage() {
         campaign: formData.campaign || null,
         customerRequirement: formData.customerRequirement || null,
         status: formData.status,
-        assignedTo: selectedAgent ? {
-          id: selectedAgent.id,
-          name: selectedAgent.name,
-          email: selectedAgent.email,
-        } : undefined,
         notes: formData.notes || null,
+      };
+
+      if (formData.assignedToId) {
+        updateData.assignedToId = formData.assignedToId;
+      }
+
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
       });
+
+      if (!res.ok) throw new Error('Failed to update lead');
 
       toast({
         title: 'Lead updated successfully',
@@ -141,7 +207,7 @@ export default function EditLeadPage() {
     } catch (error) {
       toast({
         title: 'Error updating lead',
-        description: 'Something went wrong',
+        description: error instanceof Error ? error.message : 'Something went wrong',
         status: 'error',
         duration: 3000,
       });

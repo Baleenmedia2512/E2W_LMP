@@ -23,9 +23,80 @@ import {
   Text,
   Badge,
 } from '@chakra-ui/react';
-import { mockReportsData } from '@/shared/lib/mock-data';
+import { useState, useEffect } from 'react';
+
+interface ReportsData {
+  totalLeads: number;
+  newLeads: number;
+  contactedLeads: number;
+  qualifiedLeads: number;
+  wonDeals: number;
+  lostDeals: number;
+  conversionRate: number;
+}
 
 export default function ReportsPage() {
+  const [data, setData] = useState<ReportsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        setLoading(true);
+        const [leadsRes, followUpsRes] = await Promise.all([
+          fetch('/api/leads?limit=100'),
+          fetch('/api/followups?limit=100'),
+        ]);
+        
+        const leadsData = await leadsRes.json();
+        const followUpsData = await followUpsRes.json();
+        
+        if (leadsData.success && followUpsData.success) {
+          const leads = leadsData.data;
+          const stats = {
+            totalLeads: leads.length,
+            newLeads: leads.filter(l => l.status === 'new').length,
+            contactedLeads: leads.filter(l => l.status === 'contacted').length,
+            qualifiedLeads: leads.filter(l => l.status === 'qualified').length,
+            wonDeals: leads.filter(l => l.status === 'won').length,
+            lostDeals: leads.filter(l => l.status === 'lost').length,
+            conversionRate: leads.length > 0 ? Math.round((leads.filter(l => l.status === 'won').length / leads.length) * 100) : 0,
+          };
+          setData(stats);
+        } else {
+          setError('Failed to fetch reports');
+        }
+      } catch (err) {
+        setError('Failed to fetch reports');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReports();
+  }, []);
+
+  if (loading) {
+    return (
+      <Box>
+        <Heading size="lg" mb={6}>Reports & Analytics</Heading>
+        <Text color="gray.500">Loading reports...</Text>
+      </Box>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Box>
+        <Heading size="lg" mb={6}>Reports & Analytics</Heading>
+        <Box bg="red.50" p={4} borderRadius="lg" color="red.700">
+          {error || 'Failed to load reports'}
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box>
       <Heading size="lg" mb={6}>
@@ -38,7 +109,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel>Total Leads</StatLabel>
-              <StatNumber>{mockReportsData.totalLeads}</StatNumber>
+              <StatNumber>{data.totalLeads}</StatNumber>
               <StatHelpText>All time</StatHelpText>
             </Stat>
           </CardBody>
@@ -48,7 +119,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel>Conversion Rate</StatLabel>
-              <StatNumber>{mockReportsData.conversionRate}%</StatNumber>
+              <StatNumber>{data.conversionRate}%</StatNumber>
               <StatHelpText>Last 30 days</StatHelpText>
             </Stat>
           </CardBody>
@@ -58,7 +129,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel>Total Revenue</StatLabel>
-              <StatNumber>${mockReportsData.totalRevenue.toLocaleString()}</StatNumber>
+              <StatNumber>-</StatNumber>
               <StatHelpText>All time</StatHelpText>
             </Stat>
           </CardBody>
@@ -68,7 +139,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel>Avg Call Duration</StatLabel>
-              <StatNumber>{mockReportsData.avgCallDuration}min</StatNumber>
+              <StatNumber>-</StatNumber>
               <StatHelpText>This month</StatHelpText>
             </Stat>
           </CardBody>
@@ -81,7 +152,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel fontSize="sm">New Leads</StatLabel>
-              <StatNumber fontSize="2xl">{mockReportsData.newLeads}</StatNumber>
+              <StatNumber fontSize="2xl">{data.newLeads}</StatNumber>
             </Stat>
           </CardBody>
         </Card>
@@ -90,7 +161,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel fontSize="sm">Qualified</StatLabel>
-              <StatNumber fontSize="2xl">{mockReportsData.qualifiedLeads}</StatNumber>
+              <StatNumber fontSize="2xl">{data.qualifiedLeads}</StatNumber>
             </Stat>
           </CardBody>
         </Card>
@@ -99,7 +170,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel fontSize="sm">Won Deals</StatLabel>
-              <StatNumber fontSize="2xl" color="green.500">{mockReportsData.wonDeals}</StatNumber>
+              <StatNumber fontSize="2xl" color="green.500">{data.wonDeals}</StatNumber>
             </Stat>
           </CardBody>
         </Card>
@@ -108,7 +179,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel fontSize="sm">Lost Deals</StatLabel>
-              <StatNumber fontSize="2xl" color="red.500">{mockReportsData.lostDeals}</StatNumber>
+              <StatNumber fontSize="2xl" color="red.500">{data.lostDeals}</StatNumber>
             </Stat>
           </CardBody>
         </Card>
@@ -121,22 +192,7 @@ export default function ReportsPage() {
             <Heading size="md">Leads by Source</Heading>
           </CardHeader>
           <CardBody>
-            <VStack spacing={4} align="stretch">
-              {mockReportsData.leadsBySource.map((item) => (
-                <Box key={item.source}>
-                  <HStack justify="space-between" mb={1}>
-                    <Text fontWeight="medium">{item.source}</Text>
-                    <Badge>{item.count}</Badge>
-                  </HStack>
-                  <Progress
-                    value={(item.count / mockReportsData.totalLeads) * 100}
-                    colorScheme="blue"
-                    size="sm"
-                    borderRadius="full"
-                  />
-                </Box>
-              ))}
-            </VStack>
+            <Text fontSize="sm" color="gray.500">Coming soon...</Text>
           </CardBody>
         </Card>
 
@@ -146,26 +202,7 @@ export default function ReportsPage() {
             <Heading size="md">Leads by Agent</Heading>
           </CardHeader>
           <CardBody>
-            <Table size="sm">
-              <Thead>
-                <Tr>
-                  <Th>Agent</Th>
-                  <Th isNumeric>Leads</Th>
-                  <Th isNumeric>Share</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {mockReportsData.leadsPerAgent.map((item) => (
-                  <Tr key={item.agent}>
-                    <Td fontWeight="medium">{item.agent}</Td>
-                    <Td isNumeric>{item.count}</Td>
-                    <Td isNumeric>
-                      {((item.count / mockReportsData.totalLeads) * 100).toFixed(1)}%
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+            <Text fontSize="sm" color="gray.500">Coming soon...</Text>
           </CardBody>
         </Card>
       </SimpleGrid>
@@ -176,39 +213,7 @@ export default function ReportsPage() {
           <Heading size="md">Leads by Status</Heading>
         </CardHeader>
         <CardBody>
-          <Table size="sm">
-            <Thead>
-              <Tr>
-                <Th>Status</Th>
-                <Th isNumeric>Count</Th>
-                <Th>Distribution</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {mockReportsData.leadsByStatus.map((item) => (
-                <Tr key={item.status}>
-                  <Td fontWeight="medium">{item.status}</Td>
-                  <Td isNumeric>
-                    <Badge>{item.count}</Badge>
-                  </Td>
-                  <Td>
-                    <HStack spacing={2}>
-                      <Progress
-                        value={(item.count / mockReportsData.totalLeads) * 100}
-                        colorScheme="green"
-                        size="sm"
-                        borderRadius="full"
-                        flex="1"
-                      />
-                      <Text fontSize="sm" minW="45px">
-                        {((item.count / mockReportsData.totalLeads) * 100).toFixed(1)}%
-                      </Text>
-                    </HStack>
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
+          <Text fontSize="sm" color="gray.500">Status breakdown coming soon...</Text>
         </CardBody>
       </Card>
     </Box>

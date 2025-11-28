@@ -158,9 +158,10 @@ export default function DSRPage() {
       lose: 'Lost Deals',
     };
     
+    const label = cardLabels[type] || type;
     toast({
-      title: `${cardLabels[type]} Card Selected`,
-      description: `Viewing details for ${cardLabels[type].toLowerCase()}`,
+      title: `${label} Card Selected`,
+      description: `Viewing details for ${label.toLowerCase()}`,
       status: 'info',
       duration: 2000,
       isClosable: true,
@@ -170,6 +171,19 @@ export default function DSRPage() {
 
   // Filter and calculate stats
   const stats = useMemo(() => {
+    if (!startDate || !endDate) {
+      return {
+        newLeadsHandledToday: 0,
+        totalNewLeads: 0,
+        followUpsHandledToday: 0,
+        totalFollowUps: 0,
+        unqualifiedToday: 0,
+        unreachableToday: 0,
+        wonToday: 0,
+        lostToday: 0,
+      };
+    }
+
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(endDate);
@@ -247,6 +261,10 @@ export default function DSRPage() {
 
   // Filtered leads for the table
   const filteredLeads = useMemo(() => {
+    if (!startDate || !endDate) {
+      return [];
+    }
+
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(endDate);
@@ -477,7 +495,7 @@ export default function DSRPage() {
             )}
 
             {/* Active Filters Info */}
-            {(isFiltered || searchQuery) && (
+            {(isFiltered || searchQuery) && startDate && endDate && (
               <Box>
                 <Divider my={2} borderColor={THEME_COLORS.light} />
                 <Text fontSize="sm" color={THEME_COLORS.medium}>

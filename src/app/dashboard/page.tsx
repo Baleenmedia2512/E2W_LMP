@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   SimpleGrid,
@@ -27,7 +27,6 @@ import {
   CardBody,
 } from '@chakra-ui/react';
 import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
-import { mockLeads, mockFollowUps, mockDashboardStats } from '@/shared/lib/mock-data';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -96,6 +95,39 @@ const getStatusColor = (status: string) => {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [leads, setLeads] = useState<any[]>([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [leadsRes, followUpsRes] = await Promise.all([
+          fetch('/api/leads?limit=100'),
+          fetch('/api/followups?limit=100'),
+        ]);
+        
+        const leadsData = await leadsRes.json();
+        const followUpsData = await followUpsRes.json();
+        
+        if (leadsData.success) {
+          setLeads(leadsData.data);
+        }
+        if (followUpsData.success) {
+          setFollowUps(followUpsData.data);
+        }
+      } catch (err) {
+        setError('Failed to fetch data');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
 
   // Get today's date and set default date range
   const today = new Date();
@@ -115,26 +147,26 @@ export default function DashboardPage() {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    const filteredLeads = mockLeads.filter(lead => {
+    const filteredLeads = leads.filter(lead => {
       const leadDate = new Date(lead.createdAt);
       return leadDate >= start && leadDate <= end;
     });
 
-    const filteredFollowUps = mockFollowUps.filter(followUp => {
-      const followUpDate = new Date(followUp.scheduledFor);
+    const filteredFollowUps = followUps.filter(followUp => {
+      const followUpDate = new Date(followUp.scheduledAt);
       return followUp.status === 'pending' && followUpDate >= start && followUpDate <= end;
     });
 
     return { filteredLeads, filteredFollowUps };
-  }, [startDate, endDate]);
+  }, [startDate, endDate, leads, followUps]);
 
   const todayFollowUps = filteredData.filteredFollowUps.slice(0, 5);
   const recentLeads = filteredData.filteredLeads.slice(0, 5);
 
   // Calculate overdue follow-ups
   const now = new Date();
-  const overdueFollowUps = mockFollowUps.filter(f => {
-    const scheduledDate = new Date(f.scheduledFor);
+  const overdueFollowUps = followUps.filter(f => {
+    const scheduledDate = new Date(f.scheduledAt);
     return f.status === 'pending' && scheduledDate < now;
   });
 
@@ -148,6 +180,28 @@ export default function DashboardPage() {
       ? Math.round((filteredData.filteredLeads.filter(l => l.status === 'won').length / filteredData.filteredLeads.length) * 100)
       : 0,
   };
+
+  if (loading) {
+    return (
+      <VStack spacing={4} align="stretch">
+        <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
+        <Box textAlign="center" py={8}>
+          <Text color="gray.500">Loading dashboard data...</Text>
+        </Box>
+      </VStack>
+    );
+  }
+
+  if (error) {
+    return (
+      <VStack spacing={4} align="stretch">
+        <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
+        <Box bg="red.50" p={4} borderRadius="lg" color="red.700">
+          {error}
+        </Box>
+      </VStack>
+    );
+  }
 
   return (
     <VStack spacing={{ base: 4, md: 6 }} align="stretch">
@@ -268,7 +322,7 @@ export default function DashboardPage() {
         >
           <Stat>
             <StatLabel fontSize="sm">Avg Response Time</StatLabel>
-            <StatNumber fontSize="2xl">{mockDashboardStats.avgResponseTime}</StatNumber>
+            <StatNumber fontSize="2xl">-</StatNumber>
             <StatHelpText fontSize="xs" color="gray.500">Team performance</StatHelpText>
           </Stat>
         </Box>

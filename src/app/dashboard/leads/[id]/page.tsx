@@ -22,44 +22,131 @@ import {
   Tr,
   Th,
   Td,
+  Spinner,
+  useToast,
 } from '@chakra-ui/react';
 import { useRouter, useParams } from 'next/navigation';
 import { HiArrowLeft } from 'react-icons/hi';
-import { getLeadById, mockCallLogs, mockFollowUps, getActivityHistory, getCallAttemptsForLead, initializeActivityHistory } from '@/shared/lib/mock-data';
-import { formatDate, formatDateTime } from '@/lib/date-utils';
-import { useEffect } from 'react';
+import { formatDate, formatDateTime } from '@/shared/lib/date-utils';
+import { useEffect, useState } from 'react';
+
+interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  alternatePhone?: string;
+  source?: string;
+  campaign?: string;
+  customerRequirement?: string;
+  assignedTo?: { id: string; name: string };
+  city?: string;
+  state?: string;
+  pincode?: string;
+  address?: string;
+  notes?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CallLog {
+  id: string;
+  leadId: string;
+  duration?: number;
+  callStatus?: string;
+  remarks?: string;
+  createdAt: string;
+}
+
+interface FollowUp {
+  id: string;
+  leadId: string;
+  scheduledAt: string;
+  status: string;
+  notes?: string;
+  priority?: string;
+}
+
+interface Activity {
+  id: string;
+  description: string;
+  performedBy?: { name: string };
+  createdAt: string;
+  fieldName?: string;
+  oldValue?: string;
+  newValue?: string;
+}
 
 export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const toast = useToast();
   const leadId = params?.id as string;
 
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [activityHistory, setActivityHistory] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    initializeActivityHistory();
-  }, []);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const lead = getLeadById(leadId);
+        const [leadRes, callsRes, followupsRes] = await Promise.all([
+          fetch(`/api/leads/${leadId}`),
+          fetch(`/api/calls?limit=100`),
+          fetch(`/api/followups?limit=100`),
+        ]);
 
-  if (!lead) {
-    return (
-      <Box p={8}>
-        <VStack spacing={4}>
-          <Text color="gray.600" fontSize="lg">
-            Lead not found
-          </Text>
-          <Button onClick={() => router.back()} colorScheme="blue">
-            Go Back
-          </Button>
-        </VStack>
-      </Box>
-    );
-  }
+        if (!leadRes.ok) {
+          throw new Error('Lead not found');
+        }
 
-  // Get related data
-  const leadCallLogs = mockCallLogs.filter(call => call.leadId === leadId);
-  const leadFollowUps = mockFollowUps.filter(followup => followup.leadId === leadId);
-  const activityHistory = getActivityHistory(leadId);
-  const callAttempts = getCallAttemptsForLead(leadId);
+        const leadDataResponse = await leadRes.json();
+        const callsData = await callsRes.json();
+        const followupsData = await followupsRes.json();
+
+        // Extract lead data from response wrapper
+        const leadData = leadDataResponse.data || leadDataResponse;
+        setLead(leadData);
+        
+        // Filter calls and followups for this lead
+        const leadCalls = Array.isArray(callsData) 
+          ? callsData.filter((call: any) => call.leadId === leadId)
+          : callsData.data?.filter((call: any) => call.leadId === leadId) || [];
+        
+        const leadFollowups = Array.isArray(followupsData)
+          ? followupsData.filter((fu: any) => fu.leadId === leadId)
+          : followupsData.data?.filter((fu: any) => fu.leadId === leadId) || [];
+
+        setCallLogs(leadCalls);
+        setFollowUps(leadFollowups);
+
+        // Mock activity history for now (can be enhanced with actual API when available)
+        setActivityHistory([]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load lead');
+        toast({
+          title: 'Error',
+          description: 'Failed to load lead details',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (leadId) {
+      fetchData();
+    }
+  }, [leadId, toast]);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -74,6 +161,34 @@ export default function LeadDetailPage() {
     };
     return colors[status] || 'gray';
   };
+
+  if (loading) {
+    return (
+      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <VStack spacing={4}>
+          <Spinner size="lg" color="blue.500" />
+          <Text color="gray.600">Loading lead details...</Text>
+        </VStack>
+      </Box>
+    );
+  }
+
+  if (error || !lead) {
+    return (
+      <Box p={8}>
+        <VStack spacing={4}>
+          <Text color="gray.600" fontSize="lg">
+            {error || 'Lead not found'}
+          </Text>
+          <Button onClick={() => router.back()} colorScheme="blue">
+            Go Back
+          </Button>
+        </VStack>
+      </Box>
+    );
+  }
+
+  const callAttempts = callLogs.length;
 
   return (
     <Box p={8}>
@@ -249,8 +364,8 @@ export default function LeadDetailPage() {
           <CardBody>
             <Tabs>
               <TabList>
-                <Tab>Call Logs ({leadCallLogs.length})</Tab>
-                <Tab>Follow-ups ({leadFollowUps.length})</Tab>
+                <Tab>Call Logs ({callLogs.length})</Tab>
+                <Tab>Follow-ups ({followUps.length})</Tab>
                 <Tab>Activity History</Tab>
               </TabList>
 
@@ -266,7 +381,7 @@ export default function LeadDetailPage() {
                       + Log New Call
                     </Button>
 
-                    {leadCallLogs && leadCallLogs.length > 0 ? (
+                    {callLogs && callLogs.length > 0 ? (
                       <Table size="sm">
                         <Thead>
                           <Tr>
@@ -277,7 +392,7 @@ export default function LeadDetailPage() {
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {leadCallLogs.map((call: any) => (
+                          {callLogs.map((call: CallLog) => (
                             <Tr key={call.id}>
                               <Td>{formatDateTime(call.createdAt)}</Td>
                               <Td>
@@ -310,7 +425,7 @@ export default function LeadDetailPage() {
                       + Schedule Follow-up
                     </Button>
 
-                    {leadFollowUps && leadFollowUps.length > 0 ? (
+                    {followUps && followUps.length > 0 ? (
                       <Table size="sm">
                         <Thead>
                           <Tr>
@@ -321,18 +436,19 @@ export default function LeadDetailPage() {
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {leadFollowUps.map((followup: any) => (
+                          {followUps.map((followup: FollowUp) => (
                             <Tr key={followup.id}>
-                              <Td>{formatDateTime(followup.scheduledFor)}</Td>
+                              <Td>{formatDateTime(followup.scheduledAt)}</Td>
                               <Td>
                                 <Badge
                                   colorScheme={
                                     followup.status === 'completed' ? 'green' : 'yellow'
                                   }
                                 >
-                                  {followup.status}
+                                  {followup.priority || 'medium'}
                                 </Badge>
                               </Td>
+                              <Td>{followup.status}</Td>
                               <Td>{followup.notes || '-'}</Td>
                             </Tr>
                           ))}

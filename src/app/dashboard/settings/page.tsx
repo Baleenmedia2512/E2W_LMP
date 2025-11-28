@@ -18,29 +18,62 @@ import {
   SimpleGrid,
   Divider,
   Text,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
+  FormErrorMessage,
 } from '@chakra-ui/react';
-import { useState } from 'react';
-import { mockSettings } from '@/shared/lib/mock-data';
+import { useState, useRef } from 'react';
+
+const validateWorkingHours = (startTime: string, endTime: string): string | null => {
+  if (!startTime || !endTime) return null;
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  
+  const startInMinutes = startHour * 60 + startMin;
+  const endInMinutes = endHour * 60 + endMin;
+  
+  if (endInMinutes <= startInMinutes) {
+    return 'End time must be after start time';
+  }
+  return null;
+};
 
 export default function SettingsPage() {
   const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  
   const [loading, setLoading] = useState(false);
+  const [timeError, setTimeError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    companyName: mockSettings.companyName,
-    emailNotifications: mockSettings.emailNotifications,
-    smsNotifications: mockSettings.smsNotifications,
-    autoAssignLeads: mockSettings.autoAssignLeads,
-    defaultLeadSource: mockSettings.defaultLeadSource,
-    workingHoursStart: mockSettings.workingHours.start,
-    workingHoursEnd: mockSettings.workingHours.end,
-    timezone: mockSettings.timezone,
+    companyName: 'E2W LMP',
+    emailNotifications: true,
+    smsNotifications: true,
+    autoAssignLeads: false,
+    defaultLeadSource: 'Website',
+    workingHoursStart: '09:00',
+    workingHoursEnd: '18:00',
+    timezone: 'Asia/Kolkata',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+
+    // Validate working hours if either time field changed
+    if (name === 'workingHoursStart' || name === 'workingHoursEnd') {
+      const newStart = name === 'workingHoursStart' ? value : formData.workingHoursStart;
+      const newEnd = name === 'workingHoursEnd' ? value : formData.workingHoursEnd;
+      setTimeError(validateWorkingHours(newStart, newEnd));
+    }
   };
 
   const handleSwitchChange = (name: string, checked: boolean) => {
@@ -50,30 +83,74 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Validate working hours before saving
+    const error = validateWorkingHours(formData.workingHoursStart, formData.workingHoursEnd);
+    if (error) {
+      setTimeError(error);
+      toast({
+        title: 'Validation Error',
+        description: error,
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
+    try {
+      // Save to localStorage for immediate availability
+      localStorage.setItem('userSettings', JSON.stringify(formData));
+
+      // Try to save to database
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save settings to database');
+      }
+
       toast({
         title: 'Settings saved',
         description: 'Your settings have been updated successfully',
         status: 'success',
         duration: 3000,
       });
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast({
+        title: 'Settings saved locally',
+        description: 'Settings saved to your device. Database sync pending.',
+        status: 'warning',
+        duration: 3000,
+      });
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleReset = () => {
-    setFormData({
-      companyName: mockSettings.companyName,
-      emailNotifications: mockSettings.emailNotifications,
-      smsNotifications: mockSettings.smsNotifications,
-      autoAssignLeads: mockSettings.autoAssignLeads,
-      defaultLeadSource: mockSettings.defaultLeadSource,
-      workingHoursStart: mockSettings.workingHours.start,
-      workingHoursEnd: mockSettings.workingHours.end,
-      timezone: mockSettings.timezone,
-    });
+    onOpen();
+  };
+
+  const confirmReset = () => {
+    const defaultSettings = {
+      companyName: 'E2W LMP',
+      emailNotifications: true,
+      smsNotifications: true,
+      autoAssignLeads: false,
+      defaultLeadSource: 'Website',
+      workingHoursStart: '09:00',
+      workingHoursEnd: '18:00',
+      timezone: 'Asia/Kolkata',
+    };
+    setFormData(defaultSettings);
+    localStorage.setItem('userSettings', JSON.stringify(defaultSettings));
+    setTimeError(null);
+    onClose();
     toast({
       title: 'Settings reset',
       description: 'Settings have been reset to default values',
@@ -206,7 +283,7 @@ export default function SettingsPage() {
                   />
                 </FormControl>
 
-                <FormControl>
+                <FormControl isInvalid={!!timeError}>
                   <FormLabel>End Time</FormLabel>
                   <Input
                     type="time"
@@ -214,6 +291,7 @@ export default function SettingsPage() {
                     value={formData.workingHoursEnd}
                     onChange={handleChange}
                   />
+                  {timeError && <FormErrorMessage>{timeError}</FormErrorMessage>}
                 </FormControl>
               </SimpleGrid>
 
@@ -250,6 +328,7 @@ export default function SettingsPage() {
                 colorScheme="blue"
                 onClick={handleSave}
                 isLoading={loading}
+                isDisabled={!!timeError}
                 loadingText="Saving..."
               >
                 Save Settings
@@ -257,6 +336,32 @@ export default function SettingsPage() {
             </HStack>
           </CardBody>
         </Card>
+
+        {/* Reset Confirmation Dialog */}
+        <AlertDialog
+          isOpen={isOpen}
+          leastDestructiveRef={cancelRef}
+          onClose={onClose}
+        >
+          <AlertDialogOverlay>
+            <AlertDialogContent>
+              <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                Reset Settings
+              </AlertDialogHeader>
+              <AlertDialogBody>
+                Are you sure you want to reset all settings to their default values? This action cannot be undone.
+              </AlertDialogBody>
+              <AlertDialogFooter>
+                <Button ref={cancelRef} onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button colorScheme="red" onClick={confirmReset} ml={3}>
+                  Reset
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogOverlay>
+        </AlertDialog>
       </VStack>
     </Box>
   );

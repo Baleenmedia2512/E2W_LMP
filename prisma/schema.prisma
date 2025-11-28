@@ -21,6 +21,7 @@ model User {
   password      String?
   roleId        String
   isActive      Boolean    @default(true)
+  settings      Json?      // User settings: notification preferences, working hours, etc.
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -158,11 +159,12 @@ model ActivityHistory {
 model Notification {
   id        String    @id @default(cuid())
   userId    String
-  type      String    // info, success, warning, error
+  type      String    // info, success, warning, error, LEAD_ASSIGNED, LEAD_UPDATED, CALL_LOGGED
   title     String
   message   String    @db.Text
   isRead    Boolean   @default(false)
   readAt    DateTime?
+  relatedLeadId String? // Link to related lead if applicable
   metadata  Json?
   createdAt DateTime  @default(now())
 

@@ -17,7 +17,6 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useState } from 'react';
-import { updateLeadStatus } from '@/shared/lib/mock-data';
 
 interface ConvertToUnqualifiedModalProps {
   isOpen: boolean;
@@ -51,27 +50,37 @@ export default function ConvertToUnqualifiedModal({
     setLoading(true);
 
     try {
-      // Update lead status in mock data
+      // Update lead status via API
       const notes = competitor
         ? `Marked as Unqualified: ${reason}. Competitor/Notes: ${competitor}`
         : `Marked as Unqualified: ${reason}`;
       
-      updateLeadStatus(leadId, 'unqualified', notes);
-
-      toast({
-        title: 'Lead marked as unqualified',
-        description: `${leadName} has been marked as unqualified`,
-        status: 'success',
-        duration: 3000,
+      const response = await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'unqualified',
+          notes: notes,
+        }),
       });
 
-      setReason('');
-      setCompetitor('');
-      setLoading(false);
-      onClose();
-      
-      // Reload to show updated status
-      setTimeout(() => window.location.reload(), 500);
+      if (response.ok) {
+        toast({
+          title: 'Lead marked as unqualified',
+          description: `${leadName} has been marked as unqualified`,
+          status: 'success',
+          duration: 3000,
+        });
+
+        setReason('');
+        setCompetitor('');
+        onClose();
+        
+        // Reload to show updated status
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        throw new Error('Failed to update lead');
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -79,6 +88,8 @@ export default function ConvertToUnqualifiedModal({
         status: 'error',
         duration: 3000,
       });
+      console.error(error);
+    } finally {
       setLoading(false);
     }
   };
