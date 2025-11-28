@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  emailVerified DateTime?
+  image         String?
+  googleId      String?    @unique
+  password      String?
+  roleId        String
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  role           Role             @relation(fields: [roleId], references: [id])
+  leadsAssigned  Lead[]           @relation("assignedTo")
+  leadsCreated   Lead[]           @relation("createdBy")
+  callLogs       CallLog[]
+  followUps      FollowUp[]
+  activityHistory ActivityHistory[]
+  notifications  Notification[]
+
+  @@index([roleId])
+  @@index([email])
+}
+
+// Role model
+model Role {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  permissions Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  users User[]
+}
+
+// Lead model
+model Lead {
+  id                  String    @id @default(cuid())
+  name                String
+  phone               String
+  email               String?
+  alternatePhone      String?
+  address             String?
+  city                String?
+  state               String?
+  pincode             String?
+  source              String // Website, Meta, Referral, Direct, WhatsApp, Cold Call
+  campaign            String?
+  customerRequirement String?
+  status              String    @default("new") // new, followup, contacted, qualified, unreach, unqualified, won, lost
+  priority            String    @default("medium") // low, medium, high
+  notes               String?   @db.LongText
+  metadata            Json?
+  
+  assignedToId        String?
+  createdById         String?
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  assignedTo          User?           @relation("assignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy           User?           @relation("createdBy", fields: [createdById], references: [id], onDelete: SetNull)
+  callLogs            CallLog[]
+  followUps           FollowUp[]
+  activityHistory     ActivityHistory[]
+
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([status])
+  @@index([source])
+  @@index([createdAt])
+}
+
+// CallLog model
+model CallLog {
+  id              String    @id @default(cuid())
+  leadId          String
+  callerId        String
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  duration        Int?      // in seconds
+  remarks         String?   @db.Text
+  callStatus      String?   // completed, busy, ring_not_response
+  attemptNumber   Int       @default(1)
+  recordingUrl    String?
+  customerRequirement String?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+
+  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  caller          User      @relation(fields: [callerId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([callerId])
+  @@index([createdAt])
+}
+
+// FollowUp model
+model FollowUp {
+  id            String    @id @default(cuid())
+  leadId        String
+  scheduledAt   DateTime
+  completedAt   DateTime?
+  notes         String?   @db.Text
+  status        String    @default("pending") // pending, completed, cancelled
+  priority      String    @default("medium") // low, medium, high
+  createdById   String
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy     User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([createdById])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+// ActivityHistory model
+model ActivityHistory {
+  id            String    @id @default(cuid())
+  leadId        String
+  userId        String
+  action        String    // created, updated, status_changed, assigned, call_logged, followup_scheduled
+  fieldName     String?
+  oldValue      String?   @db.Text
+  newValue      String?   @db.Text
+  description   String
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+
+  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Notification model
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    // info, success, warning, error
+  title     String
+  message   String    @db.Text
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Audit Log model (optional, for advanced tracking)
+model AuditLog {
+  id        String    @id @default(cuid())
+  userId    String
+  action    String
+  targetType String
+  targetId  String
+  changes   Json?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([targetType])
+}
