@@ -35,10 +35,16 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
 
-    console.log('🔍 Meta webhook verification:', { mode, token, challenge });
-
     // Verify token matches what you configured in Meta App Dashboard
     const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'E2W_LMP_META_WEBHOOK_2025';
+    
+    console.log('🔍 Meta webhook verification:', { 
+      mode, 
+      receivedToken: token, 
+      expectedToken: VERIFY_TOKEN,
+      tokensMatch: token === VERIFY_TOKEN,
+      challenge 
+    });
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN && challenge) {
       console.log('✅ Webhook verified successfully');
@@ -48,7 +54,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.error('❌ Webhook verification failed');
+    console.error('❌ Webhook verification failed:', {
+      mode,
+      tokenMatch: token === VERIFY_TOKEN,
+      hasChallenge: !!challenge
+    });
     return new Response('Forbidden', { status: 403 });
   } catch (error) {
     console.error('❌ Webhook verification error:', error);
