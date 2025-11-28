@@ -77,6 +77,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Auto-increment call attempts on the lead
+    await prisma.lead.update({
+      where: { id: body.leadId },
+      data: {
+        callAttempts: {
+          increment: 1,
+        },
+      },
+    });
+
     // Log activity
     await prisma.activityHistory.create({
       data: {

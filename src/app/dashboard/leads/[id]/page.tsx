@@ -162,6 +162,13 @@ export default function LeadDetailPage() {
     return colors[status] || 'gray';
   };
 
+  const getAttemptBadgeColor = (attempts: number | undefined) => {
+    if (!attempts) return 'gray';
+    if (attempts <= 3) return 'blue';
+    if (attempts <= 6) return 'orange';
+    return 'red';
+  };
+
   if (loading) {
     return (
       <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
@@ -188,7 +195,7 @@ export default function LeadDetailPage() {
     );
   }
 
-  const callAttempts = callLogs.length;
+  const callAttempts = lead?.callAttempts || 0;
 
   return (
     <Box p={8}>
@@ -206,14 +213,16 @@ export default function LeadDetailPage() {
           </HStack>
           <Heading size="lg">{lead.name}</Heading>
           <HStack spacing={4} flexWrap="wrap">
+      <HStack spacing={4} flexWrap="wrap">
             <Badge colorScheme={getStatusColor(lead.status)} fontSize="md" px={3} py={1}>
               {lead.status.toUpperCase()}
             </Badge>
-            <Box bg="blue.50" px={3} py={1} borderRadius="md">
+            <Box bg="blue.50" px={3} py={1} borderRadius="md" display="flex" alignItems="center">
               <Text fontSize="sm" fontWeight="bold" color="blue.700">
-                📞 {callAttempts} Call Attempt{callAttempts !== 1 ? 's' : ''}
+                📞 {lead.callAttempts || 0} Call{(lead.callAttempts || 0) !== 1 ? 's' : ''}
               </Text>
             </Box>
+          </HStack>
           </HStack>
         </VStack>
         <HStack spacing={2}>
@@ -230,9 +239,14 @@ export default function LeadDetailPage() {
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
                 <Heading size="md">{lead.name}</Heading>
-                <Badge colorScheme={getStatusColor(lead.status)}>
-                  {lead.status.toUpperCase()}
-                </Badge>
+                <HStack spacing={2}>
+                  <Badge colorScheme={getStatusColor(lead.status)}>
+                    {lead.status.toUpperCase()}
+                  </Badge>
+                  <Badge colorScheme={getAttemptBadgeColor(lead.callAttempts)} fontSize="sm">
+                    {lead.callAttempts || 0} Attempts
+                  </Badge>
+                </HStack>
               </HStack>
 
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>

@@ -66,6 +66,7 @@ model Lead {
   status              String    @default("new") // new, followup, contacted, qualified, unreach, unqualified, won, lost
   priority            String    @default("medium") // low, medium, high
   notes               String?   @db.LongText
+  callAttempts        Int       @default(0) // Counter for call attempts
   metadata            Json?
   
   assignedToId        String?
