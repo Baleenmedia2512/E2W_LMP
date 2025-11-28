@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface Lead {
   id: string;
@@ -42,6 +43,7 @@ export default function EditLeadPage() {
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loadingLead, setLoadingLead] = useState(true);
   const [lead, setLead] = useState<Lead | null>(null);
@@ -86,7 +88,9 @@ export default function EditLeadPage() {
       try {
         const res = await fetch(`/api/leads/${leadId}`);
         if (!res.ok) throw new Error('Lead not found');
-        const data = await res.json();
+        const response = await res.json();
+        // Extract lead data from response wrapper
+        const data = response.data || response;
         setLead(data);
 
         setFormData({
@@ -164,12 +168,24 @@ export default function EditLeadPage() {
       return;
     }
 
+    // Validate phone number is exactly 10 digits
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      toast({
+        title: 'Invalid phone number',
+        description: 'Phone number must be exactly 10 digits',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const updateData: any = {
         name: formData.name,
-        phone: formData.phone,
+        phone: phoneDigits,
         email: formData.email || null,
         alternatePhone: formData.alternatePhone || null,
         address: formData.address || null,
@@ -181,6 +197,7 @@ export default function EditLeadPage() {
         customerRequirement: formData.customerRequirement || null,
         status: formData.status,
         notes: formData.notes || null,
+        updatedById: user?.id,
       };
 
       if (formData.assignedToId) {
@@ -245,7 +262,8 @@ export default function EditLeadPage() {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="Enter phone number"
+                    placeholder="Enter 10 digit phone number"
+                    maxLength={10}
                   />
                 </FormControl>
               </SimpleGrid>

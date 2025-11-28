@@ -17,6 +17,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface AddLeadModalProps {
   isOpen: boolean;
@@ -27,13 +28,12 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: {
-    name: string;
-  };
+  role: string;
 }
 
 export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<User[]>([]);
 
@@ -41,18 +41,26 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        // In a real scenario, you'd fetch agents from an API endpoint
-        // For now, we'll use empty array as placeholder
-        setAgents([]);
+        const response = await fetch('/api/users');
+        if (response.ok) {
+          const data = await response.json();
+          // Filter based on role: Sales Agent sees only themselves, Team Lead sees all
+          if (user?.role === 'sales_agent') {
+            setAgents(data.users.filter((u: User) => u.id === user.id));
+          } else {
+            // Team Lead or Admin sees all agents
+            setAgents(data.users || []);
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch agents:', err);
       }
     };
     
-    if (isOpen) {
+    if (isOpen && user) {
       fetchAgents();
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   // Get current date and time
   const now = new Date();
@@ -68,7 +76,7 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
     phone: '',
     email: '',
     customerRequirement: '',
-    assignedToId: '',
+    assignedToId: user?.id || '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,6 +93,18 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
       return;
     }
 
+    // Validate phone number is exactly 10 digits
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      toast({
+        title: 'Invalid phone number',
+        description: 'Client Contact must be exactly 10 digits',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -94,7 +114,7 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
-          phone: formData.phone,
+          phone: phoneDigits,
           email: formData.email || null,
           alternatePhone: null,
           address: null,
@@ -105,9 +125,9 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
           source: formData.source,
           campaign: formData.campaign || null,
           customerRequirement: formData.customerRequirement || null,
-          assignedToId: formData.assignedToId || null,
-          createdById: null,
-          notes: `Lead created on ${formData.date} at ${formData.time}${formData.campaign ? '. Campaign: ' + formData.campaign : ''}`,
+          assignedToId: formData.assignedToId || user?.id || null,
+          createdById: user?.id || null,
+          notes: null,
         }),
       });
 
@@ -156,7 +176,7 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
       phone: '',
       email: '',
       customerRequirement: '',
-      assignedToId: '',
+      assignedToId: user?.id || '',
     });
     onClose();
   };
@@ -257,7 +277,8 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="Phone number"
+                    placeholder="Enter 10 digit phone number"
+                    maxLength={10}
                     size={{ base: 'sm', md: 'md' }}
                   />
                 </FormControl>
@@ -298,9 +319,11 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                   name="assignedToId"
                   value={formData.assignedToId}
                   onChange={handleChange}
-                  placeholder="Select a Handled By"
                   size={{ base: 'sm', md: 'md' }}
                 >
+                  {agents.length === 0 && (
+                    <option value="">Loading...</option>
+                  )}
                   {agents.map((agent) => (
                     <option key={agent.id} value={agent.id}>
                       {agent.name} ({agent.email})

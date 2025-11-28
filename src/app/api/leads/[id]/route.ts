@@ -41,7 +41,6 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const userId = body.updatedById || 'system';
 
     // Get old values for activity tracking
     const oldLead = await prisma.lead.findUnique({ where: { id: params.id } });
@@ -71,13 +70,13 @@ export async function PUT(
       },
     });
 
-    // Log activities for changed fields
-    if (oldLead) {
+    // Log activities for changed fields (only if userId is provided)
+    if (oldLead && body.updatedById) {
       if (oldLead.status !== body.status && body.status) {
         await prisma.activityHistory.create({
           data: {
             leadId: params.id,
-            userId,
+            userId: body.updatedById,
             action: 'status_changed',
             fieldName: 'status',
             oldValue: oldLead.status,
@@ -91,7 +90,7 @@ export async function PUT(
         await prisma.activityHistory.create({
           data: {
             leadId: params.id,
-            userId,
+            userId: body.updatedById,
             action: 'assigned',
             fieldName: 'assignedToId',
             oldValue: oldLead.assignedToId || 'unassigned',

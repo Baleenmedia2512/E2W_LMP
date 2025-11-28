@@ -173,7 +173,7 @@ export default function LogCallPage() {
           body: JSON.stringify({
             status: 'unreach',
             customerRequirement: formData.customerRequirement,
-            notes: `Marked as Unreachable: ${formData.customerRequirement}`,
+            updatedById: user.id,
           }),
         });
 
@@ -187,7 +187,7 @@ export default function LogCallPage() {
           body: JSON.stringify({
             status: 'unqualified',
             customerRequirement: formData.customerRequirement,
-            notes: `Marked as Unqualified: ${formData.customerRequirement}`,
+            updatedById: user.id,
           }),
         });
 
@@ -195,7 +195,7 @@ export default function LogCallPage() {
           throw new Error('Failed to update lead status');
         }
       } else if (formData.nextAction === 'followup' && followUpDate) {
-        // Create follow-up
+        // Create follow-up and update lead status
         const followUpDateTime = new Date(`${followUpDate}T${followUpTime}`);
         const followUpRes = await fetch('/api/followups', {
           method: 'POST',
@@ -212,6 +212,21 @@ export default function LogCallPage() {
 
         if (!followUpRes.ok) {
           throw new Error('Failed to schedule follow-up');
+        }
+
+        // Update lead status to 'followup'
+        const updateRes = await fetch(`/api/leads/${lead.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'followup',
+            customerRequirement: formData.customerRequirement,
+            updatedById: user.id,
+          }),
+        });
+
+        if (!updateRes.ok) {
+          throw new Error('Failed to update lead status');
         }
       }
 
