@@ -27,36 +27,33 @@ function verifySignature(payload: string, signature: string): boolean {
 }
 
 // GET: Webhook verification endpoint (Meta will call this once during setup)
-// ULTRA-SIMPLIFIED VERSION - NO SECURITY CHECKS FOR TESTING
 export async function GET(request: NextRequest) {
-  // No try-catch - let it crash if it needs to, so we can see the real error
-  const url = request.url;
-  const searchParams = request.nextUrl.searchParams;
-  
-  // Get challenge directly
-  const challenge = searchParams.get('hub.challenge');
-  const mode = searchParams.get('hub.mode');
-  const token = searchParams.get('hub.verify_token');
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    
+    const mode = searchParams.get('hub.mode');
+    const token = searchParams.get('hub.verify_token');
+    const challenge = searchParams.get('hub.challenge');
 
-  console.log('========================================');
-  console.log('META WEBHOOK VERIFICATION');
-  console.log('URL:', url);
-  console.log('Mode:', mode);
-  console.log('Token:', token);
-  console.log('Challenge:', challenge);
-  console.log('========================================');
+    console.log('🔍 Meta webhook verification:', { mode, token, challenge });
 
-  // Return challenge immediately if present
-  if (challenge) {
-    console.log('Returning challenge:', challenge);
-    return new Response(challenge, { 
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    // Verify token matches what you configured in Meta App Dashboard
+    const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'E2W_LMP_META_WEBHOOK_2025';
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN && challenge) {
+      console.log('✅ Webhook verified successfully');
+      return new Response(challenge, { 
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
+
+    console.error('❌ Webhook verification failed');
+    return new Response('Forbidden', { status: 403 });
+  } catch (error) {
+    console.error('❌ Webhook verification error:', error);
+    return new Response('Internal Server Error', { status: 500 });
   }
-
-  // No challenge - return 200 anyway
-  return new Response('OK', { status: 200 });
 }
 
 // Check for duplicate leads
