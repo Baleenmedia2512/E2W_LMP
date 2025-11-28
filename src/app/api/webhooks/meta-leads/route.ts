@@ -29,63 +29,34 @@ function verifySignature(payload: string, signature: string): boolean {
 // GET: Webhook verification endpoint (Meta will call this once during setup)
 // ULTRA-SIMPLIFIED VERSION - NO SECURITY CHECKS FOR TESTING
 export async function GET(request: NextRequest) {
-  try {
-    // Log everything we receive
-    const url = request.url;
-    const searchParams = request.nextUrl.searchParams;
-    const allParams: Record<string, string> = {};
-    searchParams.forEach((value, key) => {
-      allParams[key] = value;
-    });
+  // No try-catch - let it crash if it needs to, so we can see the real error
+  const url = request.url;
+  const searchParams = request.nextUrl.searchParams;
+  
+  // Get challenge directly
+  const challenge = searchParams.get('hub.challenge');
+  const mode = searchParams.get('hub.mode');
+  const token = searchParams.get('hub.verify_token');
 
-    console.log('========================================');
-    console.log('🔍 WEBHOOK VERIFICATION REQUEST RECEIVED');
-    console.log('Full URL:', url);
-    console.log('All Parameters:', JSON.stringify(allParams, null, 2));
-    console.log('========================================');
+  console.log('========================================');
+  console.log('META WEBHOOK VERIFICATION');
+  console.log('URL:', url);
+  console.log('Mode:', mode);
+  console.log('Token:', token);
+  console.log('Challenge:', challenge);
+  console.log('========================================');
 
-    // Get the challenge parameter
-    const challenge = searchParams.get('hub.challenge');
-
-    // If there's a challenge, return it immediately - NO TOKEN CHECK
-    if (challenge) {
-      console.log('✅ CHALLENGE FOUND - RETURNING IT:', challenge);
-      return new NextResponse(challenge, { 
-        status: 200,
-        headers: {
-          'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
-        }
-      });
-    }
-
-    // If no challenge, return success anyway
-    console.log('⚠️ NO CHALLENGE PARAMETER - RETURNING SUCCESS ANYWAY');
-    return new NextResponse(JSON.stringify({ 
-      success: true, 
-      message: 'Endpoint is working',
-      receivedParams: allParams 
-    }), { 
+  // Return challenge immediately if present
+  if (challenge) {
+    console.log('Returning challenge:', challenge);
+    return new Response(challenge, { 
       status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      }
-    });
-  } catch (error) {
-    console.error('❌ Error during webhook verification:', error);
-    // Even on error, try to return success
-    return new NextResponse(JSON.stringify({ 
-      success: true,
-      error: String(error) 
-    }), { 
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      }
+      headers: { 'Content-Type': 'text/plain' }
     });
   }
+
+  // No challenge - return 200 anyway
+  return new Response('OK', { status: 200 });
 }
 
 // Check for duplicate leads
