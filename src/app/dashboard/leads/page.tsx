@@ -55,6 +55,7 @@ import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqu
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
 import { formatDate } from '@/shared/lib/date-utils';
 import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils/lead-categorization';
+import type { CallLog } from '@/shared/types';
 
 type ViewMode = 'table' | 'tiles' | 'list' | 'categorized';
 
@@ -182,7 +183,7 @@ export default function LeadsPage() {
   const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
 
   // Helper functions to get call and follow-up data for table/list/tiles views
-  const getLastCallForLead = (leadId: string) => {
+  const getLastCallForLead = (leadId: string): CallLog | null => {
     // In a real app, you'd have call logs data
     // For now, return null
     return null;
@@ -474,7 +475,7 @@ export default function LeadsPage() {
             {categorizedLeads.overdue.length > 0 ? (
               <VStack spacing={3} align="stretch">
                 {categorizedLeads.overdue.map(({ lead, followUp }) => {
-                  const dueDate = followUp?.dueDate || followUp?.scheduledFor;
+                  const dueDate = followUp?.scheduledAt;
                   const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
                   
                   return (
@@ -546,7 +547,7 @@ export default function LeadsPage() {
                               setLeadToAssign({
                                 id: lead.id,
                                 name: lead.name,
-                                currentAssignee: lead.assignedTo?.name
+                                currentAssignee: lead.assignedTo?.name ?? undefined
                               });
                               onAssignOpen();
                             }}
@@ -657,7 +658,7 @@ export default function LeadsPage() {
                             setLeadToAssign({
                               id: lead.id,
                               name: lead.name,
-                              currentAssignee: lead.assignedTo?.name
+                              currentAssignee: lead.assignedTo?.name ?? undefined
                             });
                             onAssignOpen();
                           }}
@@ -707,7 +708,7 @@ export default function LeadsPage() {
             {categorizedLeads.future.length > 0 ? (
               <VStack spacing={3} align="stretch">
                 {categorizedLeads.future.map(({ lead, followUp }) => {
-                  const dueDate = followUp?.dueDate || followUp?.scheduledFor;
+                  const dueDate = followUp?.scheduledAt;
                   const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
                   
                   return (
@@ -780,7 +781,7 @@ export default function LeadsPage() {
                               setLeadToAssign({
                                 id: lead.id,
                                 name: lead.name,
-                                currentAssignee: lead.assignedTo?.name
+                                currentAssignee: lead.assignedTo?.name ?? undefined
                               });
                               onAssignOpen();
                             }}
@@ -867,8 +868,8 @@ export default function LeadsPage() {
                         <Text fontSize={{ base: 'xs', md: 'sm' }}>
                           {formatDate(lastCall.createdAt)}
                           <br />
-                          <Badge colorScheme={lastCall.status === 'completed' ? 'green' : lastCall.status === 'busy' ? 'red' : 'orange'} fontSize="xs">
-                            {lastCall.status === 'ring_not_response' ? 'Ring Not Response' : lastCall.status.charAt(0).toUpperCase() + lastCall.status.slice(1)}
+                          <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
+                            {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
                           </Badge>
                         </Text>
                       ) : (
@@ -1032,7 +1033,7 @@ export default function LeadsPage() {
                                   setLeadToAssign({
                                     id: lead.id,
                                     name: lead.name,
-                                    currentAssignee: lead.assignedTo?.name
+                                    currentAssignee: lead.assignedTo?.name ?? undefined
                                   });
                                   onAssignOpen();
                                 }}
@@ -1049,10 +1050,10 @@ export default function LeadsPage() {
                                 {formatDate(lastCall.createdAt)}
                               </Text>
                               <Badge
-                                colorScheme={lastCall.status === 'completed' ? 'green' : lastCall.status === 'busy' ? 'red' : 'orange'}
+                                colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'}
                                 fontSize="xs"
                               >
-                                {lastCall.status === 'ring_not_response' ? 'Ring Not Response' : lastCall.status.charAt(0).toUpperCase() + lastCall.status.slice(1)}
+                                {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
                               </Badge>
                             </Box>
                           )}
@@ -1224,7 +1225,7 @@ export default function LeadsPage() {
                           setLeadToAssign({
                             id: lead.id,
                             name: lead.name,
-                            currentAssignee: lead.assignedTo?.name
+                            currentAssignee: lead.assignedTo?.name ?? undefined
                           });
                           onAssignOpen();
                         }}
@@ -1239,8 +1240,8 @@ export default function LeadsPage() {
                     {lastCall && (
                       <Text fontSize="sm" color="gray.500">
                         <strong>Last Call:</strong> {formatDate(lastCall.createdAt)} -{' '}
-                        <Badge colorScheme={lastCall.status === 'completed' ? 'green' : lastCall.status === 'busy' ? 'red' : 'orange'} fontSize="xs">
-                          {lastCall.status === 'ring_not_response' ? 'Ring Not Response' : lastCall.status.charAt(0).toUpperCase() + lastCall.status.slice(1)}
+                        <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
+                          {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
                         </Badge>
                       </Text>
                     )}

@@ -95,7 +95,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
 
     // If no previous leads or no assignment, start with first agent
     if (!lastLead || !lastLead.assignedToId) {
-      return agents[0].id;
+      return agents[0]?.id || null;
     }
 
     // Find current agent's index
@@ -106,7 +106,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
       ? 0 
       : currentIndex + 1;
     
-    return agents[nextIndex].id;
+    return agents[nextIndex]?.id || null;
   } catch (error) {
     console.error('Error in round-robin assignment:', error);
     return null;

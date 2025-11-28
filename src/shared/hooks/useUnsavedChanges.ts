@@ -17,12 +17,13 @@ export function useUnsavedChanges(
   } = options;
 
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent): string | undefined => {
       if (hasUnsavedChanges) {
         e.preventDefault();
         e.returnValue = message;
         return message;
       }
+      return undefined;
     };
 
     if (hasUnsavedChanges) {

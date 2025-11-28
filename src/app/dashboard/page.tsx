@@ -95,10 +95,19 @@ const getStatusColor = (status: string) => {
 
 export default function DashboardPage() {
   const router = useRouter();
+  
   const [leads, setLeads] = useState<any[]>([]);
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>(() => {
+    const date = new Date().toISOString().split('T')[0];
+    return date || '';
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    const date = new Date().toISOString().split('T')[0];
+    return date || '';
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -128,13 +137,6 @@ export default function DashboardPage() {
     
     fetchData();
   }, []);
-
-  // Get today's date and set default date range
-  const today = new Date();
-  const todayString = today.toISOString().split('T')[0];
-  
-  const [startDate, setStartDate] = useState(todayString);
-  const [endDate, setEndDate] = useState(todayString);
 
   const handleCardClick = (filter: string) => {
     router.push(`/dashboard/leads?filter=${filter}`);

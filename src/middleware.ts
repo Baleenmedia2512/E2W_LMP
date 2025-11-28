@@ -6,7 +6,13 @@ export function middleware(request: NextRequest) {
 
   // List of routes that should be accessible without authentication
   // Client-side auth context will handle actual auth checks
-  const publicRoutes = ['/login', '/api/auth/login', '/'];
+  const publicRoutes = [
+    '/login', 
+    '/api/auth/login', 
+    '/api/webhooks/meta-leads',  // Meta webhook must be public
+    '/api/health',  // Health check endpoint
+    '/'
+  ];
 
   // Allow all public routes and API routes to pass through
   // Client-side auth context handles actual protection
@@ -26,7 +32,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public (public files)
+     * - api/webhooks (webhook endpoints)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public|api/webhooks).*)',
   ],
 };

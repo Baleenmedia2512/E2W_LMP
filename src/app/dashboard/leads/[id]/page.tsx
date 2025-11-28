@@ -46,6 +46,7 @@ interface Lead {
   address?: string;
   notes?: string;
   status: string;
+  callAttempts?: number;
   createdAt: string;
   updatedAt: string;
 }
