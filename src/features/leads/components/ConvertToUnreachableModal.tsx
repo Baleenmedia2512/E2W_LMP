@@ -22,6 +22,7 @@ interface ConvertToUnreachableModalProps {
   onClose: () => void;
   leadId: string;
   leadName: string;
+  onSuccess?: () => void;
 }
 
 export default function ConvertToUnreachableModal({
@@ -29,6 +30,7 @@ export default function ConvertToUnreachableModal({
   onClose,
   leadId,
   leadName,
+  onSuccess,
 }: ConvertToUnreachableModalProps) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -70,8 +72,10 @@ export default function ConvertToUnreachableModal({
         setReason('');
         onClose();
         
-        // Reload to show updated status
-        setTimeout(() => window.location.reload(), 500);
+        // Trigger refresh via callback
+        if (onSuccess) {
+          onSuccess();
+        }
       } else {
         throw new Error('Failed to update lead');
       }

@@ -22,6 +22,7 @@ interface ConvertToUnqualifiedModalProps {
   onClose: () => void;
   leadId: string;
   leadName: string;
+  onSuccess?: () => void;
 }
 
 export default function ConvertToUnqualifiedModal({
@@ -29,6 +30,7 @@ export default function ConvertToUnqualifiedModal({
   onClose,
   leadId,
   leadName,
+  onSuccess,
 }: ConvertToUnqualifiedModalProps) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -76,8 +78,10 @@ export default function ConvertToUnqualifiedModal({
         setCompetitor('');
         onClose();
         
-        // Reload to show updated status
-        setTimeout(() => window.location.reload(), 500);
+        // Trigger refresh via callback
+        if (onSuccess) {
+          onSuccess();
+        }
       } else {
         throw new Error('Failed to update lead');
       }

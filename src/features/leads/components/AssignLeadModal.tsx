@@ -66,6 +66,8 @@ export default function AssignLeadModal({
       const response = await fetch('/api/users');
       if (response.ok) {
         const data = await response.json();
+        // Note: Assign modal typically shows all users for reassignment flexibility
+        // If role filtering is needed, it should be applied here
         setUsers(data.users || []);
       } else {
         console.warn('Failed to fetch users, using empty list');

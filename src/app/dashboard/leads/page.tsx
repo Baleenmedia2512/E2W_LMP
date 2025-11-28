@@ -125,37 +125,42 @@ export default function LeadsPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   
   // Fetch leads and follow-ups from API
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [leadsRes, followUpsRes] = await Promise.all([
-          fetch('/api/leads?limit=100'),
-          fetch('/api/followups?limit=100'),
-        ]);
-        
-        const leadsData = await leadsRes.json();
-        const followUpsData = await followUpsRes.json();
-        
-        if (leadsData.success) {
-          setLeads(leadsData.data);
-        } else {
-          setError(leadsData.error || 'Failed to fetch leads');
-        }
-        
-        if (followUpsData.success) {
-          setFollowUps(followUpsData.data);
-        }
-      } catch (err) {
-        setError('Failed to fetch data');
-        console.error(err);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [leadsRes, followUpsRes] = await Promise.all([
+        fetch('/api/leads?limit=100'),
+        fetch('/api/followups?limit=100'),
+      ]);
+      
+      const leadsData = await leadsRes.json();
+      const followUpsData = await followUpsRes.json();
+      
+      if (leadsData.success) {
+        setLeads(leadsData.data);
+      } else {
+        setError(leadsData.error || 'Failed to fetch leads');
       }
-    };
-    
+      
+      if (followUpsData.success) {
+        setFollowUps(followUpsData.data);
+      }
+    } catch (err) {
+      setError('Failed to fetch data');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
     fetchData();
   }, []);
+  
+  // Handler to refresh data after status changes
+  const handleRefreshLeads = () => {
+    fetchData();
+  };
   
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1171,12 +1176,14 @@ export default function LeadsPage() {
             onClose={onUnreachableClose}
             leadId={selectedLead.id}
             leadName={selectedLead.name}
+            onSuccess={handleRefreshLeads}
           />
           <ConvertToUnqualifiedModal
             isOpen={isUnqualifiedOpen}
             onClose={onUnqualifiedClose}
             leadId={selectedLead.id}
             leadName={selectedLead.name}
+            onSuccess={handleRefreshLeads}
           />
         </>
       )}

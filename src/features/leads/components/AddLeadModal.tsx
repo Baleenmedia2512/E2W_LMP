@@ -44,11 +44,19 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
         const response = await fetch('/api/users');
         if (response.ok) {
           const data = await response.json();
-          // Filter based on role: Sales Agent sees only themselves, Team Lead sees all
+          // Filter based on role:
+          // Sales Agent: sees only themselves
+          // Lead/Team Lead: sees sales agents + themselves
+          // Super Agent/Admin: sees all (themselves + lead + sales agents)
           if (user?.role === 'sales_agent') {
             setAgents(data.users.filter((u: User) => u.id === user.id));
+          } else if (user?.role === 'team_lead') {
+            // Lead sees sales agents and themselves
+            setAgents(data.users.filter((u: User) => 
+              u.role === 'sales_agent' || u.id === user.id
+            ));
           } else {
-            // Team Lead or Admin sees all agents
+            // Super agent/Admin sees all
             setAgents(data.users || []);
           }
         }
@@ -140,8 +148,10 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
           duration: 3000,
         });
         onClose();
-        // Refresh page to see new lead
-        setTimeout(() => window.location.reload(), 500);
+        // Trigger refresh to see new lead
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
       } else {
         throw new Error('Failed to create lead');
       }
@@ -159,10 +169,21 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    
+    // For phone field, only allow numbers
+    if (name === 'phone') {
+      const numbersOnly = value.replace(/\D/g, '');
+      setFormData({
+        ...formData,
+        [name]: numbersOnly,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    }
   };
 
   const handleClose = () => {
