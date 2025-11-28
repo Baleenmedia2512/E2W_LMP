@@ -144,7 +144,9 @@ export default function ScheduleFollowUpPage() {
       });
 
       setLoading(false);
+      // Navigate back and trigger a refresh
       router.push(`/dashboard/leads/${leadId}`);
+      router.refresh();
     } catch (error) {
       toast({
         title: 'Error scheduling follow-up',

@@ -73,7 +73,19 @@ export default function EditLeadPage() {
         const res = await fetch('/api/users');
         if (res.ok) {
           const data = await res.json();
-          setAgents(data.users || []);
+          // Filter based on role:
+          // Sales Agent: sees only themselves
+          // Lead/Team Lead: sees sales agents + themselves
+          // Super Agent/Admin: sees all
+          if (user?.role === 'sales_agent') {
+            setAgents(data.users.filter((u: any) => u.id === user.id));
+          } else if (user?.role === 'team_lead') {
+            setAgents(data.users.filter((u: any) => 
+              u.role === 'sales_agent' || u.id === user.id
+            ));
+          } else {
+            setAgents(data.users || []);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch agents:', error);
@@ -81,7 +93,7 @@ export default function EditLeadPage() {
     };
 
     fetchAgents();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const fetchLead = async () => {
@@ -149,10 +161,21 @@ export default function EditLeadPage() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    
+    // For phone fields, only allow numbers
+    if (name === 'phone' || name === 'alternatePhone') {
+      const numbersOnly = value.replace(/\D/g, '');
+      setFormData({
+        ...formData,
+        [name]: numbersOnly,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

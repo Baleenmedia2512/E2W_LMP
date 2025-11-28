@@ -36,8 +36,16 @@ export function categorizeAndSortLeads(
 ): LeadCategories {
   const now = new Date();
   const categorized: CategorizedLead[] = [];
+  
+  // Filter out leads with terminal statuses (unqualified, unreachable, won, lost)
+  const activeStatuses = ['new', 'contacted', 'followup', 'qualified'];
 
   leads.forEach((lead) => {
+    // Skip leads with terminal statuses
+    if (!activeStatuses.includes(lead.status)) {
+      return;
+    }
+    
     // Find the next pending follow-up for this lead
     const leadFollowUps = followUps.filter(
       (f) => f.leadId === lead.id && f.status === 'pending'
