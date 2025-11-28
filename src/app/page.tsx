@@ -3,13 +3,21 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Box, Spinner, Center } from '@chakra-ui/react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 export default function HomePage() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    router.push('/dashboard');
-  }, [router]);
+    if (!isLoading) {
+      if (isAuthenticated) {
+        router.push('/dashboard');
+      } else {
+        router.push('/login');
+      }
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   return (
     <Center h="100vh">

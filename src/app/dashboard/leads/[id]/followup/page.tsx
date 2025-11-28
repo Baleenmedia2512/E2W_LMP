@@ -16,19 +16,51 @@ import {
   useToast,
   HStack,
   Text,
+  Spinner,
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { getLeadById, addFollowUp } from '@/shared/lib/mock-data';
+
+interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+}
 
 export default function ScheduleFollowUpPage() {
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [loadingLead, setLoadingLead] = useState(true);
+  const [lead, setLead] = useState<Lead | null>(null);
   const leadId = params?.id as string;
 
-  const lead = getLeadById(leadId);
+  useEffect(() => {
+    const fetchLead = async () => {
+      try {
+        const res = await fetch(`/api/leads/${leadId}`);
+        if (!res.ok) throw new Error('Lead not found');
+        const data = await res.json();
+        setLead(data);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load lead',
+          status: 'error',
+          duration: 3000,
+        });
+        router.push('/dashboard/leads');
+      } finally {
+        setLoadingLead(false);
+      }
+    };
+
+    if (leadId) {
+      fetchLead();
+    }
+  }, [leadId, toast, router]);
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -40,6 +72,14 @@ export default function ScheduleFollowUpPage() {
     priority: 'medium' as 'low' | 'medium' | 'high',
     notes: '',
   });
+
+  if (loadingLead) {
+    return (
+      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <Spinner size="lg" color="blue.500" />
+      </Box>
+    );
+  }
 
   if (!lead) {
     return (
@@ -80,16 +120,21 @@ export default function ScheduleFollowUpPage() {
       // Create scheduled date/time
       const scheduledDateTime = new Date(`${formData.date}T${formData.time}`);
 
-      // Add follow-up
-      addFollowUp({
-        leadId: lead.id,
-        leadName: lead.name,
-        scheduledFor: scheduledDateTime,
-        status: 'pending',
-        priority: formData.priority,
-        notes: formData.notes,
-        createdById: '2', // Mock current user
+      // Create follow-up via API
+      const res = await fetch('/api/followups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          scheduledAt: scheduledDateTime.toISOString(),
+          status: 'pending',
+          priority: formData.priority,
+          notes: formData.notes,
+          createdById: 'current-user-id',
+        }),
       });
+
+      if (!res.ok) throw new Error('Failed to schedule follow-up');
 
       toast({
         title: 'Follow-up scheduled successfully',
@@ -103,7 +148,7 @@ export default function ScheduleFollowUpPage() {
     } catch (error) {
       toast({
         title: 'Error scheduling follow-up',
-        description: 'Something went wrong',
+        description: error instanceof Error ? error.message : 'Something went wrong',
         status: 'error',
         duration: 3000,
       });

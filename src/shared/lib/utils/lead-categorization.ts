@@ -14,6 +14,17 @@ export interface LeadCategories {
 }
 
 /**
+ * Converts a date string or Date object to a Date object
+ * @param date - Date as string or Date object
+ * @returns Date object
+ */
+function ensureDate(date: string | Date | undefined): Date {
+  if (!date) return new Date();
+  if (date instanceof Date) return date;
+  return new Date(date);
+}
+
+/**
  * Categorizes and sorts leads based on follow-up status
  * @param leads - Array of leads to categorize
  * @param followUps - Array of follow-ups
@@ -34,20 +45,21 @@ export function categorizeAndSortLeads(
 
     if (leadFollowUps.length === 0) {
       // No follow-up history = New lead
+      const createdAtDate = ensureDate(lead.createdAt);
       categorized.push({
         lead,
         category: 'new',
-        sortValue: lead.createdAt.getTime(),
+        sortValue: createdAtDate.getTime(),
       });
     } else {
       // Has follow-up(s) - check if overdue or future
       const nextFollowUp = leadFollowUps.reduce((earliest, current) => {
-        const earliestDate = earliest.dueDate || earliest.scheduledFor;
-        const currentDate = current.dueDate || current.scheduledFor;
+        const earliestDate = ensureDate(earliest.scheduledAt);
+        const currentDate = ensureDate(current.scheduledAt);
         return currentDate < earliestDate ? current : earliest;
       });
 
-      const dueDate = nextFollowUp.dueDate || nextFollowUp.scheduledFor;
+      const dueDate = ensureDate(nextFollowUp.scheduledAt);
 
       if (dueDate < now) {
         // Overdue - sort by how overdue (largest time difference first)
@@ -91,9 +103,10 @@ export function categorizeAndSortLeads(
  * @param date - The date to compare
  * @returns Human-readable time difference
  */
-export function formatTimeDifference(date: Date): string {
+export function formatTimeDifference(date: string | Date): string {
   const now = new Date();
-  const diff = Math.abs(now.getTime() - date.getTime());
+  const dateObj = ensureDate(date);
+  const diff = Math.abs(now.getTime() - dateObj.getTime());
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
@@ -114,7 +127,7 @@ export function formatTimeDifference(date: Date): string {
  */
 export function isFollowUpOverdue(followUp: FollowUp): boolean {
   const now = new Date();
-  const dueDate = followUp.dueDate || followUp.scheduledFor;
+  const dueDate = ensureDate(followUp.scheduledAt);
   return dueDate < now && followUp.status === 'pending';
 }
 

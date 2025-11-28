@@ -53,7 +53,6 @@ import AssignLeadModal from '@/features/leads/components/AssignLeadModal';
 import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnreachableModal';
 import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
-import { mockLeads, mockFollowUps, getLastCallForLead, getNextFollowUpForLead } from '@/shared/lib/mock-data';
 import { formatDate } from '@/shared/lib/date-utils';
 import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils/lead-categorization';
 
@@ -117,9 +116,46 @@ export default function LeadsPage() {
     name: string;
     phone: string;
   } | null>(null);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Auto-refresh every minute to update overdue status
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Fetch leads and follow-ups from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [leadsRes, followUpsRes] = await Promise.all([
+          fetch('/api/leads?limit=100'),
+          fetch('/api/followups?limit=100'),
+        ]);
+        
+        const leadsData = await leadsRes.json();
+        const followUpsData = await followUpsRes.json();
+        
+        if (leadsData.success) {
+          setLeads(leadsData.data);
+        } else {
+          setError(leadsData.error || 'Failed to fetch leads');
+        }
+        
+        if (followUpsData.success) {
+          setFollowUps(followUpsData.data);
+        }
+      } catch (err) {
+        setError('Failed to fetch data');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
   
   useEffect(() => {
     const timer = setInterval(() => {
@@ -137,8 +173,8 @@ export default function LeadsPage() {
   const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
 
   // Filter leads based on search
-  const leads = useMemo(() => {
-    let filtered = [...mockLeads];
+  const filteredLeads = useMemo(() => {
+    let filtered = [...leads];
 
     // Search filter
     if (searchQuery) {
@@ -152,12 +188,12 @@ export default function LeadsPage() {
     }
 
     return filtered;
-  }, [searchQuery]);
+  }, [searchQuery, leads]);
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
-    return categorizeAndSortLeads(leads, mockFollowUps);
-  }, [leads, currentTime]); // Re-calculate when time updates
+    return categorizeAndSortLeads(filteredLeads, followUps);
+  }, [filteredLeads, followUps, currentTime]); // Re-calculate when time updates
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -203,6 +239,20 @@ export default function LeadsPage() {
         </Button>
       </Flex>
 
+      {error && (
+        <Box bg="red.50" p={4} borderRadius="lg" mb={4} color="red.700">
+          {error}
+        </Box>
+      )}
+
+      {loading && (
+        <Box textAlign="center" py={8}>
+          <Text color="gray.500">Loading leads...</Text>
+        </Box>
+      )}
+
+      {!loading && (
+        <>
       {/* Search and View Toggle */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
@@ -1128,6 +1178,8 @@ export default function LeadsPage() {
           leadName={leadToCall.name}
           leadPhone={leadToCall.phone}
         />
+      )}
+        </>
       )}
     </Box>
   );

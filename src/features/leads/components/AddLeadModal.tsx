@@ -16,20 +16,43 @@ import {
   SimpleGrid,
   useToast,
 } from '@chakra-ui/react';
-import { useState } from 'react';
-import { mockUsers, addLead } from '@/shared/lib/mock-data';
+import { useState, useEffect } from 'react';
 
 interface AddLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: {
+    name: string;
+  };
+}
+
 export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [agents, setAgents] = useState<User[]>([]);
 
-  // Get agents from mock data
-  const agents = mockUsers.filter(user => user.role.name === 'Agent' || user.role.name === 'SuperAgent');
+  // Fetch agents from API
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        // In a real scenario, you'd fetch agents from an API endpoint
+        // For now, we'll use empty array as placeholder
+        setAgents([]);
+      } catch (err) {
+        console.error('Failed to fetch agents:', err);
+      }
+    };
+    
+    if (isOpen) {
+      fetchAgents();
+    }
+  }, [isOpen]);
 
   // Get current date and time
   const now = new Date();
@@ -65,65 +88,52 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
     setLoading(true);
 
     try {
-      // Find the selected agent
-      const selectedAgent = formData.assignedToId 
-        ? agents.find(a => a.id === formData.assignedToId)
-        : undefined;
-
-      // Add lead to mock data
-      const newLead = addLead({
-        name: formData.name,
-        phone: formData.phone,
-        email: formData.email || null,
-        alternatePhone: null,
-        address: null,
-        city: null,
-        state: null,
-        pincode: null,
-        status: 'new',
-        source: formData.source,
-        campaign: formData.campaign || null,
-        customerRequirement: formData.customerRequirement || null,
-        assignedTo: selectedAgent ? {
-          id: selectedAgent.id,
-          name: selectedAgent.name,
-          email: selectedAgent.email,
-        } : undefined,
-        notes: `Lead created on ${formData.date} at ${formData.time}${formData.campaign ? '. Campaign: ' + formData.campaign : ''}`,
-        callAttempts: 0,
+      // Create lead via API
+      const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          phone: formData.phone,
+          email: formData.email || null,
+          alternatePhone: null,
+          address: null,
+          city: null,
+          state: null,
+          pincode: null,
+          status: 'new',
+          source: formData.source,
+          campaign: formData.campaign || null,
+          customerRequirement: formData.customerRequirement || null,
+          assignedToId: formData.assignedToId || null,
+          createdById: null,
+          notes: `Lead created on ${formData.date} at ${formData.time}${formData.campaign ? '. Campaign: ' + formData.campaign : ''}`,
+        }),
       });
 
-      toast({
-        title: 'Lead created successfully',
-        description: `${newLead.name} has been added to the system`,
-        status: 'success',
-        duration: 3000,
-      });
-
-      // Reset form
-      setFormData({
-        date: currentDate,
-        time: currentTime,
-        source: '',
-        name: '',
-        campaign: '',
-        phone: '',
-        email: '',
-        assignedToId: '',
-      });
-
-      setLoading(false);
-      onClose();
-      
-      // Reload the page to show new lead
-      window.location.reload();
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: 'Lead created successfully',
+          description: `${result.data.name} has been added to the system`,
+          status: 'success',
+          duration: 3000,
+        });
+        onClose();
+        // Refresh page to see new lead
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        throw new Error('Failed to create lead');
+      }
     } catch (error) {
       toast({
         title: 'Error creating lead',
-        description: 'Something went wrong',
+        description: 'An error occurred while creating the lead',
         status: 'error',
         duration: 3000,
       });
+      console.error(error);
+    } finally {
       setLoading(false);
     }
   };

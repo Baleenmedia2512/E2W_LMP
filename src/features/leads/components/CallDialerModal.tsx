@@ -25,8 +25,8 @@ import {
   Divider,
 } from '@chakra-ui/react';
 import { HiPhone, HiPhoneIncoming, HiX, HiArrowLeft } from 'react-icons/hi';
-import { addCallLog, addFollowUp, updateLeadStatus } from '@/shared/lib/mock-data';
 import { formatDate } from '@/shared/lib/date-utils';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface CallDialerModalProps {
   isOpen: boolean;
@@ -46,6 +46,7 @@ export default function CallDialerModal({
   leadPhone,
 }: CallDialerModalProps) {
   const toast = useToast();
+  const { user } = useAuth();
   const [callPhase, setCallPhase] = useState<CallPhase>('dialing');
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
@@ -116,29 +117,48 @@ export default function CallDialerModal({
       return;
     }
 
-    try {
-      // Save call log
-      addCallLog({
-        leadId,
-        leadName,
-        duration,
-        status: callStatus,
-        notes: remarks || 'No remarks',
-        userId: '2',
-        userName: 'John Doe',
-      });
-
+    if (!user || !user.id) {
       toast({
-        title: 'Call Logged',
-        description: 'Call has been saved successfully',
-        status: 'success',
+        title: 'Error',
+        description: 'User not authenticated',
+        status: 'error',
         duration: 3000,
         isClosable: true,
       });
+      return;
+    }
 
-      // Mark call as saved and move to next action selection
-      setCallSaved(true);
-      setCallPhase('next-action');
+    try {
+      // Save call log via API
+      const response = await fetch('/api/calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId,
+          callerId: user.id,
+          startedAt: startTime,
+          endedAt: endTime,
+          duration,
+          callStatus,
+          remarks: remarks || 'No remarks',
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Call Logged',
+          description: 'Call has been saved successfully',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+
+        // Mark call as saved and move to next action selection
+        setCallSaved(true);
+        setCallPhase('next-action');
+      } else {
+        throw new Error('Failed to save call');
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -147,10 +167,11 @@ export default function CallDialerModal({
         duration: 3000,
         isClosable: true,
       });
+      console.error(error);
     }
   };
 
-  const handleNextAction = (action: 'followup' | 'unqualified' | 'unreachable') => {
+  const handleNextAction = async (action: 'followup' | 'unqualified' | 'unreachable') => {
     if (!callSaved) {
       toast({
         title: 'Error',
@@ -168,27 +189,51 @@ export default function CallDialerModal({
       // Stay in modal and show follow-up form
       setCallPhase('ended');
     } else if (action === 'unqualified') {
-      // Update lead status to unqualified
-      updateLeadStatus(leadId, 'unqualified', remarks);
-      toast({
-        title: 'Lead Marked as Unqualified',
-        description: `${leadName} has been marked as unqualified`,
-        status: 'info',
-        duration: 3000,
-        isClosable: true,
-      });
-      handleClose();
+      // Update lead status to unqualified via API
+      try {
+        await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'unqualified',
+            notes: remarks,
+          }),
+        });
+        
+        toast({
+          title: 'Lead Marked as Unqualified',
+          description: `${leadName} has been marked as unqualified`,
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
+        handleClose();
+      } catch (error) {
+        console.error('Failed to update lead:', error);
+      }
     } else if (action === 'unreachable') {
-      // Update lead status to unreachable
-      updateLeadStatus(leadId, 'unreach', remarks);
-      toast({
-        title: 'Lead Marked as Unreachable',
-        description: `${leadName} has been marked as unreachable`,
-        status: 'info',
-        duration: 3000,
-        isClosable: true,
-      });
-      handleClose();
+      // Update lead status to unreachable via API
+      try {
+        await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'unreach',
+            notes: remarks,
+          }),
+        });
+        
+        toast({
+          title: 'Lead Marked as Unreachable',
+          description: `${leadName} has been marked as unreachable`,
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
+        handleClose();
+      } catch (error) {
+        console.error('Failed to update lead:', error);
+      }
     }
   };
 
@@ -259,29 +304,41 @@ export default function CallDialerModal({
     }
 
     try {
-      addFollowUp({
-        leadId,
-        leadName,
-        scheduledFor: scheduledDateTime,
-        status: 'pending',
-        notes: followUpNotes || 'Follow-up scheduled from call',
-        priority: followUpPriority,
+      // Create follow-up via API
+      const response = await fetch('/api/followups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId,
+          scheduledAt: scheduledDateTime,
+          status: 'pending',
+          notes: followUpNotes || 'Follow-up scheduled from call',
+          priority: followUpPriority,
+          createdById: user?.id || 'unknown-user',
+        }),
       });
 
-      toast({
-        title: 'Follow-up Scheduled',
-        description: `Follow-up scheduled for ${formatDate(scheduledDateTime)}`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
+      if (response.ok) {
+        toast({
+          title: 'Follow-up Scheduled',
+          description: `Follow-up scheduled for ${formatDate(scheduledDateTime)}`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
 
-      // Reset follow-up form
-      setFollowUpTimeframe('tomorrow');
-      setFollowUpDate('');
-      setFollowUpTime('');
-      setFollowUpNotes('');
-      setFollowUpPriority('medium');
+        // Reset follow-up form
+        setFollowUpTimeframe('tomorrow');
+        setFollowUpDate('');
+        setFollowUpTime('');
+        setFollowUpNotes('');
+        setFollowUpPriority('medium');
+        
+        // Close modal after successful save
+        handleClose();
+      } else {
+        throw new Error('Failed to create follow-up');
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -290,6 +347,7 @@ export default function CallDialerModal({
         duration: 3000,
         isClosable: true,
       });
+      console.error(error);
     }
   };
 
@@ -561,7 +619,7 @@ export default function CallDialerModal({
                         minute: '2-digit',
                         hour12: true
                       });
-                      const agentName = 'Demo User'; // You can replace this with actual logged-in user
+                      const agentName = user?.name || 'Unknown User';
                       setRemarks(`[${dateTimeStr} - ${agentName}] `);
                       setRemarksInitialized(true);
                       // Move cursor to the end

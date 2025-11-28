@@ -16,7 +16,6 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useState } from 'react';
-import { updateLeadStatus } from '@/shared/lib/mock-data';
 
 interface ConvertToUnreachableModalProps {
   isOpen: boolean;
@@ -49,22 +48,32 @@ export default function ConvertToUnreachableModal({
     setLoading(true);
 
     try {
-      // Update lead status in mock data
-      updateLeadStatus(leadId, 'unreach', `Marked as Unreachable: ${reason}`);
-
-      toast({
-        title: 'Lead marked as unreachable',
-        description: `${leadName} has been marked as unreachable`,
-        status: 'success',
-        duration: 3000,
+      // Update lead status via API
+      const response = await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'unreach',
+          notes: `Marked as Unreachable: ${reason}`,
+        }),
       });
 
-      setReason('');
-      setLoading(false);
-      onClose();
-      
-      // Reload to show updated status
-      setTimeout(() => window.location.reload(), 500);
+      if (response.ok) {
+        toast({
+          title: 'Lead marked as unreachable',
+          description: `${leadName} has been marked as unreachable`,
+          status: 'success',
+          duration: 3000,
+        });
+
+        setReason('');
+        onClose();
+        
+        // Reload to show updated status
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        throw new Error('Failed to update lead');
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -72,6 +81,8 @@ export default function ConvertToUnreachableModal({
         status: 'error',
         duration: 3000,
       });
+      console.error(error);
+    } finally {
       setLoading(false);
     }
   };

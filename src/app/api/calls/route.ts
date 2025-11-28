@@ -51,6 +51,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Validate required fields
+    if (!body.leadId || !body.callerId) {
+      return NextResponse.json(
+        { success: false, error: 'leadId and callerId are required' },
+        { status: 400 }
+      );
+    }
+
     const callLog = await prisma.callLog.create({
       data: {
         leadId: body.leadId,
@@ -85,8 +93,9 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error creating call log:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create call log';
     return NextResponse.json(
-      { success: false, error: 'Failed to create call log' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

@@ -3,6 +3,8 @@
 import { Box, Flex, VStack, Text, Icon, useColorModeValue } from '@chakra-ui/react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { useRoleBasedAccess } from '@/shared/hooks/useRoleBasedAccess';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -18,22 +20,31 @@ import {
   FiBell,
 } from 'react-icons/fi';
 
-const navItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: FiHome, roles: ['Agent', 'SuperAgent', 'Finance', 'HR', 'Procurement'] },
-  { name: 'Leads', href: '/dashboard/leads', icon: FiUsers, roles: ['Agent', 'SuperAgent'] },
-  { name: 'Follow-ups', href: '/dashboard/followups', icon: FiClock, roles: ['Agent', 'SuperAgent'] },
-  { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, roles: ['Agent', 'SuperAgent', 'Finance', 'HR'] },
-  { name: 'Reports', href: '/dashboard/reports', icon: FiFileText, roles: ['SuperAgent', 'Finance', 'HR'] },
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  permission: string;
+}
+
+const navItems: NavItem[] = [
+  { name: 'Dashboard', href: '/dashboard', icon: FiHome, permission: 'canViewOwnDashboard' },
+  { name: 'Leads', href: '/dashboard/leads', icon: FiUsers, permission: 'canViewLeads' },
+  { name: 'Calls', href: '/dashboard/calls', icon: FiPhone, permission: 'canLogCall' },
+  { name: 'Follow-ups', href: '/dashboard/followups', icon: FiClock, permission: 'canManageFollowup' },
+  { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, permission: 'canViewDSR' },
+  { name: 'Reports', href: '/dashboard/reports', icon: FiFileText, permission: 'canViewTeamReport' },
+  { name: 'Settings', href: '/dashboard/settings', icon: FiSettings, permission: 'canManageOwnSettings' },
 ];
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const { user } = useAuth();
+  const { hasPermission } = useRoleBasedAccess();
 
-  const userRole = 'Agent';
-
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(userRole));
+  const filteredNavItems = navItems.filter((item) => hasPermission(item.permission as any));
 
   return (
     <Box
@@ -88,10 +99,10 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           <Flex align="center" gap={3}>
             <Box flex="1" minW="0">
               <Text fontSize="sm" fontWeight="600" noOfLines={1}>
-                Demo User
+                {user?.name || 'User'}
               </Text>
               <Text fontSize="xs" color="gray.500" noOfLines={1}>
-                Agent
+                {user?.role || 'Agent'}
               </Text>
             </Box>
           </Flex>

@@ -33,6 +33,14 @@ export async function PUT(
   }
 }
 
+// PATCH also works for updates
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return PUT(request, { params });
+}
+
 // DELETE follow-up
 export async function DELETE(
   request: NextRequest,

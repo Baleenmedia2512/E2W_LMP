@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Heading,
@@ -24,24 +24,64 @@ import {
   Input,
   Select,
   Button,
+  Spinner,
+  useToast,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiPhone, HiSearch } from 'react-icons/hi';
-import { mockLeads } from '@/shared/lib/mock-data';
 import { formatDate } from '@/shared/lib/date-utils';
+
+interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  assignedTo?: { id: string; name: string };
+  updatedAt: string;
+  notes?: string;
+  callAttempts?: number;
+  status: string;
+}
 
 export default function UnreachableLeadsPage() {
   const router = useRouter();
+  const toast = useToast();
   
   // State for filters
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLeads = async () => {
+      try {
+        const res = await fetch('/api/leads?limit=100');
+        if (!res.ok) throw new Error('Failed to fetch leads');
+        const data = await res.json();
+        
+        const leadsList = Array.isArray(data) ? data : data.data || [];
+        setLeads(leadsList);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load leads',
+          status: 'error',
+          duration: 3000,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLeads();
+  }, [toast]);
 
   // Filter unreachable leads
   const unreachableLeads = useMemo(() => {
-    let filtered = mockLeads.filter(lead => lead.status === 'unreach');
+    let filtered = leads.filter(lead => lead.status === 'unreach');
 
     // Search filter
     if (searchQuery) {
@@ -84,7 +124,18 @@ export default function UnreachableLeadsPage() {
     }
 
     return filtered;
-  }, [searchQuery, dateFilter, startDate, endDate]);
+  }, [leads, searchQuery, dateFilter, startDate, endDate]);
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <VStack spacing={4}>
+          <Spinner size="lg" color="blue.500" />
+          <Text color="gray.600">Loading unreachable leads...</Text>
+        </VStack>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -241,8 +292,4 @@ export default function UnreachableLeadsPage() {
     </Box>
   );
 }
-
-
-
-
 

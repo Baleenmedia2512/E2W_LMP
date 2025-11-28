@@ -12,16 +12,52 @@ import {
   VStack,
   HStack,
   Button,
+  useToast,
+  Spinner,
 } from '@chakra-ui/react';
 import { FiBell, FiEye } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import { mockNotifications, getUnreadNotifications } from '@/shared/lib/mock-data';
+import { useState, useEffect } from 'react';
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
 
 export default function NotificationBell() {
   const router = useRouter();
+  const toast = useToast();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const unreadNotifications = getUnreadNotifications();
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch('/api/notifications?limit=50');
+        if (!res.ok) throw new Error('Failed to fetch notifications');
+        const data = await res.json();
+        
+        const notificationsList = Array.isArray(data) ? data : data.data || [];
+        setNotifications(notificationsList);
+      } catch (error) {
+        console.error('Failed to load notifications:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const unreadNotifications = notifications.filter(n => !n.read);
   const unreadCount = unreadNotifications.length;
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
 
@@ -71,10 +107,14 @@ export default function NotificationBell() {
         </Box>
 
         {/* Notifications List */}
-        {mockNotifications.length > 0 ? (
+        {loading ? (
+          <Box py={8} textAlign="center">
+            <Spinner size="sm" color="blue.500" />
+          </Box>
+        ) : notifications.length > 0 ? (
           <>
             <Box maxH="350px" overflowY="auto">
-              {mockNotifications.map((notification) => (
+              {notifications.map((notification) => (
                 <MenuItem
                   key={notification.id}
                   bg={notification.read ? 'transparent' : 'blue.50'}
@@ -132,8 +172,4 @@ export default function NotificationBell() {
     </Menu>
   );
 }
-
-
-
-
 

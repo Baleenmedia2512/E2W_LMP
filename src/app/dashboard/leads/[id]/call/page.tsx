@@ -16,19 +16,54 @@ import {
   useToast,
   HStack,
   Text,
+  Spinner,
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { getLeadById, addCallLog, updateLead } from '@/shared/lib/mock-data';
+
+interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  callAttempts?: number;
+  status: string;
+}
 
 export default function LogCallPage() {
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [loadingLead, setLoadingLead] = useState(true);
+  const [lead, setLead] = useState<Lead | null>(null);
   const leadId = params?.id as string;
 
-  const lead = getLeadById(leadId);
+  useEffect(() => {
+    const fetchLead = async () => {
+      try {
+        const res = await fetch(`/api/leads/${leadId}`);
+        if (!res.ok) throw new Error('Lead not found');
+        const response = await res.json();
+        // Extract lead data from response wrapper
+        const leadData = response.data || response;
+        setLead(leadData);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load lead',
+          status: 'error',
+          duration: 3000,
+        });
+        router.push('/dashboard/leads');
+      } finally {
+        setLoadingLead(false);
+      }
+    };
+
+    if (leadId) {
+      fetchLead();
+    }
+  }, [leadId, toast, router]);
 
   const now = new Date();
   const [formData, setFormData] = useState({
@@ -39,6 +74,14 @@ export default function LogCallPage() {
     notes: '',
     nextAction: 'none' as 'none' | 'followup' | 'qualified' | 'unreach' | 'unqualified',
   });
+
+  if (loadingLead) {
+    return (
+      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
+        <Spinner size="lg" color="blue.500" />
+      </Box>
+    );
+  }
 
   if (!lead) {
     return (
@@ -76,27 +119,61 @@ export default function LogCallPage() {
     setLoading(true);
 
     try {
-      // Parse duration (in minutes) to seconds
+      // Parse date and time to create startedAt timestamp
+      const dateTime = new Date(`${formData.date}T${formData.time}`);
       const durationInSeconds = formData.duration ? parseInt(formData.duration) * 60 : 0;
+      const endedAt = new Date(dateTime.getTime() + durationInSeconds * 1000);
 
-      // Add call log
-      addCallLog({
-        leadId: lead.id,
-        leadName: lead.name,
-        duration: durationInSeconds,
-        status: formData.status,
-        notes: formData.notes,
-        userId: '2', // Mock current user
-        userName: 'John Doe',
+      // 1. Log the call
+      // TODO: Get actual current user ID from session/auth
+      const callerId = '1'; // Using default user ID for now
+      const callRes = await fetch('/api/calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          callerId: callerId,
+          startedAt: dateTime.toISOString(),
+          endedAt: endedAt.toISOString(),
+          duration: durationInSeconds,
+          callStatus: formData.status,
+          remarks: formData.notes,
+        }),
       });
 
-      // Update lead call attempts
-      const currentAttempts = lead.callAttempts || 0;
-      updateLead(lead.id, {
-        callAttempts: currentAttempts + 1,
-        status: formData.nextAction !== 'none' ? formData.nextAction : lead.status,
-        notes: `Call logged on ${formData.date} at ${formData.time}. ${formData.notes}`,
-      });
+      if (!callRes.ok) {
+        const errorData = await callRes.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to log call');
+      }
+
+      // 2. Update lead status if needed
+      if (formData.nextAction !== 'none') {
+        let statusUpdate = lead.status;
+        let updateData: any = { status: statusUpdate };
+
+        if (formData.nextAction === 'qualified') {
+          statusUpdate = 'qualified';
+        } else if (formData.nextAction === 'unreach') {
+          statusUpdate = 'unreach';
+        } else if (formData.nextAction === 'unqualified') {
+          statusUpdate = 'unqualified';
+        } else if (formData.nextAction === 'followup') {
+          statusUpdate = 'followup';
+        }
+
+        updateData.status = statusUpdate;
+
+        const updateRes = await fetch(`/api/leads/${lead.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData),
+        });
+
+        if (!updateRes.ok) {
+          const errorData = await updateRes.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to update lead status');
+        }
+      }
 
       toast({
         title: 'Call logged successfully',
@@ -110,7 +187,7 @@ export default function LogCallPage() {
     } catch (error) {
       toast({
         title: 'Error logging call',
-        description: 'Something went wrong',
+        description: error instanceof Error ? error.message : 'Something went wrong',
         status: 'error',
         duration: 3000,
       });
