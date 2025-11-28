@@ -163,12 +163,13 @@ export default function DashboardPage() {
   const todayFollowUps = filteredData.filteredFollowUps.slice(0, 5);
   const recentLeads = filteredData.filteredLeads.slice(0, 5);
 
-  // Calculate overdue follow-ups
+  // Calculate overdue follow-ups with high priority count
   const now = new Date();
   const overdueFollowUps = followUps.filter(f => {
     const scheduledDate = new Date(f.scheduledAt);
     return f.status === 'pending' && scheduledDate < now;
   });
+  const highPriorityOverdue = overdueFollowUps.filter(f => f.priority === 'high').length;
 
   // Calculate stats based on filtered data
   const stats = {
@@ -271,10 +272,10 @@ export default function DashboardPage() {
         <StatCard
           label="Overdue"
           value={overdueFollowUps.length}
-          helpText="Needs attention"
+          helpText={highPriorityOverdue > 0 ? `${highPriorityOverdue} high priority` : 'Needs attention'}
           icon={FiAlertCircle}
           colorScheme="red"
-          onClick={() => router.push('/dashboard/followups')}
+          onClick={() => router.push('/dashboard/followups?filter=overdue')}
         />
         <StatCard
           label="Total Leads"
@@ -294,7 +295,7 @@ export default function DashboardPage() {
         />
       </SimpleGrid>
 
-      {/* Summary Stats */}
+      {/* Summary Stats - All Clickable */}
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={{ base: 4, md: 6 }}>
         <Box 
           bg="white" 
@@ -304,13 +305,13 @@ export default function DashboardPage() {
           borderWidth="1px"
           cursor="pointer"
           transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
-          onClick={() => router.push('/dashboard/leads')}
+          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "green.500" }}
+          onClick={() => handleCardClick('qualified')}
         >
           <Stat>
             <StatLabel fontSize="sm">Qualified Leads</StatLabel>
-            <StatNumber>{stats.qualifiedLeads}</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Ready to convert</StatHelpText>
+            <StatNumber color="green.600">{stats.qualifiedLeads}</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">Click to view</StatHelpText>
           </Stat>
         </Box>
         <Box 
@@ -319,24 +320,32 @@ export default function DashboardPage() {
           borderRadius="lg" 
           boxShadow="sm" 
           borderWidth="1px"
-        >
-          <Stat>
-            <StatLabel fontSize="sm">Avg Response Time</StatLabel>
-            <StatNumber fontSize="2xl">-</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Team performance</StatHelpText>
-          </Stat>
-        </Box>
-        <Box 
-          bg="white" 
-          p={6} 
-          borderRadius="lg" 
-          boxShadow="sm" 
-          borderWidth="1px"
+          cursor="pointer"
+          transition="all 0.2s"
+          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "blue.500" }}
+          onClick={() => router.push('/dashboard/reports')}
         >
           <Stat>
             <StatLabel fontSize="sm">Conversion Rate</StatLabel>
-            <StatNumber>{stats.conversionRate}%</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">In selected range</StatHelpText>
+            <StatNumber color="blue.600">{stats.conversionRate}%</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">View reports</StatHelpText>
+          </Stat>
+        </Box>
+        <Box 
+          bg="white" 
+          p={6} 
+          borderRadius="lg" 
+          boxShadow="sm" 
+          borderWidth="1px"
+          cursor="pointer"
+          transition="all 0.2s"
+          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "purple.500" }}
+          onClick={() => router.push('/dashboard/dsr')}
+        >
+          <Stat>
+            <StatLabel fontSize="sm">Team Performance</StatLabel>
+            <StatNumber fontSize="2xl" color="purple.600">DSR</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">Daily reports</StatHelpText>
           </Stat>
         </Box>
       </SimpleGrid>
