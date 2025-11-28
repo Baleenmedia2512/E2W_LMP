@@ -15,22 +15,12 @@ import {
   FiSettings,
   FiPhone,
   FiClock,
-  FiUserX,
-  FiAlertCircle,
   FiBell,
-  FiUserPlus,
-  FiCheckCircle,
-  FiXCircle,
 } from 'react-icons/fi';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: FiHome, roles: ['Agent', 'SuperAgent', 'Finance', 'HR', 'Procurement'] },
   { name: 'Leads', href: '/dashboard/leads', icon: FiUsers, roles: ['Agent', 'SuperAgent'] },
-  { name: 'New Lead', href: '/dashboard/leads/new', icon: FiUserPlus, roles: ['Agent', 'SuperAgent'] },
-  { name: 'Win', href: '/dashboard/leads/win', icon: FiCheckCircle, roles: ['Agent', 'SuperAgent'] },
-  { name: 'Lose', href: '/dashboard/leads/lose', icon: FiXCircle, roles: ['Agent', 'SuperAgent'] },
-  { name: 'Unqualified', href: '/dashboard/leads/unqualified', icon: FiUserX, roles: ['Agent', 'SuperAgent'] },
-  { name: 'Unreachable', href: '/dashboard/leads/unreachable', icon: FiAlertCircle, roles: ['Agent', 'SuperAgent'] },
   { name: 'Follow-ups', href: '/dashboard/followups', icon: FiClock, roles: ['Agent', 'SuperAgent'] },
   { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, roles: ['Agent', 'SuperAgent', 'Finance', 'HR'] },
   { name: 'Reports', href: '/dashboard/reports', icon: FiFileText, roles: ['SuperAgent', 'Finance', 'HR'] },

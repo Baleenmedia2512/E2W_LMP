@@ -356,43 +356,35 @@ export default function DSRPage() {
         )}
       </Flex>
 
-      {/* Search Bar */}
-      <Card mb={4} boxShadow="md">
-        <CardBody p={{ base: 3, md: 4 }}>
-          <Input
-            placeholder="Search name, phone or email"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            size={{ base: 'md', md: 'lg' }}
-            borderColor={THEME_COLORS.light}
-            _hover={{ borderColor: THEME_COLORS.primary }}
-            _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-            fontSize={{ base: 'sm', md: 'md' }}
-          />
-        </CardBody>
-      </Card>
-
-      {/* Filters Section */}
+      {/* Search Bar and Filters in Single Row */}
       <Card mb={6} boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.primary}>
         <CardBody p={{ base: 4, md: 6 }}>
           <VStack spacing={4} align="stretch">
-            <Heading size={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.dark}>
-              <Icon as={HiFilter} mr={2} color={THEME_COLORS.primary} />
-              Filter Options
-            </Heading>
-            
-            {/* Date Range Preset Dropdown */}
-            <Box>
-              <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
-                Date Range
-              </Text>
+            {/* Search and Filter Row */}
+            <Flex gap={3} flexWrap="wrap" align="center">
+              {/* Search Input */}
+              <Box flex={{ base: '1 1 100%', md: '1 1 300px' }} minW={{ base: 'full', md: '300px' }}>
+                <Input
+                  placeholder="Search name, phone or email"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  size="md"
+                  borderColor={THEME_COLORS.light}
+                  _hover={{ borderColor: THEME_COLORS.primary }}
+                  _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                />
+              </Box>
+
+              {/* Date Range Preset Dropdown */}
               <Select
                 value={tempDateRangePreset}
                 onChange={(e) => handleDateRangePresetChange(e.target.value)}
                 borderColor={THEME_COLORS.light}
                 _hover={{ borderColor: THEME_COLORS.primary }}
                 _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                size={{ base: 'sm', md: 'md' }}
+                size="md"
+                maxW={{ base: 'full', md: '180px' }}
+                flex={{ base: '1 1 100%', md: '0 0 auto' }}
               >
                 <option value="all_time">All Time</option>
                 <option value="today">Today</option>
@@ -400,13 +392,58 @@ export default function DSRPage() {
                 <option value="last_month">Last Month</option>
                 <option value="custom">Custom</option>
               </Select>
-            </Box>
+
+              {/* Agent/Option Selector */}
+              <Select
+                value={tempSelectedOption}
+                onChange={(e) => setTempSelectedOption(e.target.value)}
+                borderColor={THEME_COLORS.light}
+                _hover={{ borderColor: THEME_COLORS.primary }}
+                _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                size="md"
+                maxW={{ base: 'full', md: '180px' }}
+                flex={{ base: '1 1 100%', md: '0 0 auto' }}
+              >
+                {DROPDOWN_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+
+              {/* Action Buttons */}
+              <HStack spacing={2} flex={{ base: '1 1 100%', md: '0 0 auto' }}>
+                <Button
+                  bg={THEME_COLORS.primary}
+                  color="white"
+                  leftIcon={<HiFilter />}
+                  onClick={handleApplyFilters}
+                  size="md"
+                  _hover={{ bg: THEME_COLORS.medium }}
+                  _active={{ bg: THEME_COLORS.dark }}
+                  flex="1"
+                >
+                  Apply
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleResetFilters}
+                  borderColor={THEME_COLORS.light}
+                  color={THEME_COLORS.medium}
+                  size="md"
+                  _hover={{ bg: THEME_COLORS.light, color: 'white' }}
+                  flex="1"
+                >
+                  Reset
+                </Button>
+              </HStack>
+            </Flex>
 
             {/* Conditional Date Inputs - Only show when Custom is selected */}
             {tempDateRangePreset === 'custom' && (
               <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
                 <Box>
-                  <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
                     Start Date
                   </Text>
                   <Input
@@ -417,12 +454,12 @@ export default function DSRPage() {
                     borderColor={THEME_COLORS.light}
                     _hover={{ borderColor: THEME_COLORS.primary }}
                     _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                    size={{ base: 'sm', md: 'md' }}
+                    size="md"
                   />
                 </Box>
 
                 <Box>
-                  <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
                     End Date
                   </Text>
                   <Input
@@ -433,61 +470,13 @@ export default function DSRPage() {
                     borderColor={THEME_COLORS.light}
                     _hover={{ borderColor: THEME_COLORS.primary }}
                     _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                    size={{ base: 'sm', md: 'md' }}
+                    size="md"
                   />
                 </Box>
               </SimpleGrid>
             )}
-            
-            <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
-              <Box>
-                <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
-                  Select Option
-                </Text>
-                <Select
-                  value={tempSelectedOption}
-                  onChange={(e) => setTempSelectedOption(e.target.value)}
-                  borderColor={THEME_COLORS.light}
-                  _hover={{ borderColor: THEME_COLORS.primary }}
-                  _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                  size={{ base: 'sm', md: 'md' }}
-                >
-                  {DROPDOWN_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-              </Box>
 
-              <Flex align="flex-end" gap={2} direction={{ base: 'column', sm: 'row' }} width={{ base: 'full', sm: 'auto' }}>
-                <Button
-                  bg={THEME_COLORS.primary}
-                  color="white"
-                  leftIcon={<HiFilter />}
-                  onClick={handleApplyFilters}
-                  flex={{ base: '1', sm: 'auto' }}
-                  width={{ base: 'full', sm: 'auto' }}
-                  size={{ base: 'sm', md: 'md' }}
-                  _hover={{ bg: THEME_COLORS.medium }}
-                  _active={{ bg: THEME_COLORS.dark }}
-                >
-                  Apply Filters
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleResetFilters}
-                  borderColor={THEME_COLORS.light}
-                  color={THEME_COLORS.medium}
-                  width={{ base: 'full', sm: 'auto' }}
-                  size={{ base: 'sm', md: 'md' }}
-                  _hover={{ bg: THEME_COLORS.light, color: 'white' }}
-                >
-                  Reset
-                </Button>
-              </Flex>
-            </SimpleGrid>
-
+            {/* Active Filters Info */}
             {(isFiltered || searchQuery) && (
               <Box>
                 <Divider my={2} borderColor={THEME_COLORS.light} />
