@@ -58,10 +58,73 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Helper function for round-robin assignment
+async function getNextAgentForRoundRobin(): Promise<string | null> {
+  try {
+    // Get all active sales agents
+    const agents = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: {
+          name: {
+            in: ['sales_agent', 'team_lead'],
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (agents.length === 0) return null;
+
+    // Get the last assigned lead to determine next agent in rotation
+    const lastLead = await prisma.lead.findFirst({
+      where: {
+        assignedToId: {
+          not: null,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        assignedToId: true,
+      },
+    });
+
+    // If no previous leads or no assignment, start with first agent
+    if (!lastLead || !lastLead.assignedToId) {
+      return agents[0].id;
+    }
+
+    // Find current agent's index
+    const currentIndex = agents.findIndex(a => a.id === lastLead.assignedToId);
+    
+    // If agent not found or is last, start from beginning; otherwise next agent
+    const nextIndex = currentIndex === -1 || currentIndex === agents.length - 1 
+      ? 0 
+      : currentIndex + 1;
+    
+    return agents[nextIndex].id;
+  } catch (error) {
+    console.error('Error in round-robin assignment:', error);
+    return null;
+  }
+}
+
 // POST create new lead
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // Determine assignedToId: use provided value or auto-assign via round-robin
+    let assignedToId = body.assignedToId || null;
+    
+    // If not manually assigned, use round-robin auto-assignment
+    if (!assignedToId) {
+      assignedToId = await getNextAgentForRoundRobin();
+    }
 
     const lead = await prisma.lead.create({
       data: {
@@ -79,7 +142,7 @@ export async function POST(request: NextRequest) {
         status: body.status || 'new',
         priority: body.priority || 'medium',
         notes: body.notes || null,
-        assignedToId: body.assignedToId || null,
+        assignedToId: assignedToId,
         createdById: body.createdById || null,
       },
       include: {
@@ -95,7 +158,7 @@ export async function POST(request: NextRequest) {
           leadId: lead.id,
           userId: body.createdById || 'system',
           action: 'created',
-          description: `Lead "${lead.name}" was created`,
+          description: `Lead "${lead.name}" was created${assignedToId && !body.assignedToId ? ' and auto-assigned' : ''}`,
         },
       });
     }

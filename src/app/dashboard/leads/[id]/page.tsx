@@ -97,10 +97,11 @@ export default function LeadDetailPage() {
         setLoading(true);
         setError(null);
 
-        const [leadRes, callsRes, followupsRes] = await Promise.all([
+        const [leadRes, callsRes, followupsRes, activityRes] = await Promise.all([
           fetch(`/api/leads/${leadId}`),
           fetch(`/api/calls?limit=100`),
           fetch(`/api/followups?limit=100`),
+          fetch(`/api/activity?leadId=${leadId}&limit=50`),
         ]);
 
         if (!leadRes.ok) {
@@ -110,6 +111,7 @@ export default function LeadDetailPage() {
         const leadDataResponse = await leadRes.json();
         const callsData = await callsRes.json();
         const followupsData = await followupsRes.json();
+        const activityData = await activityRes.json();
 
         // Extract lead data from response wrapper
         const leadData = leadDataResponse.data || leadDataResponse;
@@ -124,11 +126,14 @@ export default function LeadDetailPage() {
           ? followupsData.filter((fu: any) => fu.leadId === leadId)
           : followupsData.data?.filter((fu: any) => fu.leadId === leadId) || [];
 
+        // Extract activity history
+        const activities = Array.isArray(activityData)
+          ? activityData
+          : activityData.data || [];
+
         setCallLogs(leadCalls);
         setFollowUps(leadFollowups);
-
-        // Mock activity history for now (can be enhanced with actual API when available)
-        setActivityHistory([]);
+        setActivityHistory(activities);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load lead');
         toast({
@@ -487,11 +492,11 @@ export default function LeadDetailPage() {
                             </Text>
                           </HStack>
                           <Text fontSize="sm" color="gray.600">
-                            By: {activity.performedBy?.name || 'System'}
+                            By: {activity.user?.name || 'System'}
                           </Text>
                           {activity.fieldName && (
                             <Text fontSize="xs" color="gray.500" mt={1}>
-                              {activity.fieldName}: {activity.oldValue} → {activity.newValue}
+                              <strong>{activity.fieldName}:</strong> {activity.oldValue || 'none'} → {activity.newValue || 'none'}
                             </Text>
                           )}
                         </Box>

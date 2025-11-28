@@ -104,6 +104,10 @@ export default function LeadsPage() {
   
   // State
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
+  const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('categorized');
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
@@ -197,7 +201,7 @@ export default function LeadsPage() {
     )[0];
   };
 
-  // Filter leads based on search
+  // Filter leads based on all filters
   const filteredLeads = useMemo(() => {
     let filtered = [...leads];
 
@@ -212,8 +216,54 @@ export default function LeadsPage() {
       );
     }
 
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(lead => lead.status === statusFilter);
+    }
+
+    // Source filter
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter(lead => lead.source === sourceFilter);
+    }
+
+    // Date range filter
+    if (dateRangeFilter !== 'all') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      filtered = filtered.filter((lead) => {
+        const leadDate = new Date(lead.createdAt);
+        const leadDay = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
+        
+        if (dateRangeFilter === 'today') {
+          return leadDay.getTime() === today.getTime();
+        } else if (dateRangeFilter === '7days') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return leadDay >= weekAgo;
+        } else if (dateRangeFilter === '30days') {
+          const monthAgo = new Date(today);
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          return leadDay >= monthAgo;
+        }
+        return true;
+      });
+    }
+
+    // Call attempts filter
+    if (attemptsFilter !== 'all') {
+      filtered = filtered.filter((lead) => {
+        const attempts = lead.callAttempts || 0;
+        if (attemptsFilter === '0') return attempts === 0;
+        if (attemptsFilter === '1-3') return attempts >= 1 && attempts <= 3;
+        if (attemptsFilter === '4-6') return attempts >= 4 && attempts <= 6;
+        if (attemptsFilter === '7+') return attempts >= 7;
+        return true;
+      });
+    }
+
     return filtered;
-  }, [searchQuery, leads]);
+  }, [searchQuery, statusFilter, sourceFilter, dateRangeFilter, attemptsFilter, leads]);
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
@@ -225,7 +275,7 @@ export default function LeadsPage() {
       case 'new':
         return 'blue';
       case 'followup':
-        return 'orange';
+        return 'orange'; // Amber
       case 'contacted':
         return 'purple';
       case 'qualified':
@@ -233,7 +283,7 @@ export default function LeadsPage() {
       case 'unreach':
         return 'pink';
       case 'unqualified':
-        return 'purple';
+        return 'purple'; // Magenta
       case 'won':
         return 'green';
       case 'lost':
@@ -278,9 +328,10 @@ export default function LeadsPage() {
 
       {!loading && (
         <>
-      {/* Search and View Toggle */}
+      {/* Search and Filters */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
+          {/* Search Bar */}
           <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch">
             <InputGroup flex="1">
               <InputLeftElement pointerEvents="none">
@@ -295,33 +346,103 @@ export default function LeadsPage() {
             </InputGroup>
           </Flex>
 
-          {/* View Toggle */}
-          <HStack spacing={2} justify={{ base: 'center', md: 'flex-end' }} flexWrap="wrap">
-            <IconButton
-              aria-label="Categorized view"
-              icon={<HiViewBoards />}
+          {/* Filters Row */}
+          <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch" flexWrap="wrap">
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
               size={{ base: 'sm', md: 'md' }}
-              colorScheme={viewMode === 'categorized' ? 'blue' : 'gray'}
-              variant={viewMode === 'categorized' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('categorized')}
-            />
-            <IconButton
-              aria-label="Table view"
-              icon={<HiViewList />}
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Status</option>
+              <option value="new">New</option>
+              <option value="followup">Follow-up</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+              <option value="unreach">Unreachable</option>
+              <option value="unqualified">Unqualified</option>
+              <option value="contacted">Contacted</option>
+              <option value="qualified">Qualified</option>
+            </Select>
+
+            <Select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
               size={{ base: 'sm', md: 'md' }}
-              colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
-              variant={viewMode === 'table' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('table')}
-            />
-            <IconButton
-              aria-label="Tiles view"
-              icon={<HiViewGrid />}
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Sources</option>
+              <option value="Website">Website</option>
+              <option value="Meta">Meta</option>
+              <option value="Referral">Referral</option>
+              <option value="Direct">Direct</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Cold Call">Cold Call</option>
+            </Select>
+
+            <Select
+              value={dateRangeFilter}
+              onChange={(e) => setDateRangeFilter(e.target.value)}
               size={{ base: 'sm', md: 'md' }}
-              colorScheme={viewMode === 'tiles' ? 'blue' : 'gray'}
-              variant={viewMode === 'tiles' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('tiles')}
-            />
-          </HStack>
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="7days">Last 7 Days</option>
+              <option value="30days">Last 30 Days</option>
+            </Select>
+
+            <Select
+              value={attemptsFilter}
+              onChange={(e) => setAttemptsFilter(e.target.value)}
+              size={{ base: 'sm', md: 'md' }}
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Attempts</option>
+              <option value="0">0 Attempts</option>
+              <option value="1-3">1-3 Attempts</option>
+              <option value="4-6">4-6 Attempts</option>
+              <option value="7+">7+ Attempts</option>
+            </Select>
+          </Flex>
+
+          {/* Results Count and View Toggle */}
+          <Flex justify="space-between" align="center" flexWrap="wrap" gap={2}>
+            <Text fontSize="sm" fontWeight="medium" color="gray.700">
+              Showing {filteredLeads.length} of {leads.length} leads
+            </Text>
+            
+            <HStack spacing={2} flexWrap="wrap">
+              <IconButton
+                aria-label="Categorized view"
+                icon={<HiViewBoards />}
+                size={{ base: 'sm', md: 'md' }}
+                colorScheme={viewMode === 'categorized' ? 'blue' : 'gray'}
+                variant={viewMode === 'categorized' ? 'solid' : 'ghost'}
+                onClick={() => setViewMode('categorized')}
+              />
+              <IconButton
+                aria-label="Table view"
+                icon={<HiViewList />}
+                size={{ base: 'sm', md: 'md' }}
+                colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
+                variant={viewMode === 'table' ? 'solid' : 'ghost'}
+                onClick={() => setViewMode('table')}
+              />
+              <IconButton
+                aria-label="Tiles view"
+                icon={<HiViewGrid />}
+                size={{ base: 'sm', md: 'md' }}
+                colorScheme={viewMode === 'tiles' ? 'blue' : 'gray'}
+                variant={viewMode === 'tiles' ? 'solid' : 'ghost'}
+                onClick={() => setViewMode('tiles')}
+              />
+            </HStack>
+          </Flex>
         </VStack>
       </Box>
 
