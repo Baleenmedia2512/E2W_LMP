@@ -13,6 +13,7 @@ import {
   Text,
   Button,
   HStack,
+  VStack,
   Menu,
   MenuButton,
   MenuList,
@@ -26,8 +27,8 @@ import {
   Flex,
 } from '@chakra-ui/react';
 import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { HiDotsVertical, HiEye, HiCheck, HiX, HiPlus, HiSearch } from 'react-icons/hi';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { HiDotsVertical, HiEye, HiCheck, HiX, HiPlus, HiSearch, HiClock } from 'react-icons/hi';
 import { formatDateTime } from '@/shared/lib/date-utils';
 
 interface FollowUp {
@@ -47,12 +48,31 @@ interface FollowUp {
 
 export default function FollowUpsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Set initial filter from URL params
+  useEffect(() => {
+    const filter = searchParams?.get('filter');
+    if (filter === 'overdue') {
+      setStatusFilter('overdue');
+    }
+  }, [searchParams]);
+
+  // Calculate days overdue
+  const getDaysOverdue = (scheduledAt: string): number => {
+    const now = new Date();
+    const scheduled = new Date(scheduledAt);
+    const diffTime = now.getTime() - scheduled.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
 
   // Fetch follow-ups from API
   useEffect(() => {
@@ -76,9 +96,10 @@ export default function FollowUpsPage() {
     fetchFollowUps();
   }, []);
 
-  // Filter follow-ups based on search and date
+  // Filter follow-ups based on search, date, and status
   const filteredFollowUps = useMemo(() => {
     let filtered = [...followUps];
+    const now = new Date();
 
     // Apply search filter
     if (searchQuery.trim()) {
@@ -90,9 +111,18 @@ export default function FollowUpsPage() {
       );
     }
 
+    // Apply status filter (including overdue)
+    if (statusFilter === 'overdue') {
+      filtered = filtered.filter(followup => {
+        const scheduledDate = new Date(followup.scheduledAt);
+        return followup.status === 'pending' && scheduledDate < now;
+      });
+    } else if (statusFilter !== 'all') {
+      filtered = filtered.filter(followup => followup.status === statusFilter);
+    }
+
     // Apply date filter
     if (dateFilter !== 'all') {
-      const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
       filtered = filtered.filter(followup => {
@@ -114,8 +144,39 @@ export default function FollowUpsPage() {
       });
     }
 
+    // Sort: Overdue first (high priority first), then by scheduled date
+    filtered.sort((a, b) => {
+      const aScheduled = new Date(a.scheduledAt);
+      const bScheduled = new Date(b.scheduledAt);
+      const aOverdue = a.status === 'pending' && aScheduled < now;
+      const bOverdue = b.status === 'pending' && bScheduled < now;
+
+      // Overdue items first
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+
+      // Within overdue, high priority first
+      if (aOverdue && bOverdue) {
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+      }
+
+      // Sort by date
+      return aScheduled.getTime() - bScheduled.getTime();
+    });
+
     return filtered;
-  }, [searchQuery, dateFilter, followUps]);
+  }, [searchQuery, dateFilter, statusFilter, followUps]);
+
+  // Count overdue follow-ups
+  const overdueCount = useMemo(() => {
+    const now = new Date();
+    return followUps.filter(followup => {
+      const scheduledDate = new Date(followup.scheduledAt);
+      return followup.status === 'pending' && scheduledDate < now;
+    }).length;
+  }, [followUps]);
 
   const handleMarkCompleted = async (id: string, leadName: string) => {
     try {
@@ -175,6 +236,30 @@ export default function FollowUpsPage() {
         <Heading size={{ base: 'md', md: 'lg' }}>Follow-ups</Heading>
       </HStack>
 
+      {/* Overdue Count Badge */}
+      {overdueCount > 0 && (
+        <Box bg="red.50" borderRadius="lg" p={4} mb={4} borderWidth="1px" borderColor="red.200">
+          <HStack justify="space-between">
+            <HStack>
+              <Badge colorScheme="red" fontSize="lg" px={3} py={1}>
+                {overdueCount} Overdue
+              </Badge>
+              <Text fontSize="sm" color="red.700">
+                You have {overdueCount} overdue follow-up{overdueCount !== 1 ? 's' : ''} that need immediate attention
+              </Text>
+            </HStack>
+            <Button
+              size="sm"
+              colorScheme="red"
+              onClick={() => setStatusFilter('overdue')}
+              variant={statusFilter === 'overdue' ? 'solid' : 'outline'}
+            >
+              View Overdue
+            </Button>
+          </HStack>
+        </Box>
+      )}
+
       {/* Search and Filter Bar */}
       <Flex gap={3} mb={4} flexWrap="wrap">
         <InputGroup flex="1" minW={{ base: 'full', md: '300px' }}>
@@ -188,6 +273,19 @@ export default function FollowUpsPage() {
             bg="white"
           />
         </InputGroup>
+
+        <Select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          maxW={{ base: 'full', md: '200px' }}
+          bg="white"
+        >
+          <option value="all">All Status</option>
+          <option value="overdue">⚠️ Overdue Only</option>
+          <option value="pending">Pending</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </Select>
 
         <Select
           value={dateFilter}
@@ -230,76 +328,113 @@ export default function FollowUpsPage() {
             </Thead>
             <Tbody>
               {filteredFollowUps.length > 0 ? (
-                filteredFollowUps.map((followup) => (
-                  <Tr key={followup.id} _hover={{ bg: 'gray.50' }}>
-                    <Td fontWeight="medium" fontSize={{ base: 'xs', md: 'sm' }}>{followup.lead.name}</Td>
-                    <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', sm: 'table-cell' }}>{formatDateTime(followup.scheduledAt)}</Td>
-                    <Td display={{ base: 'none', md: 'table-cell' }}>
-                      <Badge
-                        colorScheme={
-                          followup.priority === 'high'
-                            ? 'red'
-                            : followup.priority === 'medium'
-                            ? 'orange'
-                            : 'gray'
-                        }
-                      >
-                        {followup.priority}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge
-                        colorScheme={
-                          followup.status === 'completed'
-                            ? 'green'
-                            : followup.status === 'pending'
-                            ? 'yellow'
-                            : 'gray'
-                        }
-                        fontSize={{ base: 'xs', md: 'sm' }}
-                      >
-                        {followup.status}
-                      </Badge>
-                    </Td>
-                    <Td display={{ base: 'none', lg: 'table-cell' }}>
-                      <Text noOfLines={2} fontSize={{ base: 'xs', md: 'sm' }}>{followup.notes || '-'}</Text>
-                    </Td>
-                    <Td>
-                      <Menu>
-                        <MenuButton
-                          as={IconButton}
-                          icon={<HiDotsVertical />}
-                          variant="ghost"
-                          size="sm"
-                        />
-                        <MenuList>
-                          <MenuItem
-                            icon={<HiEye />}
-                            onClick={() => router.push(`/dashboard/leads/${followup.leadId}`)}
-                          >
-                            View Lead
-                          </MenuItem>
-                          {followup.status === 'pending' && (
-                            <>
-                              <MenuItem
-                                icon={<HiCheck />}
-                                onClick={() => handleMarkCompleted(followup.id, followup.lead.name)}
-                              >
-                                Mark Complete
-                              </MenuItem>
-                              <MenuItem
-                                icon={<HiX />}
-                                onClick={() => handleMarkCancelled(followup.id, followup.lead.name)}
-                              >
-                                Cancel
-                              </MenuItem>
-                            </>
+                filteredFollowUps.map((followup) => {
+                  const now = new Date();
+                  const scheduledDate = new Date(followup.scheduledAt);
+                  const isOverdue = followup.status === 'pending' && scheduledDate < now;
+                  const daysOverdue = isOverdue ? getDaysOverdue(followup.scheduledAt) : 0;
+                  const isHighPriorityOverdue = isOverdue && followup.priority === 'high';
+
+                  return (
+                    <Tr 
+                      key={followup.id} 
+                      _hover={{ bg: 'gray.50' }}
+                      bg={isHighPriorityOverdue ? 'red.50' : isOverdue ? 'orange.50' : 'white'}
+                    >
+                      <Td fontWeight="medium" fontSize={{ base: 'xs', md: 'sm' }}>
+                        <VStack align="start" spacing={1}>
+                          <Text>{followup.lead.name}</Text>
+                          {isOverdue && (
+                            <Badge 
+                              colorScheme={isHighPriorityOverdue ? 'red' : 'orange'} 
+                              fontSize="xs"
+                              fontWeight="bold"
+                            >
+                              🔴 {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
+                            </Badge>
                           )}
-                        </MenuList>
-                      </Menu>
-                    </Td>
-                  </Tr>
-                ))
+                        </VStack>
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', sm: 'table-cell' }}>
+                        {formatDateTime(followup.scheduledAt)}
+                      </Td>
+                      <Td display={{ base: 'none', md: 'table-cell' }}>
+                        <Badge
+                          colorScheme={
+                            followup.priority === 'high'
+                              ? 'red'
+                              : followup.priority === 'medium'
+                              ? 'orange'
+                              : 'gray'
+                          }
+                        >
+                          {followup.priority}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <Badge
+                          colorScheme={
+                            followup.status === 'completed'
+                              ? 'green'
+                              : followup.status === 'pending'
+                              ? isOverdue ? 'red' : 'yellow'
+                              : 'gray'
+                          }
+                          fontSize={{ base: 'xs', md: 'sm' }}
+                        >
+                          {isOverdue ? 'OVERDUE' : followup.status}
+                        </Badge>
+                      </Td>
+                      <Td display={{ base: 'none', lg: 'table-cell' }}>
+                        <Text noOfLines={2} fontSize={{ base: 'xs', md: 'sm' }}>{followup.notes || '-'}</Text>
+                      </Td>
+                      <Td>
+                        <Menu>
+                          <MenuButton
+                            as={IconButton}
+                            icon={<HiDotsVertical />}
+                            variant="ghost"
+                            size="sm"
+                            colorScheme={isOverdue ? 'red' : 'gray'}
+                          />
+                          <MenuList>
+                            <MenuItem
+                              icon={<HiEye />}
+                              onClick={() => router.push(`/dashboard/leads/${followup.leadId}`)}
+                            >
+                              View Lead
+                            </MenuItem>
+                            {followup.status === 'pending' && (
+                              <>
+                                <MenuItem
+                                  icon={<HiCheck />}
+                                  onClick={() => handleMarkCompleted(followup.id, followup.lead.name)}
+                                  color="green.600"
+                                >
+                                  Mark Complete
+                                </MenuItem>
+                                <MenuItem
+                                  icon={<HiClock />}
+                                  onClick={() => router.push(`/dashboard/leads/${followup.leadId}/followup`)}
+                                  color="blue.600"
+                                >
+                                  Reschedule
+                                </MenuItem>
+                                <MenuItem
+                                  icon={<HiX />}
+                                  onClick={() => handleMarkCancelled(followup.id, followup.lead.name)}
+                                  color="red.600"
+                                >
+                                  Cancel
+                                </MenuItem>
+                              </>
+                            )}
+                          </MenuList>
+                        </Menu>
+                      </Td>
+                    </Tr>
+                  );
+                })
               ) : (
                 <Tr>
                   <Td colSpan={6} textAlign="center" py={8}>
