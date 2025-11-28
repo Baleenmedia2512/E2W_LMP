@@ -43,9 +43,8 @@ export default function ReportsPage() {
   const [data, setData] = useState<ReportsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const today = new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
+  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -68,20 +67,20 @@ export default function ReportsPage() {
           const end = new Date(endDate);
           end.setHours(23, 59, 59, 999);
           
-          leads = leads.filter(lead => {
+          leads = leads.filter((lead: any) => {
             const createdDate = new Date(lead.createdAt);
             return createdDate >= start && createdDate <= end;
           });
           
           // Calculate leads by source
           const sourceMap: Record<string, number> = {};
-          leads.forEach(lead => {
+          leads.forEach((lead: any) => {
             sourceMap[lead.source] = (sourceMap[lead.source] || 0) + 1;
           });
           
           // Calculate leads by agent
           const agentMap: Record<string, number> = {};
-          leads.forEach(lead => {
+          leads.forEach((lead: any) => {
             const agentName = lead.assignedTo?.name || 'Unassigned';
             agentMap[agentName] = (agentMap[agentName] || 0) + 1;
           });
@@ -93,18 +92,18 @@ export default function ReportsPage() {
           
           // Calculate leads by status
           const statusMap: Record<string, number> = {};
-          leads.forEach(lead => {
+          leads.forEach((lead: any) => {
             statusMap[lead.status] = (statusMap[lead.status] || 0) + 1;
           });
           
           const stats = {
             totalLeads: leads.length,
-            newLeads: leads.filter(l => l.status === 'new').length,
-            contactedLeads: leads.filter(l => l.status === 'contacted').length,
-            qualifiedLeads: leads.filter(l => l.status === 'qualified').length,
-            wonDeals: leads.filter(l => l.status === 'won').length,
-            lostDeals: leads.filter(l => l.status === 'lost').length,
-            conversionRate: leads.length > 0 ? Math.round((leads.filter(l => l.status === 'won').length / leads.length) * 100) : 0,
+            newLeads: leads.filter((l: any) => l.status === 'new').length,
+            contactedLeads: leads.filter((l: any) => l.status === 'contacted').length,
+            qualifiedLeads: leads.filter((l: any) => l.status === 'qualified').length,
+            wonDeals: leads.filter((l: any) => l.status === 'won').length,
+            lostDeals: leads.filter((l: any) => l.status === 'lost').length,
+            conversionRate: leads.length > 0 ? Math.round((leads.filter((l: any) => l.status === 'won').length / leads.length) * 100) : 0,
             leadsBySource: sourceMap,
             leadsByAgent,
             leadsByStatus: statusMap,
@@ -274,7 +273,30 @@ export default function ReportsPage() {
           </CardHeader>
           <CardBody>
             <VStack spacing={3} align="stretch">
-              {Object.entries(data.leadsBySource).map(([source, count]) => {\n                const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100) : 0;\n                return (\n                  <Box key={source}>\n                    <HStack justify="space-between" mb={1}>\n                      <Text fontSize="sm" fontWeight="medium">{source}</Text>\n                      <HStack spacing={2}>\n                        <Text fontSize="sm" color="gray.600">{count} leads</Text>\n                        <Badge colorScheme="blue">{percentage}%</Badge>\n                      </HStack>\n                    </HStack>\n                    <Progress \n                      value={percentage} \n                      size="sm" \n                      colorScheme="blue" \n                      borderRadius="full"\n                    />\n                  </Box>\n                );\n              })}\n              {Object.keys(data.leadsBySource).length === 0 && (\n                <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>No source data available</Text>\n              )}\n            </VStack>
+              {Object.entries(data.leadsBySource).map(([source, count]) => {
+                const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100) : 0;
+                return (
+                  <Box key={source}>
+                    <HStack justify="space-between" mb={1}>
+                      <Text fontSize="sm" fontWeight="medium">{source}</Text>
+                      <HStack spacing={2}>
+                        <Text fontSize="sm" color="gray.600">{count} leads</Text>
+                        <Badge colorScheme="blue">{percentage}%</Badge>
+                      </HStack>
+                    </HStack>
+                    <Progress 
+                      value={percentage} 
+                      size="sm" 
+                      colorScheme="blue" 
+                      borderRadius="full"
+                    />
+                  </Box>
+                );
+              })}
+              {Object.keys(data.leadsBySource).length === 0 && (
+                <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>No source data available</Text>
+              )}
+            </VStack>
           </CardBody>
         </Card>
 
@@ -285,7 +307,28 @@ export default function ReportsPage() {
           </CardHeader>
           <CardBody>
             <VStack spacing={3} align="stretch">
-              {Object.entries(data.leadsByStatus).map(([status, count]) => {\n                const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100) : 0;\n                const colorScheme = status === 'won' ? 'green' : status === 'lost' ? 'red' : status === 'qualified' ? 'purple' : 'blue';\n                return (\n                  <Box key={status}>\n                    <HStack justify="space-between" mb={1}>\n                      <Badge colorScheme={colorScheme} textTransform="capitalize">{status}</Badge>\n                      <HStack spacing={2}>\n                        <Text fontSize="sm" color="gray.600">{count} leads</Text>\n                        <Badge>{percentage}%</Badge>\n                      </HStack>\n                    </HStack>\n                    <Progress \n                      value={percentage} \n                      size="sm" \n                      colorScheme={colorScheme} \n                      borderRadius="full"\n                    />\n                  </Box>\n                );\n              })}\n            </VStack>
+              {Object.entries(data.leadsByStatus).map(([status, count]) => {
+                const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100) : 0;
+                const colorScheme = status === 'won' ? 'green' : status === 'lost' ? 'red' : status === 'qualified' ? 'purple' : 'blue';
+                return (
+                  <Box key={status}>
+                    <HStack justify="space-between" mb={1}>
+                      <Badge colorScheme={colorScheme} textTransform="capitalize">{status}</Badge>
+                      <HStack spacing={2}>
+                        <Text fontSize="sm" color="gray.600">{count} leads</Text>
+                        <Badge>{percentage}%</Badge>
+                      </HStack>
+                    </HStack>
+                    <Progress 
+                      value={percentage} 
+                      size="sm" 
+                      colorScheme={colorScheme} 
+                      borderRadius="full"
+                    />
+                  </Box>
+                );
+              })}
+            </VStack>
           </CardBody>
         </Card>
       </SimpleGrid>
@@ -305,7 +348,32 @@ export default function ReportsPage() {
               </Tr>
             </Thead>
             <Tbody>
-              {data.leadsByAgent.map(({ agent, count, percentage }) => (\n                <Tr key={agent}>\n                  <Td fontWeight="medium">{agent}</Td>\n                  <Td isNumeric>{count}</Td>\n                  <Td isNumeric>\n                    <HStack justify="flex-end" spacing={2}>\n                      <Badge colorScheme="blue">{percentage}%</Badge>\n                      <Progress \n                        value={percentage} \n                        size="sm" \n                        colorScheme="blue" \n                        w="100px"\n                        borderRadius="full"\n                      />\n                    </HStack>\n                  </Td>\n                </Tr>\n              ))}\n              {data.leadsByAgent.length === 0 && (\n                <Tr>\n                  <Td colSpan={3} textAlign="center" py={4}>\n                    <Text fontSize="sm" color="gray.500">No agent data available</Text>\n                  </Td>\n                </Tr>\n              )}\n            </Tbody>
+              {data.leadsByAgent.map(({ agent, count, percentage }) => (
+                <Tr key={agent}>
+                  <Td fontWeight="medium">{agent}</Td>
+                  <Td isNumeric>{count}</Td>
+                  <Td isNumeric>
+                    <HStack justify="flex-end" spacing={2}>
+                      <Badge colorScheme="blue">{percentage}%</Badge>
+                      <Progress 
+                        value={percentage} 
+                        size="sm" 
+                        colorScheme="blue" 
+                        w="100px"
+                        borderRadius="full"
+                      />
+                    </HStack>
+                  </Td>
+                </Tr>
+              ))}
+              {data.leadsByAgent.length === 0 && (
+                <Tr>
+                  <Td colSpan={3} textAlign="center" py={4}>
+                    <Text fontSize="sm" color="gray.500">No agent data available</Text>
+                  </Td>
+                </Tr>
+              )}
+            </Tbody>
           </Table>
         </CardBody>
       </Card>

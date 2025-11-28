@@ -172,7 +172,8 @@ export default function ScheduleFollowUpPage() {
     }
 
     // Validate date/time
-    if (!validateDateTime(formData.date, formData.time)) {
+    if (!formData.date || !formData.time) {
+      errors.date = 'Date and time are required';
       isValid = false;
     }
 

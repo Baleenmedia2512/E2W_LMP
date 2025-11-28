@@ -1,4 +1,4 @@
-﻿import { Lead, CallLog, FollowUp } from '@/shared/lib/mock-data';
+﻿import { Lead, CallLog, FollowUp } from '@/shared/types';
 
 export interface DSRFilters {
   startDate: string;
@@ -45,7 +45,7 @@ export function calculateDSRStats(
 
   // 3. Follow-ups Handled Today (within date range)
   const followUpsHandledToday = followUps.filter(followUp => {
-    const followUpDate = new Date(followUp.scheduledFor);
+    const followUpDate = new Date(followUp.scheduledAt);
     const isInDateRange = followUpDate >= start && followUpDate <= end;
     
     const lead = agentLeads.find(l => l.id === followUp.leadId);
@@ -66,7 +66,7 @@ export function calculateDSRStats(
     const callDate = new Date(call.createdAt);
     const isInDateRange = callDate >= start && callDate <= end;
     const lead = agentLeads.find(l => l.id === call.leadId);
-    return isInDateRange && lead && call.status === 'completed';
+    return isInDateRange && lead && call.callStatus === 'completed';
   }).length;
 
   // 6. Total Follow-ups (all time)
@@ -109,7 +109,7 @@ export function filterLeadsForDSR(
 
     // Check if lead has follow-up in date range
     const hasFollowUpInRange = followUps.some(followUp => {
-      const followUpDate = new Date(followUp.scheduledFor);
+      const followUpDate = new Date(followUp.scheduledAt);
       return followUp.leadId === lead.id && 
              followUpDate >= start && 
              followUpDate <= end;

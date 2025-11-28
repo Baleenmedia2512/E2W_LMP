@@ -1,4 +1,4 @@
-﻿import { Lead, FollowUp } from '@/shared/lib/mock-data';
+﻿import { Lead, FollowUp } from '@/shared/types';
 
 export interface CategorizedLead {
   lead: Lead;

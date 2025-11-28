@@ -251,6 +251,7 @@ export const mockLeads: Lead[] = [
     status: 'won',
     source: 'Website',
     campaign: 'Email Campaign Q1',
+    customerRequirement: 'Enterprise solution',
     assignedTo: {
       id: '3',
       name: 'Jane Smith',
@@ -274,6 +275,7 @@ export const mockLeads: Lead[] = [
     status: 'unreach',
     source: 'Direct',
     campaign: null,
+    customerRequirement: 'Marketing services',
     assignedTo: {
       id: '2',
       name: 'John Doe',
@@ -297,6 +299,7 @@ export const mockLeads: Lead[] = [
     status: 'followup',
     source: 'Website',
     campaign: 'Google Ads Campaign',
+    customerRequirement: 'Tech consulting',
     assignedTo: {
       id: '3',
       name: 'Jane Smith',
@@ -320,6 +323,7 @@ export const mockLeads: Lead[] = [
     status: 'followup',
     source: 'Meta',
     campaign: 'Instagram Campaign',
+    customerRequirement: 'Social media management',
     assignedTo: {
       id: '2',
       name: 'John Doe',
@@ -343,6 +347,7 @@ export const mockLeads: Lead[] = [
     status: 'lost',
     source: 'Referral',
     campaign: null,
+    customerRequirement: 'Corporate training',
     assignedTo: {
       id: '3',
       name: 'Jane Smith',
@@ -366,6 +371,7 @@ export const mockLeads: Lead[] = [
     status: 'new',
     source: 'Website',
     campaign: null,
+    customerRequirement: 'Software development',
     assignedTo: {
       id: '4',
       name: 'Mike Johnson',
@@ -389,6 +395,7 @@ export const mockLeads: Lead[] = [
     status: 'unqualified',
     source: 'WhatsApp',
     campaign: null,
+    customerRequirement: null,
     assignedTo: {
       id: '2',
       name: 'John Doe',
@@ -412,6 +419,7 @@ export const mockLeads: Lead[] = [
     status: 'new',
     source: 'Website',
     campaign: 'SEO Campaign',
+    customerRequirement: 'SEO services',
     assignedTo: {
       id: '2',
       name: 'John Doe',
@@ -435,13 +443,14 @@ export const mockLeads: Lead[] = [
     status: 'new',
     source: 'Referral',
     campaign: null,
+    customerRequirement: 'Business solutions',
     assignedTo: {
-      id: '3',
-      name: 'Jane Smith',
-      email: 'jane@example.com',
+      id: '2',
+      name: 'John Doe',
+      email: 'john@example.com',
     },
-    createdAt: new Date('2024-01-23'),
-    updatedAt: new Date('2024-01-23'),
+    createdAt: new Date('2024-01-10'),
+    updatedAt: new Date('2024-01-10'),
     notes: null,
     callAttempts: 0,
   },

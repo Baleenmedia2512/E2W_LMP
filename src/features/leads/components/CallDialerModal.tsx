@@ -272,7 +272,9 @@ export default function CallDialerModal({
           scheduledDateTime = new Date(now);
           scheduledDateTime.setDate(scheduledDateTime.getDate() + 1);
           if (followUpTime) {
-            const [hours, minutes] = followUpTime.split(':');
+            const timeParts = followUpTime.split(':');
+            const hours = timeParts[0] || '9';
+            const minutes = timeParts[1] || '0';
             scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
           } else {
             scheduledDateTime.setHours(9, 0, 0, 0);
@@ -282,7 +284,9 @@ export default function CallDialerModal({
           scheduledDateTime = new Date(now);
           scheduledDateTime.setDate(scheduledDateTime.getDate() + 7);
           if (followUpTime) {
-            const [hours, minutes] = followUpTime.split(':');
+            const timeParts = followUpTime.split(':');
+            const hours = timeParts[0] || '9';
+            const minutes = timeParts[1] || '0';
             scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
           } else {
             scheduledDateTime.setHours(9, 0, 0, 0);
@@ -292,7 +296,9 @@ export default function CallDialerModal({
           scheduledDateTime = new Date(now);
           scheduledDateTime.setMonth(scheduledDateTime.getMonth() + 1);
           if (followUpTime) {
-            const [hours, minutes] = followUpTime.split(':');
+            const timeParts = followUpTime.split(':');
+            const hours = timeParts[0] || '9';
+            const minutes = timeParts[1] || '0';
             scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
           } else {
             scheduledDateTime.setHours(9, 0, 0, 0);

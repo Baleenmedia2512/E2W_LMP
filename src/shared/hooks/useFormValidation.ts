@@ -90,10 +90,13 @@ export function useFormValidation(): UseFormValidationReturn {
     let isValid = true;
 
     Object.keys(config).forEach((fieldName) => {
-      const error = validateField(fieldName, data[fieldName], config[fieldName]);
-      if (error) {
-        newErrors[fieldName] = error;
-        isValid = false;
+      const fieldRules = config[fieldName];
+      if (fieldRules) {
+        const error = validateField(fieldName, data[fieldName], fieldRules);
+        if (error) {
+          newErrors[fieldName] = error;
+          isValid = false;
+        }
       }
     });
 

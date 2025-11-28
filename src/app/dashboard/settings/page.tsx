@@ -31,8 +31,13 @@ import { useState, useRef } from 'react';
 
 const validateWorkingHours = (startTime: string, endTime: string): string | null => {
   if (!startTime || !endTime) return null;
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
+  const startParts = startTime.split(':').map(Number);
+  const endParts = endTime.split(':').map(Number);
+  
+  const startHour = startParts[0] || 0;
+  const startMin = startParts[1] || 0;
+  const endHour = endParts[0] || 0;
+  const endMin = endParts[1] || 0;
   
   const startInMinutes = startHour * 60 + startMin;
   const endInMinutes = endHour * 60 + endMin;
