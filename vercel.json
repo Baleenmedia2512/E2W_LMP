@@ -9,6 +9,12 @@
       "NEXT_TELEMETRY_DISABLED": "1"
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/sync-meta-leads",
+      "schedule": "*/30 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/webhooks/(.*)",
