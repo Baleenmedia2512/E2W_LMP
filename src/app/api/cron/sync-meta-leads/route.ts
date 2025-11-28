@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { findDuplicateLead, updateLeadWithMetaData } from '@/shared/lib/meta/deduplication';
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * Meta Graph API Polling Endpoint
  * Fetches leads that were received via webhook but need full data
