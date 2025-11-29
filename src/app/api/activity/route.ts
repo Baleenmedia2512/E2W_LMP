@@ -54,12 +54,13 @@ export async function POST(request: NextRequest) {
     const activity = await prisma.activityHistory.create({
       data: {
         leadId: body.leadId,
-        userId: body.userId,
+        userId: body.userId || body.updatedById || 'system',
         action: body.action,
         fieldName: body.fieldName || null,
         oldValue: body.oldValue || null,
         newValue: body.newValue || null,
         description: body.description,
+        metadata: body.metadata || null,
       },
       include: {
         lead: { select: { id: true, name: true } },

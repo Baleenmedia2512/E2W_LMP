@@ -47,6 +47,25 @@ export interface Lead {
   createdBy?: User;
 }
 
+export interface LeadUpdatePayload {
+  name?: string;
+  phone?: string;
+  email?: string | null;
+  alternatePhone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  source?: string;
+  campaign?: string | null;
+  customerRequirement?: string | null;
+  status?: 'new' | 'followup' | 'unreach' | 'unqualified' | 'contacted' | 'qualified' | 'won' | 'lost';
+  priority?: 'low' | 'medium' | 'high';
+  notes?: string | null;
+  assignedToId?: string | null;
+  updatedById?: string;
+}
+
 export interface CallLog {
   id: string;
   leadId: string;
@@ -55,7 +74,8 @@ export interface CallLog {
   endedAt: Date | null;
   duration: number | null;
   remarks: string | null;
-  callStatus: string | null;
+  callStatus: 'answer' | 'busy' | 'wrong_number' | 'completed' | 'ring_not_response' | string | null; // Support both old and new status values
+  customerRequirement: string | null;
   attemptNumber: number;
   recordingUrl: string | null;
   metadata: Record<string, unknown> | null;

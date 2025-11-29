@@ -114,17 +114,18 @@ model CallLog {
 
 // FollowUp model
 model FollowUp {
-  id            String    @id @default(cuid())
-  leadId        String
-  scheduledAt   DateTime
-  completedAt   DateTime?
-  notes         String?   @db.Text
-  status        String    @default("pending") // pending, completed, cancelled
-  priority      String    @default("medium") // low, medium, high
-  createdById   String
-  metadata      Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  leadId              String
+  scheduledAt         DateTime
+  completedAt         DateTime?
+  customerRequirement String?   @db.Text // Customer requirement for context
+  notes               String?   @db.Text
+  status              String    @default("pending") // pending, completed, cancelled
+  priority            String    @default("medium") // low, medium, high
+  createdById         String
+  metadata            Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
   createdBy     User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
@@ -160,7 +161,7 @@ model ActivityHistory {
 model Notification {
   id        String    @id @default(cuid())
   userId    String
-  type      String    // info, success, warning, error, LEAD_ASSIGNED, LEAD_UPDATED, CALL_LOGGED
+  type      String    // info, success, warning, error, LEAD_ASSIGNED, LEAD_UPDATED, CALL_LOGGED, FOLLOWUP_OVERDUE
   title     String
   message   String    @db.Text
   isRead    Boolean   @default(false)
@@ -173,6 +174,8 @@ model Notification {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([relatedLeadId])
+  @@index([type])
 }
 
 // Audit Log model (optional, for advanced tracking)

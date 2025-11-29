@@ -175,6 +175,12 @@ export default function ScheduleFollowUpPage() {
     if (!formData.date || !formData.time) {
       errors.date = 'Date and time are required';
       isValid = false;
+    } else {
+      // Validate that date/time is in the future
+      const isDateTimeValid = validateDateTime(formData.date, formData.time);
+      if (!isDateTimeValid) {
+        isValid = false;
+      }
     }
 
     if (!isValid) {
@@ -205,12 +211,17 @@ export default function ScheduleFollowUpPage() {
           scheduledAt: scheduledDateTime.toISOString(),
           status: 'pending',
           priority: formData.priority,
-          notes: `${formData.customerRequirement}\n\n${formData.notes}`,
+          customerRequirement: formData.customerRequirement,
+          notes: formData.notes,
           createdById: 'current-user-id',
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to schedule follow-up');
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to schedule follow-up');
+      }
 
       // Log activity with customer requirement
       try {

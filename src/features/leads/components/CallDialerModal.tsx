@@ -27,6 +27,10 @@ import {
 import { HiPhone, HiPhoneIncoming, HiX, HiArrowLeft } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { useFormValidation } from '@/shared/hooks/useFormValidation';
+import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges';
+import { ConfirmDialog, useConfirmDialog } from '@/shared/components/ConfirmDialog';
+import ValidatedTextarea from '@/shared/components/ValidatedTextarea';
 
 interface CallDialerModalProps {
   isOpen: boolean;
@@ -48,22 +52,43 @@ export default function CallDialerModal({
   const toast = useToast();
   const { user } = useAuth();
   const [callPhase, setCallPhase] = useState<CallPhase>('dialing');
+  const { errors, setError, clearError, clearAllErrors } = useFormValidation();
+  const confirmDialog = useConfirmDialog();
+  
+  // Define callSaved before using it in useUnsavedChanges
+  const [callSaved, setCallSaved] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  useUnsavedChanges(hasUnsavedChanges && !callSaved);
+  
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [duration, setDuration] = useState(0);
   const [callTimer, setCallTimer] = useState(0);
 
   // Form state
-  const [callStatus, setCallStatus] = useState<'completed' | 'busy' | 'ring_not_response'>('completed');
+  const [callStatus, setCallStatus] = useState<'answer' | 'busy' | 'wrong_number'>('answer');
+  const [customerRequirement, setCustomerRequirement] = useState('');
   const [remarks, setRemarks] = useState('');
   const [remarksInitialized, setRemarksInitialized] = useState(false);
+  const [callDate, setCallDate] = useState('');
+  const [callTime, setCallTime] = useState('');
   const [followUpTimeframe, setFollowUpTimeframe] = useState<'1hour' | 'tomorrow' | '1week' | '1month' | 'custom'>('tomorrow');
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [followUpPriority, setFollowUpPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [nextAction, setNextAction] = useState<'followup' | 'unqualified' | 'unreachable' | null>(null);
-  const [callSaved, setCallSaved] = useState(false);
+  const [nextAction, setNextAction] = useState<'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | null>(null);
+
+  // Auto-start call when modal opens
+  useEffect(() => {
+    if (isOpen && callPhase === 'dialing') {
+      // Automatically start the call after a brief delay (for modal animation)
+      const timer = setTimeout(() => {
+        handleStartCall();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   // Timer effect for active call
   useEffect(() => {
@@ -89,6 +114,12 @@ export default function CallDialerModal({
     setStartTime(now);
     setCallPhase('calling');
     
+    // Set initial date and time
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().slice(0, 5);
+    setCallDate(dateStr);
+    setCallTime(timeStr);
+    
     // Simulate opening phone dialer
     if (typeof window !== 'undefined') {
       window.open(`tel:${leadPhone}`, '_self');
@@ -103,13 +134,34 @@ export default function CallDialerModal({
       setDuration(durationInSeconds);
     }
     setCallPhase('ended');
+    setHasUnsavedChanges(true);
   };
 
   const handleSaveCall = async () => {
-    if (!startTime || !endTime) {
+    clearAllErrors();
+    let hasErrors = false;
+
+    if (!customerRequirement || customerRequirement.trim() === '') {
+      setError('customerRequirement', 'Customer Requirement is required');
+      hasErrors = true;
+    }
+
+    // Validate date is not in future
+    if (callDate) {
+      const selectedDate = new Date(callDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      if (selectedDate > today) {
+        setError('callDate', 'Call date cannot be in the future');
+        hasErrors = true;
+      }
+    }
+
+    if (hasErrors) {
       toast({
-        title: 'Error',
-        description: 'Call times are missing',
+        title: 'Validation Error',
+        description: 'Please fix the errors in the form',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -129,6 +181,20 @@ export default function CallDialerModal({
     }
 
     try {
+      // Use edited date/time if provided, otherwise use recorded times
+      let finalStartTime = startTime;
+      let finalEndTime = endTime;
+      
+      if (callDate && callTime) {
+        finalStartTime = new Date(`${callDate}T${callTime}`);
+        if (endTime && startTime) {
+          const timeDiff = endTime.getTime() - startTime.getTime();
+          finalEndTime = new Date(finalStartTime.getTime() + timeDiff);
+        } else {
+          finalEndTime = finalStartTime;
+        }
+      }
+
       // Save call log via API
       const response = await fetch('/api/calls', {
         method: 'POST',
@@ -136,11 +202,12 @@ export default function CallDialerModal({
         body: JSON.stringify({
           leadId,
           callerId: user.id,
-          startedAt: startTime,
-          endedAt: endTime,
+          startedAt: finalStartTime,
+          endedAt: finalEndTime,
           duration,
           callStatus,
-          remarks: remarks || 'No remarks',
+          customerRequirement: customerRequirement.trim(),
+          remarks: remarks || null,
         }),
       });
 
@@ -155,6 +222,7 @@ export default function CallDialerModal({
 
         // Mark call as saved and move to next action selection
         setCallSaved(true);
+        setHasUnsavedChanges(false);
         setCallPhase('next-action');
       } else {
         throw new Error('Failed to save call');
@@ -171,7 +239,7 @@ export default function CallDialerModal({
     }
   };
 
-  const handleNextAction = async (action: 'followup' | 'unqualified' | 'unreachable') => {
+  const handleNextAction = async (action: 'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | 'update_status' | 'no_action') => {
     if (!callSaved) {
       toast({
         title: 'Error',
@@ -188,6 +256,17 @@ export default function CallDialerModal({
     if (action === 'followup') {
       // Stay in modal and show follow-up form
       setCallPhase('ended');
+    } else if (action === 'update_status') {
+      // Could redirect to lead edit or show status update form
+      toast({
+        title: 'Update Lead Status',
+        description: 'Redirecting to lead details...',
+        status: 'info',
+        duration: 2000,
+        isClosable: true,
+      });
+      // Reload page to show updated call log
+      window.location.reload();
     } else if (action === 'unqualified') {
       // Update lead status to unqualified via API
       try {
@@ -208,6 +287,7 @@ export default function CallDialerModal({
           isClosable: true,
         });
         handleClose();
+        window.location.reload();
       } catch (error) {
         console.error('Failed to update lead:', error);
       }
@@ -231,9 +311,61 @@ export default function CallDialerModal({
           isClosable: true,
         });
         handleClose();
+        window.location.reload();
       } catch (error) {
         console.error('Failed to update lead:', error);
       }
+    } else if (action === 'win') {
+      // Update lead status to won via API
+      try {
+        await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'won',
+            notes: remarks,
+          }),
+        });
+        
+        toast({
+          title: 'Lead Marked as Won',
+          description: `${leadName} has been marked as won! 🎉`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        handleClose();
+        window.location.reload();
+      } catch (error) {
+        console.error('Failed to update lead:', error);
+      }
+    } else if (action === 'lost') {
+      // Update lead status to lost via API
+      try {
+        await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'lost',
+            notes: remarks,
+          }),
+        });
+        
+        toast({
+          title: 'Lead Marked as Lost',
+          description: `${leadName} has been marked as lost`,
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
+        handleClose();
+        window.location.reload();
+      } catch (error) {
+        console.error('Failed to update lead:', error);
+      }
+    } else if (action === 'no_action') {
+      handleClose();
+      window.location.reload();
     }
   };
 
@@ -318,6 +450,7 @@ export default function CallDialerModal({
           leadId,
           scheduledAt: scheduledDateTime,
           status: 'pending',
+          customerRequirement: customerRequirement || 'Follow-up from call',
           notes: followUpNotes || 'Follow-up scheduled from call',
           priority: followUpPriority,
           createdById: user?.id || 'unknown-user',
@@ -357,6 +490,14 @@ export default function CallDialerModal({
     }
   };
 
+  const handleCloseWithConfirm = () => {
+    if (hasUnsavedChanges && !callSaved) {
+      confirmDialog.onOpen();
+    } else {
+      handleClose();
+    }
+  };
+
   const handleClose = () => {
     // Reset all state
     setCallPhase('dialing');
@@ -364,9 +505,12 @@ export default function CallDialerModal({
     setEndTime(null);
     setDuration(0);
     setCallTimer(0);
-    setCallStatus('completed');
+    setCallStatus('answer');
+    setCustomerRequirement('');
     setRemarks('');
     setRemarksInitialized(false);
+    setCallDate('');
+    setCallTime('');
     setFollowUpTimeframe('tomorrow');
     setFollowUpDate('');
     setFollowUpTime('');
@@ -374,26 +518,38 @@ export default function CallDialerModal({
     setFollowUpPriority('medium');
     setNextAction(null);
     setCallSaved(false);
+    setHasUnsavedChanges(false);
+    clearAllErrors();
+    confirmDialog.onClose();
     onClose();
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size={{ base: 'full', md: 'xl' }} closeOnOverlayClick={false}>
-      <ModalOverlay />
-      <ModalContent mx={{ base: 0, md: 4 }} my={{ base: 0, md: 8 }}>
-        <ModalHeader fontSize={{ base: 'lg', md: 'xl' }}>
-          {callPhase === 'dialing' && 'Make a Call'}
-          {callPhase === 'calling' && 'Call in Progress'}
-          {callPhase === 'ended' && 'Call Details'}
-          {callPhase === 'next-action' && 'Next Action'}
-        </ModalHeader>
-        <ModalCloseButton />
+    <>
+      <Modal isOpen={isOpen} onClose={handleCloseWithConfirm} size={{ base: 'full', md: 'xl' }} closeOnOverlayClick={false}>
+        <ModalOverlay />
+        <ModalContent mx={{ base: 0, md: 4 }} my={{ base: 0, md: 8 }}>
+          <ModalHeader fontSize={{ base: 'lg', md: 'xl' }}>
+            {callPhase === 'dialing' && 'Make a Call'}
+            {callPhase === 'calling' && 'Call in Progress'}
+            {callPhase === 'ended' && 'Call Details'}
+            {callPhase === 'next-action' && 'Next Action'}
+            {hasUnsavedChanges && !callSaved && (
+              <Text as="span" color="orange.500" fontSize="sm" ml={2}>
+                (Unsaved)
+              </Text>
+            )}
+          </ModalHeader>
+          <ModalCloseButton />
 
         <ModalBody>
           {/* Dialing Phase */}
           {callPhase === 'dialing' && (
             <VStack spacing={6} py={{ base: 4, md: 6 }}>
-              <Box textAlign="center">
+              <Box textAlign="center" bg="blue.50" p={4} borderRadius="md" width="full">
+                <Text fontSize="xs" color="gray.600" mb={1}>
+                  Lead Details
+                </Text>
                 <Text fontSize={{ base: 'xl', md: '2xl' }} fontWeight="bold" mb={2}>
                   {leadName}
                 </Text>
@@ -460,8 +616,8 @@ export default function CallDialerModal({
           {/* Next Action Phase */}
           {callPhase === 'next-action' && (
             <VStack spacing={6} py={6}>
-              <Text fontSize="lg" fontWeight="medium" textAlign="center">
-                What would you like to do next?
+              <Text fontSize="lg" fontWeight="bold" textAlign="center" color="blue.700">
+                Where do you want to move this lead?
               </Text>
 
               <VStack spacing={3} width="full">
@@ -471,34 +627,53 @@ export default function CallDialerModal({
                   colorScheme="orange"
                   onClick={() => handleNextAction('followup')}
                 >
-                  Schedule Follow-up
+                  Follow-up
                 </Button>
 
                 <Button
                   width="full"
                   size="lg"
-                  colorScheme="gray"
+                  colorScheme="purple"
                   onClick={() => handleNextAction('unqualified')}
                 >
-                  Mark as Unqualified
+                  Unqualified
+                </Button>
+
+                <Button
+                  width="full"
+                  size="lg"
+                  colorScheme="pink"
+                  onClick={() => handleNextAction('unreachable')}
+                >
+                  Unreachable
+                </Button>
+
+                <Button
+                  width="full"
+                  size="lg"
+                  colorScheme="green"
+                  onClick={() => handleNextAction('win')}
+                >
+                  Win 🎉
                 </Button>
 
                 <Button
                   width="full"
                   size="lg"
                   colorScheme="red"
-                  onClick={() => handleNextAction('unreachable')}
+                  onClick={() => handleNextAction('lost')}
                 >
-                  Mark as Unreachable
+                  Lost
                 </Button>
 
                 <Button
                   width="full"
                   size="md"
-                  variant="ghost"
-                  onClick={handleSkipNextAction}
+                  variant="outline"
+                  mt={2}
+                  onClick={() => handleNextAction('no_action')}
                 >
-                  Skip - Close
+                  Skip - Done
                 </Button>
               </VStack>
             </VStack>
@@ -539,127 +714,175 @@ export default function CallDialerModal({
 
               <Divider />
 
-              <FormControl>
-                <FormLabel>Call Status</FormLabel>
-                <Select
-                  value={callStatus}
-                  onChange={(e) => setCallStatus(e.target.value as 'completed' | 'busy' | 'ring_not_response')}
-                >
-                  <option value="completed">Completed</option>
-                  <option value="busy">Busy</option>
-                  <option value="ring_not_response">Ring Not Response</option>
-                </Select>
+              <FormControl isInvalid={!!errors.callDate}>
+                <FormLabel>Date and Time <Text as="span" color="red.500">*</Text></FormLabel>
+                <HStack spacing={2}>
+                  <Input
+                    type="date"
+                    value={callDate}
+                    onChange={(e) => {
+                      setCallDate(e.target.value);
+                      clearError('callDate');
+                    }}
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                  <Input
+                    type="time"
+                    value={callTime}
+                    onChange={(e) => setCallTime(e.target.value)}
+                  />
+                </HStack>
+                {errors.callDate && (
+                  <Text color="red.500" fontSize="sm" mt={1}>{errors.callDate}</Text>
+                )}
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  Call time (defaults to now, cannot be in future)
+                </Text>
               </FormControl>
 
               <FormControl>
-                <FormLabel>Remarks</FormLabel>
-                <Textarea
-                  value={remarks}
+                <FormLabel>Duration (minutes) - Optional</FormLabel>
+                <Input
+                  type="number"
+                  value={duration > 0 ? Math.floor(duration / 60) : ''}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    if (!remarksInitialized && value.length > 0) {
-                      // Auto-add date and time on first input
-                      const now = new Date();
-                      const dateTimeStr = now.toLocaleString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                      });
-                      setRemarks(`[${dateTimeStr}] ${value}`);
-                      setRemarksInitialized(true);
-                    } else if (remarksInitialized) {
-                      // Protect the timestamp from being deleted
-                      const timestampMatch = remarks.match(/^\[.+?\] /);
-                      if (timestampMatch) {
-                        const timestamp = timestampMatch[0];
-                        // If user tries to delete the timestamp, restore it
-                        if (!value.startsWith(timestamp)) {
-                          setRemarks(timestamp + value.replace(timestamp, ''));
-                        } else {
-                          setRemarks(value);
-                        }
+                    const mins = parseInt(e.target.value) || 0;
+                    setDuration(mins * 60);
+                  }}
+                  placeholder="Enter duration in minutes"
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Call Status <Text as="span" color="red.500">*</Text></FormLabel>
+                <Select
+                  value={callStatus}
+                  onChange={(e) => setCallStatus(e.target.value as 'answer' | 'busy' | 'wrong_number')}
+                >
+                  <option value="answer">Answer</option>
+                  <option value="busy">Busy</option>
+                  <option value="wrong_number">Wrong Number</option>
+                </Select>
+              </FormControl>
+
+              <ValidatedTextarea
+                label="Detailed Customer Requirement"
+                name="customerRequirement"
+                value={customerRequirement}
+                onChange={(e) => {
+                  setCustomerRequirement(e.target.value);
+                  clearError('customerRequirement');
+                }}
+                error={errors.customerRequirement}
+                isRequired={true}
+                placeholder="Enter detailed customer requirements..."
+                rows={4}
+                maxLength={500}
+                showCharCount={true}
+                helperText="This field is required"
+              />
+
+              <ValidatedTextarea
+                label="Remarks (Optional)"
+                name="remarks"
+                value={remarks}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (!remarksInitialized && value.length > 0) {
+                    const now = new Date();
+                    const dateTimeStr = now.toLocaleString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true
+                    });
+                    setRemarks(`[${dateTimeStr}] ${value}`);
+                    setRemarksInitialized(true);
+                  } else if (remarksInitialized) {
+                    const timestampMatch = remarks.match(/^\[.+?\] /);
+                    if (timestampMatch) {
+                      const timestamp = timestampMatch[0];
+                      if (!value.startsWith(timestamp)) {
+                        setRemarks(timestamp + value.replace(timestamp, ''));
                       } else {
                         setRemarks(value);
                       }
                     } else {
                       setRemarks(value);
                     }
-                  }}
-                  onKeyDown={(e) => {
-                    // Prevent deleting the timestamp with backspace or delete
-                    if (remarksInitialized && (e.key === 'Backspace' || e.key === 'Delete')) {
-                      const timestampMatch = remarks.match(/^\[.+?\] /);
-                      if (timestampMatch) {
-                        const timestamp = timestampMatch[0];
-                        const cursorPos = e.currentTarget.selectionStart;
-                        const selectionEnd = e.currentTarget.selectionEnd;
-                        
-                        // Prevent deletion if cursor is within the timestamp area
-                        if ((e.key === 'Backspace' && cursorPos <= timestamp.length) ||
-                            (e.key === 'Delete' && selectionEnd < timestamp.length) ||
-                            (cursorPos < timestamp.length && selectionEnd >= timestamp.length)) {
-                          e.preventDefault();
-                          // Move cursor to after timestamp
-                          const target = e.currentTarget;
-                          setTimeout(() => {
-                            if (target) {
-                              target.setSelectionRange(timestamp.length, timestamp.length);
-                            }
-                          }, 0);
-                        }
+                  } else {
+                    setRemarks(value);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (remarksInitialized && (e.key === 'Backspace' || e.key === 'Delete')) {
+                    const timestampMatch = remarks.match(/^\[.+?\] /);
+                    if (timestampMatch) {
+                      const timestamp = timestampMatch[0];
+                      const cursorPos = e.currentTarget.selectionStart;
+                      const selectionEnd = e.currentTarget.selectionEnd;
+                      
+                      if ((e.key === 'Backspace' && cursorPos <= timestamp.length) ||
+                          (e.key === 'Delete' && selectionEnd < timestamp.length) ||
+                          (cursorPos < timestamp.length && selectionEnd >= timestamp.length)) {
+                        e.preventDefault();
+                        const target = e.currentTarget;
+                        setTimeout(() => {
+                          if (target) {
+                            target.setSelectionRange(timestamp.length, timestamp.length);
+                          }
+                        }, 0);
                       }
                     }
-                  }}
-                  onFocus={(e) => {
-                    if (!remarksInitialized && remarks === '') {
-                      // Auto-add date, time, and agent name when focusing on empty field
-                      const now = new Date();
-                      const dateTimeStr = now.toLocaleString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                      });
-                      const agentName = user?.name || 'Unknown User';
-                      setRemarks(`[${dateTimeStr} - ${agentName}] `);
-                      setRemarksInitialized(true);
-                      // Move cursor to the end
-                      const target = e.target;
-                      setTimeout(() => {
-                        if (target) {
-                          const len = target.value.length;
-                          target.setSelectionRange(len, len);
-                        }
-                      }, 0);
-                    }
-                  }}
-                  onClick={(e) => {
-                    // Prevent clicking inside the timestamp
-                    if (remarksInitialized) {
-                      const timestampMatch = remarks.match(/^\[.+?\] /);
-                      if (timestampMatch) {
-                        const timestamp = timestampMatch[0];
-                        const cursorPos = e.currentTarget.selectionStart;
-                        if (cursorPos < timestamp.length) {
-                          const target = e.currentTarget;
-                          setTimeout(() => {
-                            if (target) {
-                              target.setSelectionRange(timestamp.length, timestamp.length);
-                            }
-                          }, 0);
-                        }
+                  }
+                }}
+                onFocus={(e) => {
+                  if (!remarksInitialized && remarks === '') {
+                    const now = new Date();
+                    const dateTimeStr = now.toLocaleString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true
+                    });
+                    const agentName = user?.name || 'Unknown User';
+                    setRemarks(`[${dateTimeStr} - ${agentName}] `);
+                    setRemarksInitialized(true);
+                    const target = e.target;
+                    setTimeout(() => {
+                      if (target) {
+                        const len = target.value.length;
+                        target.setSelectionRange(len, len);
+                      }
+                    }, 0);
+                  }
+                }}
+                onClick={(e) => {
+                  if (remarksInitialized) {
+                    const timestampMatch = remarks.match(/^\[.+?\] /);
+                    if (timestampMatch) {
+                      const timestamp = timestampMatch[0];
+                      const cursorPos = e.currentTarget.selectionStart;
+                      if (cursorPos < timestamp.length) {
+                        const target = e.currentTarget;
+                        setTimeout(() => {
+                          if (target) {
+                            target.setSelectionRange(timestamp.length, timestamp.length);
+                          }
+                        }, 0);
                       }
                     }
-                  }}
-                  placeholder="Enter your notes about this call..."
-                  rows={4}
-                />
-              </FormControl>
+                  }
+                }}
+                placeholder="Enter your notes about this call..."
+                rows={4}
+                maxLength={1000}
+                showCharCount={true}
+              />
             </VStack>
           )}
 
@@ -779,7 +1002,7 @@ export default function CallDialerModal({
         </ModalBody>
 
         <ModalFooter>
-          {callPhase === 'ended' && nextAction !== 'followup' ? (
+          {callPhase === 'ended' && !['followup', 'win', 'lost', 'unqualified', 'unreachable'].includes(nextAction || '') ? (
             <HStack spacing={3}>
               <Button variant="ghost" onClick={handleClose}>
                 Cancel
@@ -792,7 +1015,7 @@ export default function CallDialerModal({
                 {callSaved ? 'Call Saved' : 'Save Call'}
               </Button>
             </HStack>
-          ) : callPhase === 'next-action' || nextAction === 'followup' ? null : (
+          ) : callPhase === 'next-action' || ['followup', 'win', 'lost', 'unqualified', 'unreachable'].includes(nextAction || '') ? null : (
             <Button variant="ghost" onClick={handleClose}>
               Cancel
             </Button>
@@ -800,6 +1023,18 @@ export default function CallDialerModal({
         </ModalFooter>
       </ModalContent>
     </Modal>
+
+    <ConfirmDialog
+      isOpen={confirmDialog.isOpen}
+      onClose={confirmDialog.onClose}
+      onConfirm={handleClose}
+      title="Discard Call Data?"
+      message="You have unsaved call details. Are you sure you want to close? All entered information will be lost."
+      confirmText="Discard"
+      cancelText="Keep Editing"
+      confirmColorScheme="red"
+    />
+  </>
   );
 }
 

@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const leadId = searchParams.get('leadId');
     const callerId = searchParams.get('callerId');
+    const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (leadId) where.leadId = leadId;
     if (callerId) where.callerId = callerId;
+    if (status && status !== 'all') where.callStatus = status;
 
     const [callLogs, total] = await Promise.all([
       prisma.callLog.findMany({
@@ -55,6 +57,14 @@ export async function POST(request: NextRequest) {
     if (!body.leadId || !body.callerId) {
       return NextResponse.json(
         { success: false, error: 'leadId and callerId are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate customerRequirement is required
+    if (!body.customerRequirement || body.customerRequirement.trim() === '') {
+      return NextResponse.json(
+        { success: false, error: 'customerRequirement is required' },
         { status: 400 }
       );
     }

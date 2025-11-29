@@ -24,11 +24,31 @@ import {
   Td,
   Spinner,
   useToast,
+  useDisclosure,
+  Divider,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Select,
 } from '@chakra-ui/react';
 import { useRouter, useParams } from 'next/navigation';
-import { HiArrowLeft } from 'react-icons/hi';
+import { HiArrowLeft, HiPencil, HiPhone, HiCalendar, HiRefresh } from 'react-icons/hi';
 import { formatDate, formatDateTime } from '@/shared/lib/date-utils';
 import { useEffect, useState } from 'react';
+import CallDialerModal from '@/features/leads/components/CallDialerModal';
+import ChangeStatusModal from '@/features/leads/components/ChangeStatusModal';
+import QuickActionsMenu from '@/shared/components/QuickActionsMenu';
+import AssignLeadModal from '@/features/leads/components/AssignLeadModal';
+import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnreachableModal';
+import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
+import MarkAsWonModal from '@/features/leads/components/MarkAsWonModal';
+import MarkAsLostModal from '@/features/leads/components/MarkAsLostModal';
 
 interface Lead {
   id: string;
@@ -84,6 +104,15 @@ export default function LeadDetailPage() {
   const params = useParams();
   const toast = useToast();
   const leadId = params?.id as string;
+  
+  const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
+  const { isOpen: isRequalifyOpen, onOpen: onRequalifyOpen, onClose: onRequalifyClose } = useDisclosure();
+  const { isOpen: isChangeStatusOpen, onOpen: onChangeStatusOpen, onClose: onChangeStatusClose } = useDisclosure();
+  const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
+  const { isOpen: isUnreachableOpen, onOpen: onUnreachableOpen, onClose: onUnreachableClose } = useDisclosure();
+  const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
+  const { isOpen: isWonOpen, onOpen: onWonOpen, onClose: onWonClose } = useDisclosure();
+  const { isOpen: isLostOpen, onOpen: onLostOpen, onClose: onLostClose } = useDisclosure();
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
@@ -91,6 +120,8 @@ export default function LeadDetailPage() {
   const [activityHistory, setActivityHistory] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup' | 'contacted' | 'qualified'>('new');
+  const [requalifyLoading, setRequalifyLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,10 +130,10 @@ export default function LeadDetailPage() {
         setError(null);
 
         const [leadRes, callsRes, followupsRes, activityRes] = await Promise.all([
-          fetch(`/api/leads/${leadId}`),
-          fetch(`/api/calls?limit=100`),
-          fetch(`/api/followups?limit=100`),
-          fetch(`/api/activity?leadId=${leadId}&limit=50`),
+          fetch(`/api/leads/${leadId}`, { cache: 'no-store' }),
+          fetch(`/api/calls?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
+          fetch(`/api/followups?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
+          fetch(`/api/activity?leadId=${leadId}&limit=50`, { cache: 'no-store' }),
         ]);
 
         if (!leadRes.ok) {
@@ -118,14 +149,14 @@ export default function LeadDetailPage() {
         const leadData = leadDataResponse.data || leadDataResponse;
         setLead(leadData);
         
-        // Filter calls and followups for this lead
+        // Extract data arrays from API responses
         const leadCalls = Array.isArray(callsData) 
-          ? callsData.filter((call: any) => call.leadId === leadId)
-          : callsData.data?.filter((call: any) => call.leadId === leadId) || [];
+          ? callsData
+          : callsData.data || [];
         
         const leadFollowups = Array.isArray(followupsData)
-          ? followupsData.filter((fu: any) => fu.leadId === leadId)
-          : followupsData.data?.filter((fu: any) => fu.leadId === leadId) || [];
+          ? followupsData
+          : followupsData.data || [];
 
         // Extract activity history
         const activities = Array.isArray(activityData)
@@ -153,6 +184,44 @@ export default function LeadDetailPage() {
       fetchData();
     }
   }, [leadId, toast]);
+
+  const handleRequalify = async () => {
+    if (!lead) return;
+
+    setRequalifyLoading(true);
+    try {
+      const response = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: requalifyStatus,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success!',
+          description: `${lead.name} has been requalified as ${requalifyStatus}`,
+          status: 'success',
+          duration: 3000,
+        });
+        onRequalifyClose();
+        // Refresh the page to show updated status
+        window.location.reload();
+      } else {
+        throw new Error('Failed to requalify lead');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to requalify lead',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setRequalifyLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -219,7 +288,6 @@ export default function LeadDetailPage() {
           </HStack>
           <Heading size="lg">{lead.name}</Heading>
           <HStack spacing={4} flexWrap="wrap">
-      <HStack spacing={4} flexWrap="wrap">
             <Badge colorScheme={getStatusColor(lead.status)} fontSize="md" px={3} py={1}>
               {lead.status.toUpperCase()}
             </Badge>
@@ -229,14 +297,83 @@ export default function LeadDetailPage() {
               </Text>
             </Box>
           </HStack>
-          </HStack>
         </VStack>
-        <HStack spacing={2}>
-          <Button onClick={() => router.push(`/dashboard/leads/${leadId}/edit`)}>
-            Edit Lead
-          </Button>
-        </HStack>
       </HStack>
+
+      {/* Quick Actions Section */}
+      <Card mb={6} bg="blue.50" borderColor="blue.200" borderWidth="1px">
+        <CardBody>
+          <HStack justify="space-between" align="center" flexWrap="wrap" spacing={4}>
+            <HStack spacing={3}>
+              <Text fontWeight="bold" fontSize="lg" color="blue.900">
+                Quick Actions
+              </Text>
+              {lead && (
+                <QuickActionsMenu
+                  lead={lead as any}
+                  size="md"
+                  variant="outline"
+                  onAssign={() => onAssignOpen()}
+                  onConvertUnreachable={() => onUnreachableOpen()}
+                  onConvertUnqualified={() => onUnqualifiedOpen()}
+                  onMarkAsWon={() => onWonOpen()}
+                  onMarkAsLost={() => onLostOpen()}
+                  onLogCall={() => onCallDialerOpen()}
+                />
+              )}
+            </HStack>
+            <HStack spacing={3} flexWrap="wrap">
+              <Button
+                leftIcon={<HiPencil />}
+                colorScheme="blue"
+                variant="solid"
+                size="md"
+                onClick={() => router.push(`/dashboard/leads/${leadId}/edit`)}
+              >
+                Edit Lead
+              </Button>
+              <Button
+                leftIcon={<HiPhone />}
+                colorScheme="green"
+                variant="solid"
+                size="md"
+                onClick={onCallDialerOpen}
+              >
+                Log Call
+              </Button>
+              <Button
+                leftIcon={<HiCalendar />}
+                colorScheme="orange"
+                variant="solid"
+                size="md"
+                onClick={() => router.push(`/dashboard/leads/${leadId}/followup`)}
+              >
+                Schedule Follow-up
+              </Button>
+              <Button
+                leftIcon={<HiRefresh />}
+                colorScheme="purple"
+                variant="outline"
+                size="md"
+                onClick={onChangeStatusOpen}
+              >
+                Change Status
+              </Button>
+              {lead.status === 'unqualified' && (
+                <Button
+                  leftIcon={<HiRefresh />}
+                  colorScheme="purple"
+                  variant="solid"
+                  size="md"
+                  onClick={onRequalifyOpen}
+                >
+                  Requalify Lead
+                </Button>
+              )}
+            </HStack>
+          </HStack>
+        </CardBody>
+      </Card>
 
       <VStack spacing={6} align="stretch">
         {/* Basic Info Card */}
@@ -311,7 +448,14 @@ export default function LeadDetailPage() {
                     <Text fontWeight="bold" fontSize="sm" color="gray.600">
                       Assigned To
                     </Text>
-                    <Text>{lead.assignedTo.name}</Text>
+                    <VStack align="start" spacing={0}>
+                      <Text fontWeight="medium">{lead.assignedTo.name}</Text>
+                      {(lead.assignedTo as any).email && (
+                        <Text fontSize="sm" color="gray.500">
+                          {(lead.assignedTo as any).email}
+                        </Text>
+                      )}
+                    </VStack>
                   </Box>
                 )}
 
@@ -384,43 +528,81 @@ export default function LeadDetailPage() {
                 {/* Call Logs Tab */}
                 <TabPanel>
                   <VStack align="stretch" spacing={4}>
-                    <Button
-                      colorScheme="blue"
-                      size="sm"
-                      onClick={() => router.push(`/dashboard/leads/${leadId}/call`)}
-                    >
-                      + Log New Call
-                    </Button>
-
                     {callLogs && callLogs.length > 0 ? (
-                      <Table size="sm">
-                        <Thead>
+                      <Table size="sm" variant="simple">
+                        <Thead bg="gray.50">
                           <Tr>
-                            <Th>Date</Th>
+                            <Th>Date/Time</Th>
                             <Th>Duration</Th>
                             <Th>Status</Th>
+                            <Th>Customer Requirement</Th>
+                            <Th>Agent</Th>
                             <Th>Remarks</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {callLogs.map((call: CallLog) => (
-                            <Tr key={call.id}>
-                              <Td>{formatDateTime(call.createdAt)}</Td>
-                              <Td>
-                                {call.duration
-                                  ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
-                                  : 'N/A'}
-                              </Td>
-                              <Td>
-                                <Badge>{call.callStatus || 'N/A'}</Badge>
-                              </Td>
-                              <Td>{call.remarks || '-'}</Td>
-                            </Tr>
-                          ))}
+                          {callLogs.map((call: any) => {
+                            // Helper function for call status display
+                            const getCallStatusDisplay = (status: string) => {
+                              switch (status) {
+                                case 'answer':
+                                case 'completed':
+                                  return { label: 'Answer', color: 'green' };
+                                case 'busy':
+                                  return { label: 'Busy', color: 'orange' };
+                                case 'wrong_number':
+                                case 'ring_not_response':
+                                  return { label: 'Wrong Number', color: 'red' };
+                                default:
+                                  return { label: status || 'N/A', color: 'gray' };
+                              }
+                            };
+                            
+                            const statusDisplay = getCallStatusDisplay(call.callStatus);
+                            
+                            return (
+                              <Tr key={call.id}>
+                                <Td>{formatDateTime(call.createdAt)}</Td>
+                                <Td>
+                                  {call.duration
+                                    ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
+                                    : 'N/A'}
+                                </Td>
+                                <Td>
+                                  <Badge colorScheme={statusDisplay.color}>{statusDisplay.label}</Badge>
+                                </Td>
+                                <Td>
+                                  <Text fontSize="sm" noOfLines={2}>
+                                    {call.customerRequirement || '-'}
+                                  </Text>
+                                </Td>
+                                <Td>
+                                  <Text fontSize="sm">
+                                    {call.caller?.name || 'N/A'}
+                                  </Text>
+                                </Td>
+                                <Td>
+                                  <Text fontSize="sm" noOfLines={2}>
+                                    {call.remarks || '-'}
+                                  </Text>
+                                </Td>
+                              </Tr>
+                            );
+                          })}
                         </Tbody>
                       </Table>
                     ) : (
-                      <Text color="gray.500">No call logs yet</Text>
+                      <Box textAlign="center" py={8}>
+                        <Text color="gray.500" mb={4}>No call logs yet</Text>
+                        <Button
+                          leftIcon={<HiPhone />}
+                          colorScheme="blue"
+                          size="sm"
+                          onClick={onCallDialerOpen}
+                        >
+                          Log First Call
+                        </Button>
+                      </Box>
                     )}
                   </VStack>
                 </TabPanel>
@@ -428,45 +610,67 @@ export default function LeadDetailPage() {
                 {/* Follow-ups Tab */}
                 <TabPanel>
                   <VStack align="stretch" spacing={4}>
-                    <Button
-                      colorScheme="blue"
-                      size="sm"
-                      onClick={() => router.push(`/dashboard/leads/${leadId}/followup`)}
-                    >
-                      + Schedule Follow-up
-                    </Button>
-
                     {followUps && followUps.length > 0 ? (
-                      <Table size="sm">
-                        <Thead>
+                      <Table size="sm" variant="simple">
+                        <Thead bg="gray.50">
                           <Tr>
-                            <Th>Scheduled</Th>
-                            <Th>Priority</Th>
+                            <Th>Scheduled Date</Th>
                             <Th>Status</Th>
+                            <Th>Priority</Th>
                             <Th>Notes</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {followUps.map((followup: FollowUp) => (
+                          {followUps.map((followup: any) => (
                             <Tr key={followup.id}>
                               <Td>{formatDateTime(followup.scheduledAt)}</Td>
                               <Td>
                                 <Badge
                                   colorScheme={
-                                    followup.status === 'completed' ? 'green' : 'yellow'
+                                    followup.status === 'completed' 
+                                      ? 'green' 
+                                      : followup.status === 'cancelled'
+                                      ? 'red'
+                                      : 'yellow'
+                                  }
+                                >
+                                  {followup.status}
+                                </Badge>
+                              </Td>
+                              <Td>
+                                <Badge
+                                  colorScheme={
+                                    followup.priority === 'high' 
+                                      ? 'red' 
+                                      : followup.priority === 'medium'
+                                      ? 'orange'
+                                      : 'blue'
                                   }
                                 >
                                   {followup.priority || 'medium'}
                                 </Badge>
                               </Td>
-                              <Td>{followup.status}</Td>
-                              <Td>{followup.notes || '-'}</Td>
+                              <Td>
+                                <Text fontSize="sm" noOfLines={2}>
+                                  {followup.notes || '-'}
+                                </Text>
+                              </Td>
                             </Tr>
                           ))}
                         </Tbody>
                       </Table>
                     ) : (
-                      <Text color="gray.500">No follow-ups scheduled</Text>
+                      <Box textAlign="center" py={8}>
+                        <Text color="gray.500" mb={4}>No follow-ups scheduled</Text>
+                        <Button
+                          leftIcon={<HiCalendar />}
+                          colorScheme="blue"
+                          size="sm"
+                          onClick={() => router.push(`/dashboard/leads/${leadId}/followup`)}
+                        >
+                          Schedule First Follow-up
+                        </Button>
+                      </Box>
                     )}
                   </VStack>
                 </TabPanel>
@@ -512,6 +716,122 @@ export default function LeadDetailPage() {
           </CardBody>
         </Card>
       </VStack>
+
+      {/* Call Dialer Modal */}
+      {lead && (
+        <CallDialerModal
+          isOpen={isCallDialerOpen}
+          onClose={() => {
+            onCallDialerClose();
+            // Refresh data after call
+            window.location.reload();
+          }}
+          leadId={leadId}
+          leadName={lead.name}
+          leadPhone={lead.phone}
+        />
+      )}
+
+      {/* Change Status Modal */}
+      {lead && (
+        <ChangeStatusModal
+          isOpen={isChangeStatusOpen}
+          onClose={onChangeStatusClose}
+          leadId={leadId}
+          leadName={lead.name}
+          currentStatus={lead.status}
+          onSuccess={() => {
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* Additional Action Modals */}
+      {lead && (
+        <>
+          <AssignLeadModal
+            isOpen={isAssignOpen}
+            onClose={onAssignClose}
+            leadId={lead.id}
+            leadName={lead.name}
+            currentAssignee={lead.assignedTo?.name}
+            onSuccess={() => window.location.reload()}
+          />
+          
+          <ConvertToUnreachableModal
+            isOpen={isUnreachableOpen}
+            onClose={onUnreachableClose}
+            leadId={lead.id}
+            leadName={lead.name}
+            onSuccess={() => window.location.reload()}
+          />
+          
+          <ConvertToUnqualifiedModal
+            isOpen={isUnqualifiedOpen}
+            onClose={onUnqualifiedClose}
+            leadId={lead.id}
+            leadName={lead.name}
+            onSuccess={() => window.location.reload()}
+          />
+          
+          <MarkAsWonModal
+            isOpen={isWonOpen}
+            onClose={onWonClose}
+            leadId={lead.id}
+            leadName={lead.name}
+            onSuccess={() => window.location.reload()}
+          />
+          
+          <MarkAsLostModal
+            isOpen={isLostOpen}
+            onClose={onLostClose}
+            leadId={lead.id}
+            leadName={lead.name}
+            onSuccess={() => window.location.reload()}
+          />
+        </>
+      )}
+
+      {/* Requalification Modal */}
+      <Modal isOpen={isRequalifyOpen} onClose={onRequalifyClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Requalify Lead</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Text>
+                Change status for <strong>{lead?.name}</strong> back to an active status.
+              </Text>
+              <FormControl isRequired>
+                <FormLabel fontWeight="600">New Status</FormLabel>
+                <Select
+                  value={requalifyStatus}
+                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup' | 'contacted' | 'qualified')}
+                >
+                  <option value="new">New</option>
+                  <option value="followup">Follow-up</option>
+                  <option value="contacted">Contacted</option>
+                  <option value="qualified">Qualified</option>
+                </Select>
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onRequalifyClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="green"
+              onClick={handleRequalify}
+              isLoading={requalifyLoading}
+              loadingText="Requalifying..."
+            >
+              Requalify Lead
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

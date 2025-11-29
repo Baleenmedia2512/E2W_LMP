@@ -45,12 +45,14 @@ export const createCallLogSchema = z.object({
 export const createFollowUpSchema = z.object({
   leadId: z.string().cuid(),
   scheduledAt: z.string().datetime().or(z.date()),
+  customerRequirement: z.string().min(1, 'Customer requirement is required').max(500, 'Customer requirement must be less than 500 characters'),
   notes: z.string().max(2000).optional().nullable(),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
 export const updateFollowUpSchema = z.object({
   scheduledAt: z.string().datetime().or(z.date()).optional(),
+  customerRequirement: z.string().max(500).optional(),
   notes: z.string().max(2000).optional().nullable(),
   status: z.enum(['pending', 'completed', 'cancelled']).optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),

@@ -22,18 +22,21 @@ interface LeadTileProps {
   onAssign?: (lead: { id: string; name: string }) => void;
   onConvertUnreachable?: (lead: { id: string; name: string }) => void;
   onConvertUnqualified?: (lead: { id: string; name: string }) => void;
+  onMarkAsWon?: (lead: { id: string; name: string }) => void;
+  onMarkAsLost?: (lead: { id: string; name: string }) => void;
+  onLogCall?: (lead: { id: string; name: string; phone: string }) => void;
 }
 
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    new: 'blue',
+    new: 'blue',        // New = Blue
     contacted: 'purple',
     qualified: 'cyan',
-    followup: 'orange',
-    won: 'green',
-    lost: 'red',
-    unreach: 'pink',
-    unqualified: 'purple',
+    followup: 'orange', // Follow-up = Amber (orange)
+    won: 'green',       // Won = Green
+    lost: 'red',        // Lost = Red
+    unreach: 'pink',    // Unreachable = Pink
+    unqualified: 'purple', // Unqualified = Magenta (purple closest to magenta)
   };
   return colors[status] || 'gray';
 };
@@ -53,6 +56,9 @@ export default function LeadTile({
   onAssign,
   onConvertUnreachable,
   onConvertUnqualified,
+  onMarkAsWon,
+  onMarkAsLost,
+  onLogCall,
 }: LeadTileProps) {
   return (
     <Box
@@ -79,6 +85,17 @@ export default function LeadTile({
               <Badge colorScheme={getPriorityColor(lead.priority)} fontSize="xs" variant="subtle">
                 {lead.priority.toUpperCase()}
               </Badge>
+              {lead.callAttempts > 0 && (
+                <Tooltip label={`${lead.callAttempts} call attempt${lead.callAttempts !== 1 ? 's' : ''}`}>
+                  <Badge 
+                    colorScheme={lead.callAttempts >= 7 ? 'red' : lead.callAttempts >= 4 ? 'orange' : 'blue'} 
+                    fontSize="xs"
+                    variant="solid"
+                  >
+                    📞 {lead.callAttempts}
+                  </Badge>
+                </Tooltip>
+              )}
             </HStack>
           </VStack>
         </HStack>
@@ -88,6 +105,9 @@ export default function LeadTile({
           onAssign={onAssign}
           onConvertUnreachable={onConvertUnreachable}
           onConvertUnqualified={onConvertUnqualified}
+          onMarkAsWon={onMarkAsWon}
+          onMarkAsLost={onMarkAsLost}
+          onLogCall={onLogCall}
         />
       </Flex>
 
