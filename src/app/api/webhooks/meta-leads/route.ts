@@ -169,58 +169,65 @@ export async function POST(request: NextRequest) {
 
             console.log(`📨 Received Meta lead: ${metaLeadId}`);
 
-            // Note: Meta webhook only sends IDs, not actual field data
-            // You need to fetch full data using Graph API
-            // For now, we'll create a placeholder and update via polling
-            
-            // Create metadata object
-            const metadata = {
-              metaLeadId,
-              formId,
-              pageId,
-              adId,
-              adgroupId,
-              campaignId,
-              submittedAt: new Date(parseInt(createdTime) * 1000).toISOString(),
-              webhookReceived: new Date().toISOString(),
-              needsDataFetch: true, // Flag for polling to fetch full data
-            };
+            try {
+              // Create metadata object
+              const metadata = {
+                metaLeadId,
+                formId,
+                pageId,
+                adId,
+                adgroupId,
+                campaignId,
+                submittedAt: new Date(parseInt(createdTime) * 1000).toISOString(),
+                webhookReceived: new Date().toISOString(),
+                needsDataFetch: true,
+              };
 
-            // Check for duplicates
-            const duplicate = await checkDuplicateLead('', null, metaLeadId);
-            
-            if (duplicate) {
-              console.log(`⚠️ Duplicate lead skipped: ${metaLeadId}`);
-              continue;
+              // Check for duplicates
+              const duplicate = await checkDuplicateLead('', null, metaLeadId);
+              
+              if (duplicate) {
+                console.log(`⚠️ Duplicate lead skipped: ${metaLeadId}`);
+                continue;
+              }
+
+              // Get agent assignment (optional)
+              const assignedTo = await getNextAgentForRoundRobin();
+              console.log(`Agent assignment: ${assignedTo || 'None (will assign later)'}`);
+
+              // Create placeholder lead
+              const lead = await prisma.lead.create({
+                data: {
+                  name: `Meta Lead ${metaLeadId.substring(0, 8)}`,
+                  phone: 'PENDING',
+                  email: null,
+                  source: 'Meta',
+                  campaign: campaignId || null,
+                  status: 'new',
+                  priority: 'medium',
+                  notes: 'Lead received from Meta webhook. Full data pending fetch.',
+                  metadata: metadata as any,
+                  assignedToId: assignedTo,
+                },
+              });
+
+              console.log(`✅ Lead created: ${lead.id}`);
+
+              // Log activity
+              await prisma.activityHistory.create({
+                data: {
+                  leadId: lead.id,
+                  userId: 'system',
+                  action: 'created',
+                  description: `Meta lead received via webhook. Lead ID: ${metaLeadId}`,
+                },
+              });
+
+              console.log(`✅ Activity logged for lead: ${lead.id}`);
+            } catch (leadError) {
+              console.error(`❌ Error creating lead ${metaLeadId}:`, leadError);
+              // Continue to next lead
             }
-
-            // Create placeholder lead (will be updated by polling with full data)
-            const lead = await prisma.lead.create({
-              data: {
-                name: `Meta Lead ${metaLeadId.substring(0, 8)}`, // Placeholder
-                phone: 'PENDING', // Will be updated by polling
-                email: null,
-                source: 'Meta',
-                campaign: campaignId || null,
-                status: 'new',
-                priority: 'medium',
-                notes: 'Lead received from Meta webhook. Full data pending fetch.',
-                metadata: metadata as any,
-                assignedToId: await getNextAgentForRoundRobin(),
-              },
-            });
-
-            // Log activity
-            await prisma.activityHistory.create({
-              data: {
-                leadId: lead.id,
-                userId: 'system',
-                action: 'created',
-                description: `Meta lead received via webhook. Lead ID: ${metaLeadId}`,
-              },
-            });
-
-            console.log(`✅ Lead placeholder created: ${lead.id}`);
           }
         }
       }
