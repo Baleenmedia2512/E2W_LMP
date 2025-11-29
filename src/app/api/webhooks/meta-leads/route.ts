@@ -136,20 +136,32 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
 // POST: Receive lead data from Meta
 export async function POST(request: NextRequest) {
   try {
-    // Get raw body for signature verification
+    // Clone request to read body multiple times
+    const requestClone = request.clone();
     const rawBody = await request.text();
-    const signature = request.headers.get('x-hub-signature-256');
+    
+    console.log('📥 Webhook POST received, body length:', rawBody.length);
 
-    // Verify signature
+    // Parse JSON
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError);
+      console.log('Raw body received:', rawBody.substring(0, 200));
+      return NextResponse.json({ success: true }, { status: 200 });
+    }
+
+    // Verify signature (optional, only if signature is present)
+    const signature = requestClone.headers.get('x-hub-signature-256');
     if (signature) {
       const signatureHash = signature.split('=')[1];
       if (signatureHash && !verifySignature(rawBody, signatureHash)) {
         console.error('❌ Invalid webhook signature');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
+      console.log('✅ Signature verified');
     }
-
-    const body = JSON.parse(rawBody);
 
     // Meta sends data in this structure
     if (body.object === 'page') {
