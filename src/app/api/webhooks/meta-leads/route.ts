@@ -136,11 +136,24 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
 // POST: Receive lead data from Meta
 export async function POST(request: NextRequest) {
   try {
+    // Log request headers for debugging
+    const contentType = request.headers.get('content-type');
+    console.log('📥 Webhook POST received');
+    console.log('Content-Type:', contentType);
+    console.log('Headers:', Object.fromEntries(request.headers.entries()));
+
     // Clone request to read body multiple times
     const requestClone = request.clone();
     const rawBody = await request.text();
     
-    console.log('📥 Webhook POST received, body length:', rawBody.length);
+    console.log('Body length:', rawBody.length);
+    console.log('Raw body preview:', rawBody.substring(0, 500));
+
+    // Handle empty body
+    if (!rawBody || rawBody.trim().length === 0) {
+      console.log('⚠️ Empty body received, returning success');
+      return NextResponse.json({ success: true }, { status: 200 });
+    }
 
     // Parse JSON
     let body;
@@ -148,9 +161,18 @@ export async function POST(request: NextRequest) {
       body = JSON.parse(rawBody);
     } catch (parseError) {
       console.error('❌ JSON parse error:', parseError);
-      console.log('Raw body received:', rawBody.substring(0, 200));
-      return NextResponse.json({ success: true }, { status: 200 });
+      console.error('Raw body that failed to parse:', rawBody);
+      console.error('Body type:', typeof rawBody);
+      console.error('First 10 chars (codes):', [...rawBody.substring(0, 10)].map(c => c.charCodeAt(0)));
+      // Return 200 to prevent Meta from retrying invalid requests
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Invalid JSON received, but acknowledged to prevent retries' 
+      }, { status: 200 });
     }
+
+    // Log parsed body structure
+    console.log('Parsed body:', JSON.stringify(body, null, 2));
 
     // Verify signature (optional, only if signature is present)
     const signature = requestClone.headers.get('x-hub-signature-256');
@@ -161,6 +183,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
       console.log('✅ Signature verified');
+    }
+
+    // Handle test notifications from Meta
+    if (!body || typeof body !== 'object') {
+      console.log('⚠️ Received non-object body, possibly test notification');
+      return NextResponse.json({ success: true }, { status: 200 });
     }
 
     // Meta sends data in this structure
