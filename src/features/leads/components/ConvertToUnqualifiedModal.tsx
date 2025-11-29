@@ -13,6 +13,7 @@ import {
   FormLabel,
   Textarea,
   VStack,
+  Text,
   useToast,
 } from '@chakra-ui/react';
 import { useState } from 'react';
@@ -42,6 +43,16 @@ export default function ConvertToUnqualifiedModal({
       toast({
         title: 'Reason required',
         description: 'Please provide a reason for marking as unqualified',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (reason.trim().length < 10) {
+      toast({
+        title: 'Reason too short',
+        description: 'Please provide a detailed reason (at least 10 characters)',
         status: 'warning',
         duration: 3000,
       });
@@ -114,7 +125,11 @@ export default function ConvertToUnqualifiedModal({
                 onChange={(e) => setReason(e.target.value)}
                 rows={5}
                 autoFocus
+                minLength={10}
               />
+              <Text fontSize="xs" color="gray.500" mt={1}>
+                Minimum 10 characters required
+              </Text>
             </FormControl>
 
             <FormControl>

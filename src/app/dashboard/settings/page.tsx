@@ -27,7 +27,8 @@ import {
   useDisclosure,
   FormErrorMessage,
 } from '@chakra-ui/react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 const validateWorkingHours = (startTime: string, endTime: string): string | null => {
   if (!startTime || !endTime) return null;
@@ -50,10 +51,12 @@ const validateWorkingHours = (startTime: string, endTime: string): string | null
 
 export default function SettingsPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
   
   const [loading, setLoading] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
   const [timeError, setTimeError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     companyName: 'E2W LMP',
@@ -65,6 +68,43 @@ export default function SettingsPage() {
     workingHoursEnd: '18:00',
     timezone: 'Asia/Kolkata',
   });
+
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      setLoadingSettings(true);
+      try {
+        // First try to load from localStorage
+        const savedSettings = localStorage.getItem('userSettings');
+        if (savedSettings) {
+          setFormData(JSON.parse(savedSettings));
+        }
+
+        // Then try to fetch from API to get latest from database
+        if (user?.id) {
+          const response = await fetch('/api/settings', {
+            headers: {
+              'x-user-id': user.id,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.settings) {
+              setFormData(data.settings);
+              localStorage.setItem('userSettings', JSON.stringify(data.settings));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+
+    loadSettings();
+  }, [user?.id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -108,22 +148,34 @@ export default function SettingsPage() {
       localStorage.setItem('userSettings', JSON.stringify(formData));
 
       // Try to save to database
-      const response = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      if (user?.id) {
+        const response = await fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-user-id': user.id,
+          },
+          body: JSON.stringify(formData),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to save settings to database');
+        if (!response.ok) {
+          throw new Error('Failed to save settings to database');
+        }
+
+        toast({
+          title: 'Settings saved',
+          description: 'Your settings have been updated successfully',
+          status: 'success',
+          duration: 3000,
+        });
+      } else {
+        toast({
+          title: 'Settings saved locally',
+          description: 'Settings saved to your device. Please login to sync with database.',
+          status: 'warning',
+          duration: 3000,
+        });
       }
-
-      toast({
-        title: 'Settings saved',
-        description: 'Your settings have been updated successfully',
-        status: 'success',
-        duration: 3000,
-      });
     } catch (error) {
       console.error('Error saving settings:', error);
       toast({
@@ -170,7 +222,14 @@ export default function SettingsPage() {
         Settings
       </Heading>
 
-      <VStack spacing={6} align="stretch">
+      {loadingSettings ? (
+        <Card>
+          <CardBody>
+            <Text textAlign="center" py={8}>Loading settings...</Text>
+          </CardBody>
+        </Card>
+      ) : (
+        <VStack spacing={6} align="stretch">
         {/* Company Settings */}
         <Card>
           <CardHeader>
@@ -179,11 +238,17 @@ export default function SettingsPage() {
           <CardBody>
             <VStack spacing={4} align="stretch">
               <FormControl>
-                <FormLabel>Company Name</FormLabel>
+                <FormLabel>
+                  Company Name
+                  <Text fontSize="sm" color="gray.600" fontWeight="normal">
+                    Your organization name displayed in the application
+                  </Text>
+                </FormLabel>
                 <Input
                   name="companyName"
                   value={formData.companyName}
                   onChange={handleChange}
+                  placeholder="Enter company name"
                 />
               </FormControl>
             </VStack>
@@ -252,7 +317,12 @@ export default function SettingsPage() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Default Lead Source</FormLabel>
+                <FormLabel>
+                  Default Lead Source
+                  <Text fontSize="sm" color="gray.600" fontWeight="normal">
+                    Default source when creating new leads manually
+                  </Text>
+                </FormLabel>
                 <Select
                   name="defaultLeadSource"
                   value={formData.defaultLeadSource}
@@ -279,7 +349,12 @@ export default function SettingsPage() {
             <VStack spacing={4} align="stretch">
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <FormControl>
-                  <FormLabel>Start Time</FormLabel>
+                  <FormLabel>
+                    Start Time
+                    <Text fontSize="sm" color="gray.600" fontWeight="normal">
+                      When your workday begins
+                    </Text>
+                  </FormLabel>
                   <Input
                     type="time"
                     name="workingHoursStart"
@@ -289,7 +364,12 @@ export default function SettingsPage() {
                 </FormControl>
 
                 <FormControl isInvalid={!!timeError}>
-                  <FormLabel>End Time</FormLabel>
+                  <FormLabel>
+                    End Time
+                    <Text fontSize="sm" color="gray.600" fontWeight="normal">
+                      When your workday ends
+                    </Text>
+                  </FormLabel>
                   <Input
                     type="time"
                     name="workingHoursEnd"
@@ -301,18 +381,28 @@ export default function SettingsPage() {
               </SimpleGrid>
 
               <FormControl>
-                <FormLabel>Timezone</FormLabel>
+                <FormLabel>
+                  Timezone
+                  <Text fontSize="sm" color="gray.600" fontWeight="normal">
+                    Set your local timezone for accurate scheduling
+                  </Text>
+                </FormLabel>
                 <Select
                   name="timezone"
                   value={formData.timezone}
                   onChange={handleChange}
                 >
-                  <option value="America/New_York">Eastern Time (ET)</option>
-                  <option value="America/Chicago">Central Time (CT)</option>
-                  <option value="America/Denver">Mountain Time (MT)</option>
-                  <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                  <option value="Asia/Kolkata">India Standard Time (IST)</option>
-                  <option value="Europe/London">Greenwich Mean Time (GMT)</option>
+                  <option value="America/New_York">Eastern Time (ET) - New York</option>
+                  <option value="America/Chicago">Central Time (CT) - Chicago</option>
+                  <option value="America/Denver">Mountain Time (MT) - Denver</option>
+                  <option value="America/Los_Angeles">Pacific Time (PT) - Los Angeles</option>
+                  <option value="Europe/London">Greenwich Mean Time (GMT) - London</option>
+                  <option value="Europe/Paris">Central European Time (CET) - Paris</option>
+                  <option value="Asia/Dubai">Gulf Standard Time (GST) - Dubai</option>
+                  <option value="Asia/Kolkata">India Standard Time (IST) - India</option>
+                  <option value="Asia/Singapore">Singapore Standard Time (SST)</option>
+                  <option value="Australia/Sydney">Australian Eastern Time (AET) - Sydney</option>
+                  <option value="Pacific/Auckland">New Zealand Standard Time (NZST)</option>
                 </Select>
               </FormControl>
             </VStack>
@@ -368,6 +458,7 @@ export default function SettingsPage() {
           </AlertDialogOverlay>
         </AlertDialog>
       </VStack>
+      )}
     </Box>
   );
 }

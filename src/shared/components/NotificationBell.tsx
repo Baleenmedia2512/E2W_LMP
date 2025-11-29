@@ -14,17 +14,20 @@ import {
   Button,
   useToast,
   Spinner,
+  Icon,
 } from '@chakra-ui/react';
-import { FiBell, FiEye } from 'react-icons/fi';
+import { FiBell, FiEye, FiInfo, FiCheckCircle, FiAlertTriangle, FiAlertCircle } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { useState, useEffect } from 'react';
 
 interface Notification {
   id: string;
+  userId: string;
+  type: 'info' | 'success' | 'warning' | 'error';
   title: string;
   message: string;
-  read: boolean;
+  isRead: boolean;
   createdAt: string;
 }
 
@@ -57,9 +60,72 @@ export default function NotificationBell() {
     return () => clearInterval(interval);
   }, []);
 
-  const unreadNotifications = notifications.filter(n => !n.read);
+  const unreadNotifications = notifications.filter(n => !n.isRead);
   const unreadCount = unreadNotifications.length;
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return { icon: FiCheckCircle, color: 'green.500' };
+      case 'warning':
+        return { icon: FiAlertTriangle, color: 'orange.500' };
+      case 'error':
+        return { icon: FiAlertCircle, color: 'red.500' };
+      default:
+        return { icon: FiInfo, color: 'blue.500' };
+    }
+  };
+
+  const handleNotificationClick = async (notificationId: string) => {
+    try {
+      await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'mark-read', notificationId }),
+      });
+
+      // Update local state
+      setNotifications(prev =>
+        prev.map(n => (n.id === notificationId ? { ...n, isRead: true } : n))
+      );
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const userId = notifications[0]?.userId;
+      if (!userId) return;
+
+      await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'mark-all-read', userId }),
+      });
+
+      // Update local state
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      
+      toast({
+        title: 'Success',
+        description: 'All notifications marked as read',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to mark notifications as read',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
 
   const handleViewAll = () => {
     router.push('/dashboard/notifications');
@@ -99,9 +165,14 @@ export default function NotificationBell() {
               Notifications
             </Text>
             {unreadCount > 0 && (
-              <Badge colorScheme="red" borderRadius="full">
-                {displayCount} new
-              </Badge>
+              <Button
+                size="xs"
+                variant="ghost"
+                colorScheme="blue"
+                onClick={handleMarkAllAsRead}
+              >
+                Mark all as read
+              </Button>
             )}
           </HStack>
         </Box>
@@ -114,37 +185,45 @@ export default function NotificationBell() {
         ) : notifications.length > 0 ? (
           <>
             <Box maxH="350px" overflowY="auto">
-              {notifications.map((notification) => (
-                <MenuItem
-                  key={notification.id}
-                  bg={notification.read ? 'transparent' : 'blue.50'}
-                  _hover={{ bg: notification.read ? 'gray.50' : 'blue.100' }}
-                  py={3}
-                  px={4}
-                >
-                  <VStack align="stretch" spacing={1} w="full">
-                    <HStack justify="space-between" align="start">
-                      <Text
-                        fontWeight={notification.read ? 'normal' : 'bold'}
-                        fontSize="sm"
-                        flex="1"
-                        color={notification.read ? 'gray.700' : 'blue.700'}
-                      >
-                        {notification.title}
-                      </Text>
-                      {!notification.read && (
-                        <Box w={2} h={2} borderRadius="full" bg="blue.500" mt={1} />
-                      )}
+              {notifications.map((notification) => {
+                const { icon: NotificationIcon, color } = getNotificationIcon(notification.type);
+                
+                return (
+                  <MenuItem
+                    key={notification.id}
+                    bg={notification.isRead ? 'transparent' : 'blue.50'}
+                    _hover={{ bg: notification.isRead ? 'gray.50' : 'blue.100' }}
+                    py={3}
+                    px={4}
+                    onClick={() => handleNotificationClick(notification.id)}
+                  >
+                    <HStack align="start" spacing={3} w="full">
+                      <Icon as={NotificationIcon} color={color} mt={1} boxSize={5} />
+                      <VStack align="stretch" spacing={1} flex="1">
+                        <HStack justify="space-between" align="start">
+                          <Text
+                            fontWeight={notification.isRead ? 'normal' : 'bold'}
+                            fontSize="sm"
+                            flex="1"
+                            color={notification.isRead ? 'gray.700' : 'blue.700'}
+                          >
+                            {notification.title}
+                          </Text>
+                          {!notification.isRead && (
+                            <Box w={2} h={2} borderRadius="full" bg="blue.500" mt={1} />
+                          )}
+                        </HStack>
+                        <Text fontSize="xs" color="gray.600" noOfLines={2}>
+                          {notification.message}
+                        </Text>
+                        <Text fontSize="xs" color="gray.500">
+                          {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                        </Text>
+                      </VStack>
                     </HStack>
-                    <Text fontSize="xs" color="gray.600" noOfLines={2}>
-                      {notification.message}
-                    </Text>
-                    <Text fontSize="xs" color="gray.500">
-                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                    </Text>
-                  </VStack>
-                </MenuItem>
-              ))}
+                  </MenuItem>
+                );
+              })}
             </Box>
 
             {/* Actions */}

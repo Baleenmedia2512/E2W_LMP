@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { notifyFollowUpDue } from '@/shared/lib/utils/notification-service';
 
 // GET follow-ups with optional filters
 export async function GET(request: NextRequest) {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
       prisma.followUp.findMany({
         where,
         include: {
-          lead: { select: { id: true, name: true, phone: true } },
+          lead: { select: { id: true, name: true, phone: true, status: true } },
           createdBy: { select: { id: true, name: true, email: true } },
         },
         orderBy: { scheduledAt: 'asc' },
@@ -51,11 +52,30 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Validate required fields
+    if (!body.customerRequirement || !body.customerRequirement.trim()) {
+      return NextResponse.json(
+        { success: false, error: 'Customer requirement is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate that scheduledAt is in the future
+    const scheduledDateTime = new Date(body.scheduledAt);
+    const now = new Date();
+    if (scheduledDateTime <= now) {
+      return NextResponse.json(
+        { success: false, error: 'Follow-up date and time must be in the future' },
+        { status: 400 }
+      );
+    }
+
     const followUp = await prisma.followUp.create({
       data: {
         leadId: body.leadId,
-        scheduledAt: new Date(body.scheduledAt),
+        scheduledAt: scheduledDateTime,
         completedAt: body.completedAt ? new Date(body.completedAt) : null,
+        customerRequirement: body.customerRequirement,
         notes: body.notes || null,
         status: body.status || 'pending',
         priority: body.priority || 'medium',
@@ -76,6 +96,28 @@ export async function POST(request: NextRequest) {
         description: `Follow-up scheduled for ${new Date(body.scheduledAt).toLocaleDateString()}`,
       },
     });
+
+    // Send notification if follow-up is due within 24 hours
+    const hoursUntilDue = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (hoursUntilDue <= 24 && followUp.lead) {
+      const leadData = await prisma.lead.findUnique({
+        where: { id: body.leadId },
+        select: { assignedToId: true, name: true },
+      });
+
+      if (leadData?.assignedToId) {
+        try {
+          await notifyFollowUpDue(
+            body.leadId,
+            leadData.name,
+            leadData.assignedToId,
+            scheduledDateTime
+          );
+        } catch (error) {
+          console.error('Failed to send follow-up notification:', error);
+        }
+      }
+    }
 
     return NextResponse.json(
       { success: true, data: followUp },

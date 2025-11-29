@@ -8,22 +8,26 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
   
-  // Image optimization
+  // Image optimization - US-25: Images scale properly with device size
   images: {
     domains: ['lh3.googleusercontent.com', 'avatars.githubusercontent.com'],
     formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 60,
   },
   
-  // Experimental features
+  // Experimental features - US-25: Performance optimization for mobile networks
   experimental: {
     optimizePackageImports: ['@chakra-ui/react', 'date-fns', 'react-icons'],
+    optimizeCss: true,
   },
   
   // Webpack configuration
   webpack: (config, { isServer }) => {
     config.resolve.fallback = { fs: false, net: false, tls: false };
     
-    // Code splitting optimization
+    // Code splitting optimization - US-25: Minimal payload for mobile
     if (!isServer) {
       config.optimization = {
         ...config.optimization,
@@ -69,7 +73,7 @@ const nextConfig = {
     ignoreDuringBuilds: false,
   },
   
-  // Headers for security
+  // Headers for security and performance
   async headers() {
     return [
       {
@@ -95,10 +99,33 @@ const nextConfig = {
             key: 'Referrer-Policy',
             value: 'origin-when-cross-origin',
           },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+      {
+        // Cache static assets - US-25: Performance optimization
+        source: '/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
         ],
       },
     ];
   },
+  
+  // Compression - US-25: Minimal payload for mobile networks
+  compress: true,
+  
+  // Generate ETags for better caching
+  generateEtags: true,
+  
+  // Power by header removal for security
+  poweredByHeader: false,
 };
 
 module.exports = nextConfig;

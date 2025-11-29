@@ -1,8 +1,12 @@
 // Validation utilities for form inputs
 
-export const validateEmail = (email: string): { isValid: boolean; error?: string } => {
+export const validateEmail = (email: string, isRequired: boolean = false): { isValid: boolean; error?: string } => {
+  // Allow empty if not required
   if (!email.trim()) {
-    return { isValid: false, error: 'Email is required' };
+    if (isRequired) {
+      return { isValid: false, error: 'Email is required' };
+    }
+    return { isValid: true };
   }
   
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,9 +17,13 @@ export const validateEmail = (email: string): { isValid: boolean; error?: string
   return { isValid: true };
 };
 
-export const validatePhone = (phone: string): { isValid: boolean; error?: string } => {
+export const validatePhone = (phone: string, isRequired: boolean = true): { isValid: boolean; error?: string } => {
+  // Allow empty if not required
   if (!phone.trim()) {
-    return { isValid: false, error: 'Phone number is required' };
+    if (isRequired) {
+      return { isValid: false, error: 'Phone number is required' };
+    }
+    return { isValid: true };
   }
   
   // Remove all non-digit characters for validation
@@ -34,9 +42,13 @@ export const validatePhone = (phone: string): { isValid: boolean; error?: string
   return { isValid: false, error: 'Please enter a valid phone number (10 digits)' };
 };
 
-export const validatePincode = (pincode: string, country: string = 'IN'): { isValid: boolean; error?: string } => {
+export const validatePincode = (pincode: string, country: string = 'IN', isRequired: boolean = false): { isValid: boolean; error?: string } => {
+  // Allow empty if not required
   if (!pincode.trim()) {
-    return { isValid: false, error: 'Pincode is required' };
+    if (isRequired) {
+      return { isValid: false, error: 'Pincode is required' };
+    }
+    return { isValid: true };
   }
   
   // Indian pincode validation (6 digits)

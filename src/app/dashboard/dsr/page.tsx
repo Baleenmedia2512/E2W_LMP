@@ -25,8 +25,8 @@ import {
   Icon,
   useToast,
 } from '@chakra-ui/react';
-import { HiFilter, HiUsers, HiPhone, HiUserAdd, HiClipboardList, HiBan, HiExclamation, HiCheckCircle, HiXCircle } from 'react-icons/hi';
-import { mockLeads, mockCallLogs, mockFollowUps } from '@/shared/lib/mock-data';
+import { HiFilter, HiUsers, HiPhone, HiUserAdd, HiClipboardList, HiBan, HiExclamation, HiCheckCircle, HiXCircle, HiClock } from 'react-icons/hi';
+import { mockLeads, mockCallLogs, mockFollowUps, mockUsers } from '@/shared/lib/mock-data';
 import { formatDate } from '@/shared/lib/date-utils';
 import DSRCard from '@/features/dsr/components/DSRCard';
 
@@ -152,10 +152,13 @@ export default function DSRPage() {
     const cardLabels: Record<string, string> = {
       newLeads: 'New Leads',
       followUps: 'Follow-ups',
+      overdue: 'Overdue Follow-ups',
       unqualified: 'Unqualified',
       unreachable: 'Unreachable',
       win: 'Won Deals',
       lose: 'Lost Deals',
+      totalCalls: 'Total Calls',
+      completedCalls: 'Completed Calls',
     };
     
     const label = cardLabels[type] || type;
@@ -181,6 +184,8 @@ export default function DSRPage() {
         unreachableToday: 0,
         wonToday: 0,
         lostToday: 0,
+        totalCalls: 0,
+        completedCalls: 0,
       };
     }
 
@@ -247,6 +252,41 @@ export default function DSRPage() {
       return leadDate >= start && leadDate <= end && lead.status === 'lost';
     }).length;
 
+    // 8. Overdue Follow-ups (all pending follow-ups that are past scheduled time)
+    const now = new Date();
+    const overdueFollowUps = mockFollowUps.filter(followUp => {
+      const scheduledDate = new Date(followUp.scheduledFor);
+      const lead = filteredLeads.find(l => l.id === followUp.leadId);
+      return followUp.status === 'pending' && scheduledDate < now && lead;
+    }).length;
+
+    // 9. High Priority Overdue
+    const highPriorityOverdue = mockFollowUps.filter(followUp => {
+      const scheduledDate = new Date(followUp.scheduledFor);
+      const lead = filteredLeads.find(l => l.id === followUp.leadId);
+      return followUp.status === 'pending' && 
+             scheduledDate < now && 
+             followUp.priority === 'high' && 
+             lead;
+    }).length;
+
+    // 10. Total Calls in date range
+    const callsInRange = mockCallLogs.filter(call => {
+      const callDate = new Date(call.createdAt);
+      const isInRange = callDate >= start && callDate <= end;
+      
+      // Filter by agent if selected
+      if (selectedOption !== 'all') {
+        return isInRange && call.userName === selectedOption;
+      }
+      return isInRange;
+    });
+
+    const totalCalls = callsInRange.length;
+
+    // 11. Completed Calls (status === 'completed')
+    const completedCalls = callsInRange.filter(call => call.status === 'completed').length;
+
     return {
       newLeadsHandledToday,
       totalNewLeads,
@@ -256,6 +296,10 @@ export default function DSRPage() {
       unreachableToday,
       wonToday,
       lostToday,
+      overdueFollowUps,
+      highPriorityOverdue,
+      totalCalls,
+      completedCalls,
     };
   }, [startDate, endDate, selectedOption]);
 
@@ -329,6 +373,17 @@ export default function DSRPage() {
         const leadDate = new Date(lead.updatedAt);
         return lead.status === 'unreach' && leadDate >= start && leadDate <= end;
       });
+    } else if (activeCard === 'overdue') {
+      // Filter leads that have overdue follow-ups
+      const now = new Date();
+      const overdueLeadIds = mockFollowUps
+        .filter(followUp => {
+          const scheduledDate = new Date(followUp.scheduledFor);
+          return followUp.status === 'pending' && scheduledDate < now;
+        })
+        .map(f => f.leadId);
+      
+      filtered = filtered.filter(lead => overdueLeadIds.includes(lead.id));
     } else if (activeCard === 'win') {
       filtered = filtered.filter(lead => {
         const leadDate = new Date(lead.updatedAt);
@@ -339,6 +394,26 @@ export default function DSRPage() {
         const leadDate = new Date(lead.updatedAt);
         return lead.status === 'lost' && leadDate >= start && leadDate <= end;
       });
+    } else if (activeCard === 'totalCalls' || activeCard === 'completedCalls') {
+      // For call-related cards, filter leads that have calls in the date range
+      const callsInRange = mockCallLogs.filter(call => {
+        const callDate = new Date(call.createdAt);
+        const isInRange = callDate >= start && callDate <= end;
+        
+        // Filter by agent if selected
+        if (selectedOption !== 'all') {
+          return isInRange && call.userName === selectedOption;
+        }
+        return isInRange;
+      });
+
+      // If completedCalls card is active, filter only completed calls
+      const relevantCalls = activeCard === 'completedCalls'
+        ? callsInRange.filter(call => call.status === 'completed')
+        : callsInRange;
+
+      const callLeadIds = relevantCalls.map(call => call.leadId);
+      filtered = filtered.filter(lead => callLeadIds.includes(lead.id));
     }
 
     // Apply search filter
@@ -353,6 +428,79 @@ export default function DSRPage() {
 
     return filtered;
   }, [startDate, endDate, selectedOption, activeCard, searchQuery]);
+
+  // Calculate agent performance data
+  const agentPerformanceData = useMemo(() => {
+    if (!startDate || !endDate) {
+      return [];
+    }
+
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // Get all unique agents
+    const agentsMap = new Map<string, {
+      agent: string;
+      date: Date;
+      callsMade: number;
+      leadsGenerated: number;
+      conversions: number;
+      status: string;
+    }>();
+
+    // Filter calls in date range
+    const callsInRange = mockCallLogs.filter(call => {
+      const callDate = new Date(call.createdAt);
+      return callDate >= start && callDate <= end;
+    });
+
+    // Filter leads in date range
+    const leadsInRange = mockLeads.filter(lead => {
+      const leadDate = new Date(lead.createdAt);
+      return leadDate >= start && leadDate <= end;
+    });
+
+    // Group by agent
+    const agents = selectedOption === 'all' 
+      ? [...new Set(mockUsers.map(u => u.name))]
+      : [selectedOption];
+
+    agents.forEach(agentName => {
+      // Count calls for this agent
+      const agentCalls = callsInRange.filter(call => call.userName === agentName);
+      
+      // Count leads generated by this agent
+      const agentLeads = leadsInRange.filter(lead => 
+        lead.assignedTo?.name === agentName
+      );
+
+      // Count conversions (won leads)
+      const agentConversions = agentLeads.filter(lead => lead.status === 'won');
+
+      // Determine status based on performance
+      let status = 'Active';
+      if (agentCalls.length === 0 && agentLeads.length === 0) {
+        status = 'Inactive';
+      } else if (agentConversions.length > 2) {
+        status = 'Excellent';
+      } else if (agentConversions.length > 0) {
+        status = 'Good';
+      }
+
+      agentsMap.set(agentName, {
+        agent: agentName,
+        date: new Date(startDate),
+        callsMade: agentCalls.length,
+        leadsGenerated: agentLeads.length,
+        conversions: agentConversions.length,
+        status,
+      });
+    });
+
+    return Array.from(agentsMap.values()).sort((a, b) => b.callsMade - a.callsMade);
+  }, [startDate, endDate, selectedOption]);
 
   return (
     <Box>
@@ -514,8 +662,8 @@ export default function DSRPage() {
         </CardBody>
       </Card>
 
-      {/* Stats Grid - Clickable DSR Cards - All 6 in one row */}
-      <SimpleGrid columns={{ base: 2, sm: 3, lg: 6 }} spacing={{ base: 3, md: 4 }} mb={6}>
+      {/* Stats Grid - Clickable DSR Cards - All in responsive grid */}
+      <SimpleGrid columns={{ base: 2, sm: 3, lg: 4, xl: 9 }} spacing={{ base: 3, md: 4 }} mb={6}>
         {/* New Leads Card */}
         <DSRCard
           label="New Leads Handled"
@@ -540,6 +688,44 @@ export default function DSRPage() {
           type="followUps"
           onClick={handleCardClick}
           isActive={activeCard === 'followUps'}
+        />
+
+        {/* Total Calls Card */}
+        <DSRCard
+          label="Total Calls"
+          value={stats.totalCalls}
+          helpText="All calls in date range"
+          icon={HiPhone}
+          colorScheme="accent"
+          type="totalCalls"
+          onClick={handleCardClick}
+          isActive={activeCard === 'totalCalls'}
+        />
+
+        {/* Completed Calls Card */}
+        <DSRCard
+          label="Completed Calls"
+          value={stats.completedCalls}
+          total={stats.totalCalls}
+          helpText="Successfully completed"
+          icon={HiCheckCircle}
+          colorScheme="primary"
+          type="completedCalls"
+          onClick={handleCardClick}
+          isActive={activeCard === 'completedCalls'}
+        />
+
+        {/* Overdue Follow-ups Card */}
+        <DSRCard
+          label="Overdue Follow-ups"
+          value={stats.overdueFollowUps || 0}
+          total={stats.highPriorityOverdue || 0}
+          helpText={(stats.highPriorityOverdue || 0) > 0 ? `${stats.highPriorityOverdue} high priority` : 'Needs attention'}
+          icon={HiClock}
+          colorScheme="dark"
+          type="overdue"
+          onClick={handleCardClick}
+          isActive={activeCard === 'overdue'}
         />
 
         {/* Unqualified Card */}
@@ -679,6 +865,105 @@ export default function DSRPage() {
                     <Td colSpan={8} textAlign="center" py={8}>
                       <Text color={THEME_COLORS.medium}>
                         No leads found for the selected filters
+                      </Text>
+                    </Td>
+                  </Tr>
+                )}
+              </Tbody>
+            </Table>
+          </Box>
+        </CardBody>
+      </Card>
+
+      {/* Agent Performance Table */}
+      <Card boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.primary} mt={6}>
+        <CardBody p={0}>
+          <Box p={4} bg={THEME_COLORS.medium} bgGradient={`linear(to-r, ${THEME_COLORS.medium}, ${THEME_COLORS.primary})`} borderTopRadius="lg">
+            <Flex justify="space-between" align="center">
+              <Heading size="md" color="white">
+                Agent Performance Summary
+              </Heading>
+              <Badge 
+                bg="white" 
+                color={THEME_COLORS.primary}
+                fontSize="md"
+                px={3}
+                py={1}
+              >
+                {agentPerformanceData.length} agent{agentPerformanceData.length !== 1 ? 's' : ''}
+              </Badge>
+            </Flex>
+            <Text fontSize="sm" color="white" mt={2}>
+              Performance metrics for the selected date range and agent filter
+            </Text>
+          </Box>
+
+          <Box overflowX="auto">
+            <Table variant="simple">
+              <Thead bg="gray.50">
+                <Tr>
+                  <Th color={THEME_COLORS.dark}>Date</Th>
+                  <Th color={THEME_COLORS.dark}>Agent</Th>
+                  <Th color={THEME_COLORS.dark}>Calls Made</Th>
+                  <Th color={THEME_COLORS.dark}>Leads Generated</Th>
+                  <Th color={THEME_COLORS.dark}>Conversions</Th>
+                  <Th color={THEME_COLORS.dark}>Status/Remarks</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {agentPerformanceData.length > 0 ? (
+                  agentPerformanceData.map((row, index) => (
+                    <Tr 
+                      key={`${row.agent}-${index}`} 
+                      _hover={{ bg: `${THEME_COLORS.light}20` }}
+                      transition="all 0.2s"
+                    >
+                      <Td fontWeight="medium" fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
+                        {formatDate(row.date)}
+                      </Td>
+                      <Td color={THEME_COLORS.primary} fontWeight="semibold" fontSize={{ base: 'xs', md: 'sm' }}>
+                        {row.agent}
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg={THEME_COLORS.accent} color="white">
+                          {row.callsMade}
+                        </Badge>
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg={THEME_COLORS.medium} color="white">
+                          {row.leadsGenerated}
+                        </Badge>
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge 
+                          bg={row.conversions > 2 ? THEME_COLORS.accent : row.conversions > 0 ? THEME_COLORS.primary : THEME_COLORS.light}
+                          color="white"
+                          fontWeight="bold"
+                        >
+                          {row.conversions}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <Badge
+                          bg={
+                            row.status === 'Excellent' ? THEME_COLORS.accent :
+                            row.status === 'Good' ? THEME_COLORS.primary :
+                            row.status === 'Active' ? THEME_COLORS.medium :
+                            THEME_COLORS.light
+                          }
+                          color="white"
+                          fontSize={{ base: 'xs', md: 'sm' }}
+                        >
+                          {row.status}
+                        </Badge>
+                      </Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td colSpan={6} textAlign="center" py={8}>
+                      <Text color={THEME_COLORS.medium}>
+                        No agent performance data available for the selected filters
                       </Text>
                     </Td>
                   </Tr>

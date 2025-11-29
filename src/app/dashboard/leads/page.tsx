@@ -573,7 +573,7 @@ export default function LeadsPage() {
 
           <Divider />
 
-          {/* New Leads */}
+          {/* Today's / New Follow-ups */}
           <Box>
             <Flex
               align="center"
@@ -588,95 +588,116 @@ export default function LeadsPage() {
             >
               <HiUserAdd size={24} color="blue" />
               <Heading size={{ base: 'sm', md: 'md' }} ml={2} color="blue.700">
-                New Leads
+                Today's / New Follow-ups
               </Heading>
               <Badge ml={3} colorScheme="blue" fontSize={{ base: 'sm', md: 'md' }}>
-                {categorizedLeads.new.length}
+                {categorizedLeads.today.length}
               </Badge>
             </Flex>
             
-            {categorizedLeads.new.length > 0 ? (
+            {categorizedLeads.today.length > 0 ? (
               <VStack spacing={3} align="stretch">
-                {categorizedLeads.new.map(({ lead }) => (
-                  <Box
-                    key={lead.id}
-                    bg="white"
-                    borderRadius="lg"
-                    boxShadow="sm"
-                    p={{ base: 3, md: 4 }}
-                    borderLeft="4px"
-                    borderColor="blue.500"
-                    _hover={{ boxShadow: 'md' }}
-                    transition="all 0.2s"
-                  >
-                    <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} flexWrap="wrap" gap={3} direction={{ base: 'column', sm: 'row' }}>
-                      <Box flex="1" minW={{ base: 'full', sm: '200px' }}>
-                        <Text
-                          fontWeight="bold"
-                          fontSize={{ base: 'md', md: 'lg' }}
-                          color="blue.600"
-                          cursor="pointer"
-                          onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                          _hover={{ textDecoration: 'underline' }}
-                          noOfLines={1}
-                        >
-                          {lead.name}
-                        </Text>
-                        <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" noOfLines={1}>
-                          {lead.phone} • {lead.email || 'No email'}
-                        </Text>
-                        <LeadAge createdAt={lead.createdAt} />
-                        <HStack mt={2} spacing={2} flexWrap="wrap">
-                          <Badge colorScheme="blue" fontSize={{ base: 'xs', md: 'sm' }}>New</Badge>
-                          <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
-                            Created: {formatDate(lead.createdAt)}
+                {categorizedLeads.today.map(({ lead, followUp }) => {
+                  const dueDate = followUp?.scheduledAt;
+                  const isNewLead = !followUp;
+                  
+                  return (
+                    <Box
+                      key={lead.id}
+                      bg="white"
+                      borderRadius="lg"
+                      boxShadow="sm"
+                      p={{ base: 3, md: 4 }}
+                      borderLeft="4px"
+                      borderColor="blue.500"
+                      _hover={{ boxShadow: 'md' }}
+                      transition="all 0.2s"
+                    >
+                      <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} flexWrap="wrap" gap={3} direction={{ base: 'column', sm: 'row' }}>
+                        <Box flex="1" minW={{ base: 'full', sm: '200px' }}>
+                          <Text
+                            fontWeight="bold"
+                            fontSize={{ base: 'md', md: 'lg' }}
+                            color="blue.600"
+                            cursor="pointer"
+                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                            _hover={{ textDecoration: 'underline' }}
+                            noOfLines={1}
+                          >
+                            {lead.name}
                           </Text>
-                          <Badge colorScheme="purple" fontSize={{ base: 'xs', md: 'sm' }}>{lead.source}</Badge>
-                        </HStack>
-                      </Box>
+                          <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" noOfLines={1}>
+                            {lead.phone} • {lead.email || 'No email'}
+                          </Text>
+                          <LeadAge createdAt={lead.createdAt} />
+                          <HStack mt={2} spacing={2} flexWrap="wrap">
+                            {isNewLead ? (
+                              <>
+                                <Badge colorScheme="blue" fontSize={{ base: 'xs', md: 'sm' }}>New Lead</Badge>
+                                <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
+                                  Created: {formatDate(lead.createdAt)}
+                                </Text>
+                              </>
+                            ) : (
+                              <>
+                                <Badge colorScheme="blue" fontSize={{ base: 'xs', md: 'sm' }}>Due Today</Badge>
+                                <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
+                                  Due: {dueDate ? formatDate(dueDate) : 'N/A'}
+                                </Text>
+                              </>
+                            )}
+                            <Badge colorScheme="purple" fontSize={{ base: 'xs', md: 'sm' }}>{lead.source}</Badge>
+                          </HStack>
+                          {followUp?.notes && (
+                            <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mt={2} noOfLines={2}>
+                               {followUp.notes}
+                            </Text>
+                          )}
+                        </Box>
 
-                      <HStack spacing={2} flexWrap="wrap" width={{ base: 'full', sm: 'auto' }} justify={{ base: 'flex-end', sm: 'flex-start' }}>
-                        <Button
-                          size={{ base: 'xs', sm: 'sm' }}
-                          leftIcon={<HiPhone />}
-                          colorScheme="green"
-                          onClick={() => {
-                            setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
-                            onCallDialerOpen();
-                          }}
-                        >
-                          Call
-                        </Button>
-                        <IconButton
-                          aria-label="Assign lead"
-                          icon={<HiUserAdd />}
-                          size="sm"
-                          colorScheme="blue"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setLeadToAssign({
-                              id: lead.id,
-                              name: lead.name,
-                              currentAssignee: lead.assignedTo?.name ?? undefined
-                            });
-                            onAssignOpen();
-                          }}
-                        />
-                        <IconButton
-                          aria-label="View details"
-                          icon={<HiEye />}
-                          size="sm"
-                          onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                        />
-                      </HStack>
-                    </Flex>
-                  </Box>
-                ))}
+                        <HStack spacing={2} flexWrap="wrap" width={{ base: 'full', sm: 'auto' }} justify={{ base: 'flex-end', sm: 'flex-start' }}>
+                          <Button
+                            size={{ base: 'xs', sm: 'sm' }}
+                            leftIcon={<HiPhone />}
+                            colorScheme="green"
+                            onClick={() => {
+                              setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                              onCallDialerOpen();
+                            }}
+                          >
+                            Call
+                          </Button>
+                          <IconButton
+                            aria-label="Assign lead"
+                            icon={<HiUserAdd />}
+                            size="sm"
+                            colorScheme="blue"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLeadToAssign({
+                                id: lead.id,
+                                name: lead.name,
+                                currentAssignee: lead.assignedTo?.name ?? undefined
+                              });
+                              onAssignOpen();
+                            }}
+                          />
+                          <IconButton
+                            aria-label="View details"
+                            icon={<HiEye />}
+                            size="sm"
+                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                          />
+                        </HStack>
+                      </Flex>
+                    </Box>
+                  );
+                })}
               </VStack>
             ) : (
               <Box bg="white" p={6} borderRadius="lg" textAlign="center">
-                <Text color="gray.500">No new leads at the moment</Text>
+                <Text color="gray.500">No leads or follow-ups for today</Text>
               </Box>
             )}
           </Box>
