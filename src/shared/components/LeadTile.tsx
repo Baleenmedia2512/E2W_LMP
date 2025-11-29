@@ -108,7 +108,7 @@ export default function LeadTile({
         )}
         {lead.city && (
           <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600">
-            ðŸ“ {lead.city}
+            📍 {lead.city}
           </Text>
         )}
       </VStack>

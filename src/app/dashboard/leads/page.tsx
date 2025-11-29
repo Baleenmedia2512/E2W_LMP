@@ -503,7 +503,7 @@ export default function LeadsPage() {
                             {lead.name}
                           </Text>
                           <Text fontSize="sm" color="gray.600">
-                            {lead.phone} â€¢ {lead.email || 'No email'}
+                            {lead.phone} • {lead.email || 'No email'}
                           </Text>
                           <LeadAge createdAt={lead.createdAt} />
                           {followUp && (
@@ -518,7 +518,7 @@ export default function LeadsPage() {
                           )}
                           {followUp?.notes && (
                             <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mt={2} noOfLines={2}>
-                              ðŸ“ {followUp.notes}
+                               {followUp.notes}
                             </Text>
                           )}
                         </Box>
@@ -566,7 +566,7 @@ export default function LeadsPage() {
               </VStack>
             ) : (
               <Box bg="white" p={6} borderRadius="lg" textAlign="center">
-                <Text color="gray.500">No overdue follow-ups ðŸŽ‰</Text>
+                <Text color="gray.500">No overdue follow-ups 🎉</Text>
               </Box>
             )}
           </Box>
@@ -623,7 +623,7 @@ export default function LeadsPage() {
                           {lead.name}
                         </Text>
                         <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" noOfLines={1}>
-                          {lead.phone} â€¢ {lead.email || 'No email'}
+                          {lead.phone} • {lead.email || 'No email'}
                         </Text>
                         <LeadAge createdAt={lead.createdAt} />
                         <HStack mt={2} spacing={2} flexWrap="wrap">
@@ -737,7 +737,7 @@ export default function LeadsPage() {
                             {lead.name}
                           </Text>
                           <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" noOfLines={1}>
-                            {lead.phone} â€¢ {lead.email || 'No email'}
+                            {lead.phone} • {lead.email || 'No email'}
                           </Text>
                           <LeadAge createdAt={lead.createdAt} />
                           {followUp && (
@@ -752,7 +752,7 @@ export default function LeadsPage() {
                           )}
                           {followUp?.notes && (
                             <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mt={2} noOfLines={2}>
-                              ðŸ“ {followUp.notes}
+                               {followUp.notes}
                             </Text>
                           )}
                         </Box>
