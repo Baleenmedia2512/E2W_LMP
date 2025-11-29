@@ -135,7 +135,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-3">9. Data Deletion</h2>
             <p className="mb-2">
               To request deletion of your data collected through Facebook Lead Ads, please visit our{' '}
-              <a href="/data-deletion" className="text-blue-600 hover:underline">
+              <a href="https://e2-w-lmp.vercel.app/data-deletion" className="text-blue-600 hover:underline">
                 Data Deletion Request page
               </a>{' '}
               or contact us directly at the information below.
