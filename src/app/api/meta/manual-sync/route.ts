@@ -73,7 +73,12 @@ async function isDuplicate(phone: string, email: string | null, metaLeadId: stri
       OR: [
         { phone },
         ...(email ? [{ email }] : []),
-        { metadata: { path: ['metaLeadId'], equals: metaLeadId } },
+        { 
+          metadata: { 
+            path: ['metaLeadId'], 
+            equals: metaLeadId 
+          } as any
+        },
       ],
     },
   });
