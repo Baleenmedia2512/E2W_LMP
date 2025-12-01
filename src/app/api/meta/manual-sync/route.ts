@@ -68,20 +68,16 @@ function parseMetaFields(fieldData: any[]): {
 
 // Check for duplicate
 async function isDuplicate(phone: string, email: string | null, metaLeadId: string): Promise<boolean> {
+  // Check by phone or email first
   const existing = await prisma.lead.findFirst({
     where: {
       OR: [
         { phone },
         ...(email ? [{ email }] : []),
-        { 
-          metadata: { 
-            path: ['metaLeadId'], 
-            equals: metaLeadId 
-          } as any
-        },
       ],
     },
   });
+  
   return !!existing;
 }
 
