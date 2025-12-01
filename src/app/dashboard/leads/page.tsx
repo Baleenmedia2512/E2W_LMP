@@ -412,8 +412,6 @@ export default function LeadsPage() {
               <option value="lost">Lost</option>
               <option value="unreach">Unreachable</option>
               <option value="unqualified">Unqualified</option>
-              <option value="contacted">Contacted</option>
-              <option value="qualified">Qualified</option>
             </Select>
 
             <Select
@@ -1412,6 +1410,14 @@ export default function LeadsPage() {
           leadId={leadToCall.id}
           leadName={leadToCall.name}
           leadPhone={leadToCall.phone}
+          onOpenUnreachable={() => {
+            setSelectedLead({ id: leadToCall.id, name: leadToCall.name });
+            onUnreachableOpen();
+          }}
+          onOpenUnqualified={() => {
+            setSelectedLead({ id: leadToCall.id, name: leadToCall.name });
+            onUnqualifiedOpen();
+          }}
         />
       )}
         </>

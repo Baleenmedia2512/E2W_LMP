@@ -38,6 +38,8 @@ interface CallDialerModalProps {
   leadId: string;
   leadName: string;
   leadPhone: string;
+  onOpenUnreachable?: () => void;
+  onOpenUnqualified?: () => void;
 }
 
 type CallPhase = 'dialing' | 'calling' | 'ended' | 'next-action';
@@ -48,6 +50,8 @@ export default function CallDialerModal({
   leadId,
   leadName,
   leadPhone,
+  onOpenUnreachable,
+  onOpenUnqualified,
 }: CallDialerModalProps) {
   const toast = useToast();
   const { user } = useAuth();
@@ -264,52 +268,64 @@ export default function CallDialerModal({
       // Reload page to show updated call log
       window.location.reload();
     } else if (action === 'unqualified') {
-      // Update lead status to unqualified via API
-      try {
-        await fetch(`/api/leads/${leadId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: 'unqualified',
-            notes: remarks,
-          }),
-        });
-        
-        toast({
-          title: 'Lead Marked as Unqualified',
-          description: `${leadName} has been marked as unqualified`,
-          status: 'info',
-          duration: 3000,
-          isClosable: true,
-        });
+      // Open unqualified modal if callback provided, otherwise update directly
+      if (onOpenUnqualified) {
         handleClose();
-        window.location.reload();
-      } catch (error) {
-        console.error('Failed to update lead:', error);
+        onOpenUnqualified();
+      } else {
+        try {
+          await fetch(`/api/leads/${leadId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'unqualified',
+              customerRequirement: remarks || 'Marked as unqualified from call',
+              notes: remarks,
+            }),
+          });
+          
+          toast({
+            title: 'Lead Marked as Unqualified',
+            description: `${leadName} has been marked as unqualified`,
+            status: 'info',
+            duration: 3000,
+            isClosable: true,
+          });
+          handleClose();
+          window.location.reload();
+        } catch (error) {
+          console.error('Failed to update lead:', error);
+        }
       }
     } else if (action === 'unreachable') {
-      // Update lead status to unreachable via API
-      try {
-        await fetch(`/api/leads/${leadId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: 'unreach',
-            notes: remarks,
-          }),
-        });
-        
-        toast({
-          title: 'Lead Marked as Unreachable',
-          description: `${leadName} has been marked as unreachable`,
-          status: 'info',
-          duration: 3000,
-          isClosable: true,
-        });
+      // Open unreachable modal if callback provided, otherwise update directly
+      if (onOpenUnreachable) {
         handleClose();
-        window.location.reload();
-      } catch (error) {
-        console.error('Failed to update lead:', error);
+        onOpenUnreachable();
+      } else {
+        try {
+          await fetch(`/api/leads/${leadId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'unreach',
+              customerRequirement: remarks || 'Marked as unreachable from call',
+              notes: remarks,
+            }),
+          });
+          
+          toast({
+            title: 'Lead Marked as Unreachable',
+            description: `${leadName} has been marked as unreachable`,
+            status: 'info',
+            duration: 3000,
+            isClosable: true,
+          });
+          handleClose();
+          window.location.reload();
+        } catch (error) {
+          console.error('Failed to update lead:', error);
+        }
       }
     } else if (action === 'win') {
       // Update lead status to won via API
@@ -401,9 +417,9 @@ export default function CallDialerModal({
           scheduledDateTime.setDate(scheduledDateTime.getDate() + 1);
           if (followUpTime) {
             const timeParts = followUpTime.split(':');
-            const hours = timeParts[0] || '9';
-            const minutes = timeParts[1] || '0';
-            scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            const hours = parseInt(timeParts[0] || '9');
+            const minutes = parseInt(timeParts[1] || '0');
+            scheduledDateTime.setHours(hours, minutes, 0, 0);
           } else {
             scheduledDateTime.setHours(9, 0, 0, 0);
           }
@@ -413,9 +429,9 @@ export default function CallDialerModal({
           scheduledDateTime.setDate(scheduledDateTime.getDate() + 7);
           if (followUpTime) {
             const timeParts = followUpTime.split(':');
-            const hours = timeParts[0] || '9';
-            const minutes = timeParts[1] || '0';
-            scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            const hours = parseInt(timeParts[0] || '9');
+            const minutes = parseInt(timeParts[1] || '0');
+            scheduledDateTime.setHours(hours, minutes, 0, 0);
           } else {
             scheduledDateTime.setHours(9, 0, 0, 0);
           }
@@ -425,9 +441,9 @@ export default function CallDialerModal({
           scheduledDateTime.setMonth(scheduledDateTime.getMonth() + 1);
           if (followUpTime) {
             const timeParts = followUpTime.split(':');
-            const hours = timeParts[0] || '9';
-            const minutes = timeParts[1] || '0';
-            scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            const hours = parseInt(timeParts[0] || '9');
+            const minutes = parseInt(timeParts[1] || '0');
+            scheduledDateTime.setHours(hours, minutes, 0, 0);
           } else {
             scheduledDateTime.setHours(9, 0, 0, 0);
           }
@@ -436,6 +452,30 @@ export default function CallDialerModal({
           scheduledDateTime = new Date(now);
       }
     }
+
+    // Validate that the scheduled time is in the future
+    const now = new Date();
+    if (scheduledDateTime <= now) {
+      toast({
+        title: 'Invalid Date/Time',
+        description: 'Follow-up date and time must be in the future. Please select a later time.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      console.error('Scheduled time is in the past:', {
+        scheduledDateTime: scheduledDateTime.toISOString(),
+        now: now.toISOString(),
+      });
+      return;
+    }
+
+    console.log('Scheduling follow-up:', {
+      scheduledDateTime: scheduledDateTime.toISOString(),
+      followUpTimeframe,
+      followUpDate,
+      followUpTime,
+    });
 
     try {
       // Create follow-up via API
@@ -446,7 +486,7 @@ export default function CallDialerModal({
           leadId,
           scheduledAt: scheduledDateTime,
           status: 'pending',
-          customerRequirement: customerRequirement || 'Follow-up from call',
+          customerRequirement: customerRequirement?.trim() || followUpNotes?.trim() || 'Follow-up from call',
           notes: followUpNotes || 'Follow-up scheduled from call',
           createdById: user?.id || 'unknown-user',
         }),
@@ -469,18 +509,21 @@ export default function CallDialerModal({
         
         // Close modal after successful save
         handleClose();
+        window.location.reload();
       } else {
-        throw new Error('Failed to create follow-up');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create follow-up');
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to schedule follow-up';
       toast({
         title: 'Error',
-        description: 'Failed to schedule follow-up',
+        description: errorMessage,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
-      console.error(error);
+      console.error('Follow-up error:', error);
     }
   };
 
@@ -978,16 +1021,23 @@ export default function CallDialerModal({
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Notes (Optional)</FormLabel>
+                <Textarea
+                  value={followUpNotes}
+                  onChange={(e) => setFollowUpNotes(e.target.value)}
+                  placeholder="Add notes for this follow-up..."
+                  rows={3}
+                />
+              </FormControl>
+
               <HStack spacing={3}>
                 <Button variant="ghost" onClick={handleClose} flex="1">
                   Cancel
                 </Button>
                 <Button
                   colorScheme="orange"
-                  onClick={() => {
-                    handleSaveFollowUp();
-                    handleClose();
-                  }}
+                  onClick={handleSaveFollowUp}
                   isDisabled={followUpTimeframe === 'custom' && !followUpDate}
                   flex="1"
                 >

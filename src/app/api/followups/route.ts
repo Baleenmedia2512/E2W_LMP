@@ -113,7 +113,6 @@ export async function POST(request: NextRequest) {
       data: {
         leadId: body.leadId,
         scheduledAt: scheduledDateTime,
-        completedAt: body.completedAt ? new Date(body.completedAt) : null,
         customerRequirement: body.customerRequirement || null,
         notes: body.notes || null,
         status: body.status || 'pending',
