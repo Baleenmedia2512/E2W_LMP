@@ -49,6 +49,7 @@ import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnre
 import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
 import MarkAsWonModal from '@/features/leads/components/MarkAsWonModal';
 import MarkAsLostModal from '@/features/leads/components/MarkAsLostModal';
+import CallAttemptsModal from '@/shared/components/CallAttemptsModal';
 
 interface Lead {
   id: string;
@@ -113,6 +114,7 @@ export default function LeadDetailPage() {
   const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
   const { isOpen: isWonOpen, onOpen: onWonOpen, onClose: onWonClose } = useDisclosure();
   const { isOpen: isLostOpen, onOpen: onLostOpen, onClose: onLostClose } = useDisclosure();
+  const { isOpen: isCallAttemptsOpen, onOpen: onCallAttemptsOpen, onClose: onCallAttemptsClose } = useDisclosure();
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
@@ -120,7 +122,7 @@ export default function LeadDetailPage() {
   const [activityHistory, setActivityHistory] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup' | 'contacted' | 'qualified'>('new');
+  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
   const [requalifyLoading, setRequalifyLoading] = useState(false);
 
   useEffect(() => {
@@ -519,6 +521,21 @@ export default function LeadDetailPage() {
                 {/* Call Logs Tab */}
                 <TabPanel>
                   <VStack align="stretch" spacing={4}>
+                    {callLogs && callLogs.length > 0 && (
+                      <HStack justify="space-between">
+                        <Text fontSize="sm" color="gray.600">
+                          Showing {callLogs.length} call log{callLogs.length !== 1 ? 's' : ''}
+                        </Text>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          colorScheme="blue"
+                          onClick={onCallAttemptsOpen}
+                        >
+                          View All Attempts
+                        </Button>
+                      </HStack>
+                    )}
                     {callLogs && callLogs.length > 0 ? (
                       <Table size="sm" variant="simple">
                         <Thead bg="gray.50">
@@ -704,6 +721,8 @@ export default function LeadDetailPage() {
           leadId={leadId}
           leadName={lead.name}
           leadPhone={lead.phone}
+          onOpenUnreachable={onUnreachableOpen}
+          onOpenUnqualified={onUnqualifiedOpen}
         />
       )}
 
@@ -782,12 +801,10 @@ export default function LeadDetailPage() {
                 <FormLabel fontWeight="600">New Status</FormLabel>
                 <Select
                   value={requalifyStatus}
-                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup' | 'contacted' | 'qualified')}
+                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup')}
                 >
                   <option value="new">New</option>
                   <option value="followup">Follow-up</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="qualified">Qualified</option>
                 </Select>
               </FormControl>
             </VStack>
@@ -807,6 +824,16 @@ export default function LeadDetailPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Call Attempts Modal */}
+      {lead && (
+        <CallAttemptsModal
+          isOpen={isCallAttemptsOpen}
+          onClose={onCallAttemptsClose}
+          leadId={lead.id}
+          leadName={lead.name}
+        />
+      )}
     </Box>
   );
 }

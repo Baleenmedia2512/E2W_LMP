@@ -32,8 +32,6 @@ interface ChangeStatusModalProps {
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New', requiresReason: false },
   { value: 'followup', label: 'Follow-up', requiresReason: false },
-  { value: 'contacted', label: 'Contacted', requiresReason: false },
-  { value: 'qualified', label: 'Qualified', requiresReason: false },
   { value: 'won', label: 'Won', requiresReason: false },
   { value: 'lost', label: 'Lost', requiresReason: true },
   { value: 'unreach', label: 'Unreachable', requiresReason: true },

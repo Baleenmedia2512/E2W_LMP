@@ -66,7 +66,7 @@ export default function UnqualifiedLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup' | 'contacted' | 'qualified'>('new');
+  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
   const [requalifyLoading, setRequalifyLoading] = useState(false);
 
   const fetchLeads = async () => {
@@ -362,12 +362,10 @@ export default function UnqualifiedLeadsPage() {
                 <FormLabel fontWeight="600">New Status</FormLabel>
                 <Select
                   value={requalifyStatus}
-                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup' | 'contacted' | 'qualified')}
+                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup')}
                 >
                   <option value="new">New</option>
                   <option value="followup">Follow-up</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="qualified">Qualified</option>
                 </Select>
               </FormControl>
             </VStack>
