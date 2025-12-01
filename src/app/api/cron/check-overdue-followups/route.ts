@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import prisma from '@/shared/lib/db/prisma';
 
 /**
@@ -65,10 +67,6 @@ export async function GET(request: NextRequest) {
             userId: followUp.lead.assignedToId,
             type: 'FOLLOWUP_OVERDUE',
             relatedLeadId: followUp.leadId,
-            metadata: {
-              path: ['followUpId'],
-              equals: followUp.id,
-            },
           },
         });
 

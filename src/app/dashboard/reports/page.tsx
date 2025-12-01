@@ -160,10 +160,10 @@ export default function ReportsPage() {
           };
           leads.forEach((lead: any) => {
             const attempts = lead.callAttempts || 0;
-            if (attempts === 0) attemptRanges['0']++;
-            else if (attempts <= 3) attemptRanges['1-3']++;
-            else if (attempts <= 6) attemptRanges['4-6']++;
-            else attemptRanges['7+']++;
+            if (attempts === 0) attemptRanges['0'] = (attemptRanges['0'] || 0) + 1;
+            else if (attempts <= 3) attemptRanges['1-3'] = (attemptRanges['1-3'] || 0) + 1;
+            else if (attempts <= 6) attemptRanges['4-6'] = (attemptRanges['4-6'] || 0) + 1;
+            else attemptRanges['7+'] = (attemptRanges['7+'] || 0) + 1;
           });
           
           const stats = {

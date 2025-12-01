@@ -105,7 +105,7 @@ export function ResponsiveStack({
   const flexDirection = useBreakpointValue({
     base: direction === 'horizontal' ? 'row' : 'column',
     md: direction === 'vertical' ? 'column' : direction === 'horizontal' ? 'row' : 'row',
-  });
+  }) as 'row' | 'column' | undefined;
 
   const gap = useBreakpointValue({
     base: typeof spacing === 'number' ? `${spacing * 0.25}rem` : spacing,
@@ -113,7 +113,7 @@ export function ResponsiveStack({
   });
 
   return (
-    <Box display="flex" flexDirection={flexDirection} gap={gap} {...props}>
+    <Box display="flex" flexDirection={flexDirection || 'column'} gap={gap || '1rem'} {...props}>
       {children}
     </Box>
   );
