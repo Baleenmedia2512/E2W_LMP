@@ -607,7 +607,6 @@ export default function LeadDetailPage() {
                           <Tr>
                             <Th>Scheduled Date</Th>
                             <Th>Status</Th>
-                            <Th>Priority</Th>
                             <Th>Notes</Th>
                           </Tr>
                         </Thead>
@@ -616,29 +615,14 @@ export default function LeadDetailPage() {
                             <Tr key={followup.id}>
                               <Td>{formatDateTime(followup.scheduledAt)}</Td>
                               <Td>
-                                <Badge
+                                <Badge 
                                   colorScheme={
-                                    followup.status === 'completed' 
-                                      ? 'green' 
-                                      : followup.status === 'cancelled'
+                                    followup.status === 'cancelled'
                                       ? 'red'
-                                      : 'yellow'
-                                  }
-                                >
-                                  {followup.status}
-                                </Badge>
-                              </Td>
-                              <Td>
-                                <Badge
-                                  colorScheme={
-                                    followup.priority === 'high' 
-                                      ? 'red' 
-                                      : followup.priority === 'medium'
-                                      ? 'orange'
                                       : 'blue'
                                   }
                                 >
-                                  {followup.priority || 'medium'}
+                                  {followup.status}
                                 </Badge>
                               </Td>
                               <Td>

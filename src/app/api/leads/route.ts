@@ -141,7 +141,6 @@ export async function POST(request: NextRequest) {
         campaign: body.campaign || null,
         customerRequirement: body.customerRequirement || null,
         status: body.status || 'new',
-        priority: body.priority || 'medium',
         notes: body.notes || null,
         assignedToId: assignedToId,
         createdById: body.createdById || null,

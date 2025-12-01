@@ -128,20 +128,6 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    // Calculate high priority overdue count
-    const highPriorityOverdue = await prisma.followUp.count({
-      where: {
-        status: 'pending',
-        scheduledAt: { lt: now },
-        priority: 'high',
-        ...(userId && {
-          lead: {
-            assignedToId: userId,
-          },
-        }),
-      },
-    });
-
     // Calculate conversion rate
     const conversionRate = totalLeads > 0 
       ? Math.round((wonLeads / totalLeads) * 100) 
@@ -164,7 +150,6 @@ export async function GET(request: NextRequest) {
           lostLeads,
           followUpsDue: pendingFollowUps,
           overdue: overdueFollowUps,
-          highPriorityOverdue,
           conversionRate,
           winRate,
         },

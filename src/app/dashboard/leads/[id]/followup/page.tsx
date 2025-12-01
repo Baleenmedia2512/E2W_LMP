@@ -69,7 +69,6 @@ export default function ScheduleFollowUpPage() {
   const [formData, setFormData] = useState({
     date: tomorrow.toISOString().split('T')[0],
     time: '10:00',
-    priority: 'medium' as 'low' | 'medium' | 'high',
     customerRequirement: '',
     notes: '',
   });
@@ -210,7 +209,6 @@ export default function ScheduleFollowUpPage() {
           leadId: lead.id,
           scheduledAt: scheduledDateTime.toISOString(),
           status: 'pending',
-          priority: formData.priority,
           customerRequirement: formData.customerRequirement,
           notes: formData.notes,
           createdById: 'current-user-id',
@@ -316,19 +314,6 @@ export default function ScheduleFollowUpPage() {
                   )}
                 </FormControl>
               </SimpleGrid>
-
-              <FormControl isRequired>
-                <FormLabel>Priority</FormLabel>
-                <Select
-                  name="priority"
-                  value={formData.priority}
-                  onChange={handleChange}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </Select>
-              </FormControl>
 
               <FormControl isRequired isInvalid={!!validationErrors.customerRequirement}>
                 <FormLabel>Customer Requirement *</FormLabel>

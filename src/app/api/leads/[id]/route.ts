@@ -93,7 +93,6 @@ export async function PUT(
       campaign: body.campaign !== undefined ? body.campaign : undefined,
       customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
       status: body.status || undefined,
-      priority: body.priority || undefined,
       notes: body.notes !== undefined ? body.notes : undefined,
       assignedToId: body.assignedToId !== undefined ? body.assignedToId : undefined,
     };
@@ -212,22 +211,6 @@ export async function PUT(
               oldValue: oldLead.email || 'none',
               newValue: body.email || 'none',
               description: `Email ${body.email ? 'updated' : 'removed'}`,
-            },
-          })
-        );
-      }
-
-      if (oldLead.priority !== body.priority && body.priority) {
-        activityPromises.push(
-          prisma.activityHistory.create({
-            data: {
-              leadId: params.id,
-              userId: body.updatedById,
-              action: 'updated',
-              fieldName: 'priority',
-              oldValue: oldLead.priority,
-              newValue: body.priority,
-              description: `Priority changed from ${oldLead.priority} to ${body.priority}`,
             },
           })
         );

@@ -81,9 +81,6 @@ export async function GET(request: NextRequest) {
       // Overdue Follow-ups
       overdueFollowUps,
       
-      // High Priority Overdue
-      highPriorityOverdue,
-      
       // Total Calls in date range
       totalCalls,
       
@@ -175,21 +172,7 @@ export async function GET(request: NextRequest) {
         },
       }),
       
-      // 10. High priority overdue
-      prisma.followUp.count({
-        where: {
-          status: 'pending',
-          scheduledAt: { lt: now },
-          priority: 'high',
-          ...(agentId && {
-            lead: {
-              assignedToId: agentId,
-            },
-          }),
-        },
-      }),
-      
-      // 11. Total calls in date range
+      // 10. Total calls in date range
       prisma.callLog.count({ where: callsWhere }),
       
       // 12. Completed calls
@@ -303,7 +286,6 @@ export async function GET(request: NextRequest) {
           wonToday,
           lostToday,
           overdueFollowUps,
-          highPriorityOverdue,
           totalCalls,
           completedCalls,
         },

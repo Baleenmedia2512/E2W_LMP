@@ -25,10 +25,15 @@ import {
   InputLeftElement,
   Select,
   Flex,
+  SimpleGrid,
+  Card,
+  CardBody,
+  Divider,
+  ButtonGroup,
 } from '@chakra-ui/react';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { HiDotsVertical, HiEye, HiCheck, HiX, HiPlus, HiSearch, HiClock } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiCheck, HiX, HiPlus, HiSearch, HiClock, HiViewGrid, HiViewList, HiCalendar } from 'react-icons/hi';
 import { formatDateTime } from '@/shared/lib/date-utils';
 import CalendarView from '@/shared/components/CalendarView';
 
@@ -42,10 +47,9 @@ interface FollowUp {
     status?: string;
   };
   scheduledAt: string;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'cancelled';
   customerRequirement: string | null;
   notes: string | null;
-  priority: 'low' | 'medium' | 'high';
   createdAt: string;
 }
 
@@ -55,7 +59,7 @@ export default function FollowUpsPage() {
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'tile' | 'calendar'>('list');
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,33 +163,6 @@ export default function FollowUpsPage() {
     }).length;
   }, [followUps]);
 
-  const handleMarkCompleted = async (id: string, leadName: string) => {
-    try {
-      const response = await fetch(`/api/followups/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' }),
-      });
-      if (response.ok) {
-        toast({
-          title: 'Follow-up marked complete',
-          description: `Follow-up with ${leadName} has been marked as completed`,
-          status: 'success',
-          duration: 3000,
-        });
-        // Refresh the list to show updated latest follow-ups
-        await fetchFollowUps();
-      }
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update follow-up',
-        status: 'error',
-        duration: 3000,
-      });
-    }
-  };
-
   const handleMarkCancelled = async (id: string, leadName: string) => {
     try {
       const response = await fetch(`/api/followups/${id}`, {
@@ -217,24 +194,32 @@ export default function FollowUpsPage() {
     <Box>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Follow-ups</Heading>
-        <HStack>
+        <ButtonGroup size="sm" isAttached variant="outline">
           <Button
-            size="sm"
-            variant={viewMode === 'list' ? 'solid' : 'outline'}
-            colorScheme={viewMode === 'list' ? 'blue' : 'gray'}
+            leftIcon={<HiViewList />}
             onClick={() => setViewMode('list')}
+            colorScheme={viewMode === 'list' ? 'blue' : 'gray'}
+            variant={viewMode === 'list' ? 'solid' : 'outline'}
           >
-            List View
+            List
           </Button>
           <Button
-            size="sm"
-            variant={viewMode === 'calendar' ? 'solid' : 'outline'}
-            colorScheme={viewMode === 'calendar' ? 'blue' : 'gray'}
-            onClick={() => setViewMode('calendar')}
+            leftIcon={<HiViewGrid />}
+            onClick={() => setViewMode('tile')}
+            colorScheme={viewMode === 'tile' ? 'blue' : 'gray'}
+            variant={viewMode === 'tile' ? 'solid' : 'outline'}
           >
-            Calendar View
+            Tiles
           </Button>
-        </HStack>
+          <Button
+            leftIcon={<HiCalendar />}
+            onClick={() => setViewMode('calendar')}
+            colorScheme={viewMode === 'calendar' ? 'blue' : 'gray'}
+            variant={viewMode === 'calendar' ? 'solid' : 'outline'}
+          >
+            Calendar
+          </Button>
+        </ButtonGroup>
       </HStack>
 
       {/* Overdue Count Badge */}
@@ -322,20 +307,19 @@ export default function FollowUpsPage() {
                   const scheduledDate = new Date(followup.scheduledAt);
                   const isOverdue = scheduledDate < now;
                   const daysOverdue = isOverdue ? getDaysOverdue(followup.scheduledAt) : 0;
-                  const isHighPriorityOverdue = false;
 
                   return (
                     <Tr 
                       key={followup.id} 
                       _hover={{ bg: 'gray.50' }}
-                      bg={isHighPriorityOverdue ? 'red.50' : isOverdue ? 'orange.50' : 'white'}
+                      bg={isOverdue ? 'orange.50' : 'white'}
                     >
                       <Td fontWeight="medium" fontSize={{ base: 'xs', md: 'sm' }}>
                         <VStack align="start" spacing={1}>
                           <Text>{followup.lead.name}</Text>
                           {isOverdue && (
                             <Badge 
-                              colorScheme={isHighPriorityOverdue ? 'red' : 'orange'} 
+                              colorScheme="orange" 
                               fontSize="xs"
                               fontWeight="bold"
                             >
@@ -407,6 +391,166 @@ export default function FollowUpsPage() {
             </Box>
           )}
             </>
+          ) : viewMode === 'tile' ? (
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4} p={4}>
+              {filteredFollowUps.length > 0 ? (
+                filteredFollowUps.map((followup) => {
+                  const now = new Date();
+                  const scheduledDate = new Date(followup.scheduledAt);
+                  const isOverdue = scheduledDate < now;
+                  const daysOverdue = isOverdue ? getDaysOverdue(followup.scheduledAt) : 0;
+
+                  return (
+                    <Card
+                      key={followup.id}
+                      variant="outline"
+                      bg={isOverdue ? 'orange.50' : 'white'}
+                      borderColor={isOverdue ? 'orange.300' : 'gray.200'}
+                      borderWidth={isOverdue ? '2px' : '1px'}
+                      _hover={{ boxShadow: 'md', borderColor: isOverdue ? 'orange.400' : 'blue.300' }}
+                      transition="all 0.2s"
+                    >
+                      <CardBody>
+                        <VStack align="stretch" spacing={3}>
+                          {/* Header */}
+                          <Flex justify="space-between" align="start">
+                            <Box flex="1">
+                              <Text
+                                fontSize="lg"
+                                fontWeight="bold"
+                                color="blue.600"
+                                cursor="pointer"
+                                onClick={() => router.push(`/dashboard/leads/${followup.leadId}`)}
+                                _hover={{ textDecoration: 'underline' }}
+                                mb={1}
+                              >
+                                {followup.lead.name}
+                              </Text>
+                              <Text fontSize="sm" color="gray.600">
+                                {followup.lead.phone}
+                              </Text>
+                            </Box>
+                            <Menu>
+                              <MenuButton
+                                as={IconButton}
+                                icon={<HiDotsVertical />}
+                                variant="ghost"
+                                size="sm"
+                                colorScheme={isOverdue ? 'red' : 'gray'}
+                                aria-label="Actions"
+                              />
+                              <MenuList>
+                                <MenuItem
+                                  icon={<HiEye />}
+                                  onClick={() => router.push(`/dashboard/leads/${followup.leadId}`)}
+                                >
+                                  View Lead
+                                </MenuItem>
+                                <MenuItem
+                                  icon={<HiClock />}
+                                  onClick={() => router.push(`/dashboard/leads/${followup.leadId}/followup`)}
+                                  color="blue.600"
+                                >
+                                  Reschedule
+                                </MenuItem>
+                                <MenuItem
+                                  icon={<HiX />}
+                                  onClick={() => handleMarkCancelled(followup.id, followup.lead.name)}
+                                  color="red.600"
+                                >
+                                  Cancel
+                                </MenuItem>
+                              </MenuList>
+                            </Menu>
+                          </Flex>
+
+                          {/* Overdue Badge */}
+                          {isOverdue && (
+                            <Badge
+                              colorScheme="orange"
+                              fontSize="sm"
+                              fontWeight="bold"
+                              p={2}
+                              borderRadius="md"
+                            >
+                              🔴 {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
+                            </Badge>
+                          )}
+
+                          <Divider />
+
+                          {/* Scheduled Date */}
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" mb={1}>
+                              Scheduled At
+                            </Text>
+                            <Text fontSize="sm" fontWeight="medium">
+                              {formatDateTime(followup.scheduledAt)}
+                            </Text>
+                          </Box>
+
+                          {/* Customer Requirement */}
+                          {followup.customerRequirement && (
+                            <Box>
+                              <Text fontSize="xs" color="gray.500" mb={1}>
+                                Customer Requirement
+                              </Text>
+                              <Text
+                                fontSize="sm"
+                                noOfLines={3}
+                                color="gray.700"
+                              >
+                                {followup.customerRequirement}
+                              </Text>
+                            </Box>
+                          )}
+
+                          {/* Notes */}
+                          {followup.notes && (
+                            <Box>
+                              <Text fontSize="xs" color="gray.500" mb={1}>
+                                Notes
+                              </Text>
+                              <Text
+                                fontSize="sm"
+                                noOfLines={2}
+                                color="gray.700"
+                              >
+                                {followup.notes}
+                              </Text>
+                            </Box>
+                          )}
+
+                          {/* Lead Status */}
+                          {followup.lead.status && (
+                            <Box>
+                              <Text fontSize="xs" color="gray.500" mb={1}>
+                                Lead Status
+                              </Text>
+                              <Badge colorScheme="blue" variant="subtle">
+                                {followup.lead.status}
+                              </Badge>
+                            </Box>
+                          )}
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  );
+                })
+              ) : (
+                <Box
+                  gridColumn="1 / -1"
+                  textAlign="center"
+                  py={12}
+                  bg="white"
+                  borderRadius="lg"
+                  border="1px solid"
+                  borderColor="gray.200"
+                >
+                  <Text color="gray.500">No follow-ups found</Text>
+                </Box>
+              )}
+            </SimpleGrid>
           ) : (
             <CalendarView followUps={filteredFollowUps} onSelectFollowUp={(id) => {
               const followup = filteredFollowUps.find(f => f.id === id);
@@ -415,6 +559,14 @@ export default function FollowUpsPage() {
               }
             }} />
           )}
+        </Box>
+      )}
+
+      {!loading && viewMode === 'tile' && filteredFollowUps.length > 0 && (
+        <Box mt={4} p={4} bg="white" borderRadius="lg" boxShadow="sm">
+          <Text fontSize="sm" color="gray.600">
+            Showing {filteredFollowUps.length} follow-up{filteredFollowUps.length !== 1 ? 's' : ''}
+          </Text>
         </Box>
       )}
     </Box>

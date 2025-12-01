@@ -448,7 +448,6 @@ export default function CallDialerModal({
           status: 'pending',
           customerRequirement: customerRequirement || 'Follow-up from call',
           notes: followUpNotes || 'Follow-up scheduled from call',
-          priority: followUpPriority,
           createdById: user?.id || 'unknown-user',
         }),
       });
@@ -467,7 +466,6 @@ export default function CallDialerModal({
         setFollowUpDate('');
         setFollowUpTime('');
         setFollowUpNotes('');
-        setFollowUpPriority('medium');
         
         // Close modal after successful save
         handleClose();

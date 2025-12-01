@@ -42,7 +42,6 @@ interface ReportsData {
   avgCallDuration: number;
   totalCallDuration: number;
   overdueFollowUps: number;
-  highPriorityOverdue: number;
   leadsBySource: Record<string, number>;
   leadsByAgent: Array<{ agent: string; count: number; percentage: number }>;
   leadsByStatus: Record<string, number>;
@@ -117,13 +116,6 @@ export default function ReportsPage() {
             const scheduledDate = new Date(followUp.scheduledAt);
             return followUp.status === 'pending' && scheduledDate < now;
           }).length;
-
-          const highPriorityOverdueCount = followUps.filter((followUp: any) => {
-            const scheduledDate = new Date(followUp.scheduledAt);
-            return followUp.status === 'pending' && 
-                   scheduledDate < now && 
-                   followUp.priority === 'high';
-          }).length;
           
           // Calculate leads by source
           const sourceMap: Record<string, number> = {};
@@ -179,7 +171,6 @@ export default function ReportsPage() {
             avgCallDuration,
             totalCallDuration,
             overdueFollowUps: overdueCount,
-            highPriorityOverdue: highPriorityOverdueCount,
             leadsBySource: sourceMap,
             leadsByAgent,
             leadsByStatus: statusMap,
@@ -322,7 +313,7 @@ export default function ReportsPage() {
               <StatLabel color={data.overdueFollowUps > 0 ? 'red.800' : 'green.800'}>Overdue Follow-ups</StatLabel>
               <StatNumber color={data.overdueFollowUps > 0 ? 'red.900' : 'green.900'}>{data.overdueFollowUps}</StatNumber>
               <StatHelpText color={data.overdueFollowUps > 0 ? 'red.700' : 'green.700'}>
-                {data.highPriorityOverdue > 0 ? `${data.highPriorityOverdue} high priority` : data.overdueFollowUps > 0 ? 'Needs attention' : 'All caught up'}
+                {data.overdueFollowUps > 0 ? 'Needs attention' : 'All caught up'}
               </StatHelpText>
             </Stat>
           </CardBody>
