@@ -369,24 +369,7 @@ export default function DashboardPage() {
       </SimpleGrid>
 
       {/* Summary Stats - All Clickable */}
-      <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={{ base: 4, md: 6 }}>
-        <Box 
-          bg="white" 
-          p={6} 
-          borderRadius="lg" 
-          boxShadow="sm" 
-          borderWidth="1px"
-          cursor="pointer"
-          transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "green.500" }}
-          onClick={() => handleCardClick('qualified')}
-        >
-          <Stat>
-            <StatLabel fontSize="sm">Qualified Leads</StatLabel>
-            <StatNumber color="green.600">{stats.qualifiedLeads}</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Click to view</StatHelpText>
-          </Stat>
-        </Box>
+      <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={{ base: 4, md: 6 }}>
         <Box 
           bg="white" 
           p={6} 
