@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
  * GET /api/dashboard/stats
@@ -32,13 +33,19 @@ export async function GET(request: NextRequest) {
       dateFilter.lte = endDate;
     }
 
-    // Build base where clause for leads
+    // Build base where clause for leads (date-filtered)
     const leadsWhere: any = {};
     if (Object.keys(dateFilter).length > 0) {
       leadsWhere.createdAt = dateFilter;
     }
     if (userId) {
       leadsWhere.assignedToId = userId;
+    }
+
+    // Build where clause for total leads count (NO date filter, all leads)
+    const totalLeadsWhere: any = {};
+    if (userId) {
+      totalLeadsWhere.assignedToId = userId;
     }
 
     // Build where clause for follow-ups
@@ -54,6 +61,22 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
 
+    // Build today's date filter for won leads
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const wonLeadsWhere: any = { 
+      status: 'won',
+      updatedAt: {
+        gte: today,
+        lte: todayEnd,
+      },
+    };
+    if (userId) {
+      wonLeadsWhere.assignedToId = userId;
+    }
+
     // Fetch all stats in parallel for optimal performance
     const [
       totalLeads,
@@ -61,15 +84,16 @@ export async function GET(request: NextRequest) {
       qualifiedLeads,
       wonLeads,
       lostLeads,
-      pendingFollowUps,
-      overdueFollowUps,
+      allFollowUps,
       recentLeads,
       upcomingFollowUps,
     ] = await Promise.all([
-      // Total leads in date range
-      prisma.lead.count({ where: leadsWhere }),
+      // Total leads - ALL leads in the system (no date filter)
+      prisma.lead.count({ 
+        where: userId ? { assignedToId: userId } : {} 
+      }),
 
-      // New leads
+      // New leads (within date range)
       prisma.lead.count({
         where: { ...leadsWhere, status: 'new' },
       }),
@@ -79,9 +103,9 @@ export async function GET(request: NextRequest) {
         where: { ...leadsWhere, status: 'qualified' },
       }),
 
-      // Won deals
+      // Won deals TODAY only
       prisma.lead.count({
-        where: { ...leadsWhere, status: 'won' },
+        where: wonLeadsWhere,
       }),
 
       // Lost deals
@@ -89,20 +113,17 @@ export async function GET(request: NextRequest) {
         where: { ...leadsWhere, status: 'lost' },
       }),
 
-      // Pending follow-ups in date range
-      prisma.followUp.count({ where: followUpsWhere }),
-
-      // Overdue follow-ups
-      prisma.followUp.count({
+      // All pending follow-ups (to be filtered for latest per lead)
+      prisma.followUp.findMany({
         where: {
           status: 'pending',
-          scheduledAt: { lt: now },
           ...(userId && {
             lead: {
               assignedToId: userId,
             },
           }),
         },
+        orderBy: { scheduledAt: 'desc' },
       }),
 
       // Recent leads (top 5)
@@ -127,6 +148,26 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
     ]);
+
+    // Filter to keep only the latest follow-up per lead (matching follow-ups page logic)
+    const latestFollowUpsMap = new Map<string, any>();
+    for (const followUp of allFollowUps) {
+      if (!latestFollowUpsMap.has(followUp.leadId)) {
+        latestFollowUpsMap.set(followUp.leadId, followUp);
+      }
+    }
+
+    // Now count pending and overdue from the latest follow-ups only
+    let pendingFollowUps = 0;
+    let overdueFollowUps = 0;
+
+    for (const followUp of latestFollowUpsMap.values()) {
+      const scheduledDate = new Date(followUp.scheduledAt);
+      if (scheduledDate < now) {
+        overdueFollowUps++;
+      }
+      pendingFollowUps++;
+    }
 
     // Calculate conversion rate
     const conversionRate = totalLeads > 0 
