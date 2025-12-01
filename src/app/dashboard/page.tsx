@@ -224,7 +224,6 @@ export default function DashboardPage() {
     wonLeads: 0,
     followUpsDue: 0,
     overdue: 0,
-    highPriorityOverdue: 0,
     conversionRate: 0,
     winRate: 0,
   };
@@ -346,7 +345,7 @@ export default function DashboardPage() {
         <StatCard
           label="Overdue"
           value={stats.overdue}
-          helpText={stats.highPriorityOverdue > 0 ? `${stats.highPriorityOverdue} high priority` : 'Needs attention'}
+          helpText="Needs attention"
           icon={FiAlertCircle}
           colorScheme="red"
           onClick={() => router.push('/dashboard/followups?filter=overdue')}
@@ -444,7 +443,6 @@ export default function DashboardPage() {
                 <Tr>
                   <Th>Time</Th>
                   <Th>Lead</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }}>Priority</Th>
                   <Th display={{ base: 'none', sm: 'table-cell' }}>Notes</Th>
                 </Tr>
               </Thead>
@@ -467,14 +465,6 @@ export default function DashboardPage() {
                             {followUp.lead?.name || 'Unknown Lead'}
                           </Text>
                         </Link>
-                      </Td>
-                      <Td display={{ base: 'none', md: 'table-cell' }}>
-                        <Badge colorScheme={
-                          followUp.priority === 'high' ? 'red' : 
-                          followUp.priority === 'medium' ? 'orange' : 'blue'
-                        }>
-                          {followUp.priority}
-                        </Badge>
                       </Td>
                       <Td display={{ base: 'none', sm: 'table-cell' }}>
                         <Text noOfLines={1} fontSize="sm">{followUp.notes || followUp.customerRequirement || '-'}</Text>

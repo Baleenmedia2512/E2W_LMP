@@ -84,14 +84,11 @@ export async function GET(request: NextRequest) {
           data: {
             userId: followUp.lead.assignedToId,
             type: 'FOLLOWUP_OVERDUE',
-            title: followUp.priority === 'high' 
-              ? '🔴 High Priority Follow-up Overdue!'
-              : '⚠️ Follow-up Overdue',
+            title: '⚠️ Follow-up Overdue',
             message: `Follow-up with ${followUp.lead.name} is ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue. Please take action immediately.`,
             relatedLeadId: followUp.leadId,
             metadata: {
               followUpId: followUp.id,
-              priority: followUp.priority,
               daysOverdue,
               leadName: followUp.lead.name,
               leadPhone: followUp.lead.phone,

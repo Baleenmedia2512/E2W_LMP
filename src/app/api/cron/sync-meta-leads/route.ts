@@ -252,7 +252,6 @@ export async function GET(request: NextRequest) {
               email: parsed.email,
               source: 'Meta',
               status: 'new',
-              priority: 'medium',
               customerRequirement: parsed.customFields.message || null,
               notes: 'Lead fetched via Meta Graph API polling',
               metadata: {

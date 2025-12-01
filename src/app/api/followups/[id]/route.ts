@@ -16,7 +16,6 @@ export async function PUT(
         completedAt: body.completedAt ? new Date(body.completedAt) : undefined,
         customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
         notes: body.notes !== undefined ? body.notes : undefined,
-        priority: body.priority || undefined,
       },
       include: {
         lead: { select: { id: true, name: true } },

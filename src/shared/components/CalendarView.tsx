@@ -24,7 +24,7 @@ interface FollowUp {
     status?: string;
   };
   scheduledAt: string;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'cancelled';
   customerRequirement: string | null;
   notes: string | null;
   priority: 'low' | 'medium' | 'high';
@@ -204,10 +204,8 @@ export default function CalendarView({ followUps, onSelectFollowUp }: CalendarVi
                             bg={
                               isOverdue
                                 ? 'red.100'
-                                : followUp.status === 'completed'
-                                ? 'green.100'
-                                : followUp.priority === 'high'
-                                ? 'orange.100'
+                                : followUp.status === 'cancelled'
+                                ? 'gray.100'
                                 : 'blue.100'
                             }
                             borderRadius="sm"

@@ -74,7 +74,7 @@ export interface CallLog {
   endedAt: Date | null;
   duration: number | null;
   remarks: string | null;
-  callStatus: 'answer' | 'busy' | 'wrong_number' | 'completed' | 'ring_not_response' | string | null; // Support both old and new status values
+  callStatus: 'answer' | 'busy' | 'wrong_number' | 'ring_not_response' | string | null; // Support both old and new status values
   customerRequirement: string | null;
   attemptNumber: number;
   recordingUrl: string | null;
@@ -89,9 +89,8 @@ export interface FollowUp {
   leadId: string;
   scheduledAt: Date;
   completedAt: Date | null;
-  notes: string | null;
-  status: 'pending' | 'completed' | 'cancelled';
-  priority: 'low' | 'medium' | 'high';
+  notes?: string | null;
+  status: 'pending' | 'cancelled';
   createdById: string;
   createdAt: Date;
   updatedAt: Date;

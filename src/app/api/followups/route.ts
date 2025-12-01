@@ -114,10 +114,9 @@ export async function POST(request: NextRequest) {
         leadId: body.leadId,
         scheduledAt: scheduledDateTime,
         completedAt: body.completedAt ? new Date(body.completedAt) : null,
-        customerRequirement: body.customerRequirement,
+        customerRequirement: body.customerRequirement || null,
         notes: body.notes || null,
         status: body.status || 'pending',
-        priority: body.priority || 'medium',
         createdById: body.createdById,
       },
       include: {

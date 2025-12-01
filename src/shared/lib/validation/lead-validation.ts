@@ -64,16 +64,6 @@ export const validateLeadStatus = (status: string): ValidationResult => {
   return { isValid: true };
 };
 
-export const validateLeadPriority = (priority: string): ValidationResult => {
-  const validPriorities = ['low', 'medium', 'high'];
-  
-  if (!validPriorities.includes(priority)) {
-    return { isValid: false, error: 'Invalid priority value' };
-  }
-  
-  return { isValid: true };
-};
-
 export const validateLeadSource = (source: string): ValidationResult => {
   if (!source || !source.trim()) {
     return { isValid: false, error: 'Source is required' };
