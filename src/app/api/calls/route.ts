@@ -61,14 +61,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate customerRequirement is required
-    if (!body.customerRequirement || body.customerRequirement.trim() === '') {
-      return NextResponse.json(
-        { success: false, error: 'customerRequirement is required' },
-        { status: 400 }
-      );
-    }
-
     const callLog = await prisma.callLog.create({
       data: {
         leadId: body.leadId,
