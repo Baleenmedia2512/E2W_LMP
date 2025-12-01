@@ -22,6 +22,7 @@ import {
   Box,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface User {
   id: string;
@@ -53,6 +54,7 @@ export default function AssignLeadModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const toast = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
@@ -66,9 +68,12 @@ export default function AssignLeadModal({
       const response = await fetch('/api/users');
       if (response.ok) {
         const data = await response.json();
-        // Note: Assign modal typically shows all users for reassignment flexibility
-        // If role filtering is needed, it should be applied here
-        setUsers(data.users || []);
+        // Filter to show only active agents (sales_agent, team_lead, super_agent)
+        const activeAgents = (data.users || []).filter((user: User) => {
+          const role = typeof user.role === 'string' ? user.role : user.role?.name;
+          return role && ['sales_agent', 'team_lead', 'super_agent'].includes(role);
+        });
+        setUsers(activeAgents);
       } else {
         console.warn('Failed to fetch users, using empty list');
         setUsers([]);
@@ -114,7 +119,9 @@ export default function AssignLeadModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           assignedToId: selectedUserId,
-          notes: reason || undefined,
+          assignmentReason: reason || undefined,
+          assignmentType: 'MANUAL',
+          updatedById: user?.id,
         }),
       });
 
@@ -122,21 +129,31 @@ export default function AssignLeadModal({
         throw new Error('Failed to assign lead');
       }
 
-      // Create audit log entry
+      // Create audit log entry with enhanced metadata
       try {
+        const activityData = {
+          leadId,
+          userId: user?.id,
+          action: 'assigned',
+          fieldName: 'assignedToId',
+          oldValue: currentAssignee || 'Unassigned',
+          newValue: selectedUser?.name || 'Unknown',
+          description: currentAssignee 
+            ? `Lead reassigned from ${currentAssignee} to ${selectedUser?.name}${reason ? ` - Reason: ${reason}` : ''}` 
+            : `Lead assigned to ${selectedUser?.name}${reason ? ` - Reason: ${reason}` : ''}`,
+          metadata: {
+            assignmentType: 'MANUAL',
+            reason: reason || null,
+            timestamp: new Date().toISOString(),
+            previousAssigneeId: null,
+            newAssigneeId: selectedUserId,
+          },
+        };
+        
         await fetch('/api/activity', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            leadId,
-            action: 'LEAD_ASSIGNED',
-            details: {
-              previousAssignee: currentAssignee || 'Unassigned',
-              newAssignee: selectedUser?.name || 'Unknown',
-              reason: reason || 'No reason provided',
-              assignmentType: 'MANUAL',
-            },
-          }),
+          body: JSON.stringify(activityData),
         }).catch(err => console.error('Failed to create audit log:', err));
       } catch (error) {
         console.error('Audit log error:', error);

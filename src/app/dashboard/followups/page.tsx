@@ -30,6 +30,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiCheck, HiX, HiPlus, HiSearch, HiClock } from 'react-icons/hi';
 import { formatDateTime } from '@/shared/lib/date-utils';
+import CalendarView from '@/shared/components/CalendarView';
 
 interface FollowUp {
   id: string;
@@ -38,9 +39,11 @@ interface FollowUp {
     id: string;
     name: string;
     phone: string;
+    status?: string;
   };
   scheduledAt: string;
   status: 'pending' | 'completed' | 'cancelled';
+  customerRequirement: string | null;
   notes: string | null;
   priority: 'low' | 'medium' | 'high';
   createdAt: string;
@@ -53,6 +56,7 @@ export default function FollowUpsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -234,6 +238,24 @@ export default function FollowUpsPage() {
     <Box>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Follow-ups</Heading>
+        <HStack>
+          <Button
+            size="sm"
+            variant={viewMode === 'list' ? 'solid' : 'outline'}
+            colorScheme={viewMode === 'list' ? 'blue' : 'gray'}
+            onClick={() => setViewMode('list')}
+          >
+            List View
+          </Button>
+          <Button
+            size="sm"
+            variant={viewMode === 'calendar' ? 'solid' : 'outline'}
+            colorScheme={viewMode === 'calendar' ? 'blue' : 'gray'}
+            onClick={() => setViewMode('calendar')}
+          >
+            Calendar View
+          </Button>
+        </HStack>
       </HStack>
 
       {/* Overdue Count Badge */}
@@ -314,6 +336,8 @@ export default function FollowUpsPage() {
 
       {!loading && (
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+          {viewMode === 'list' ? (
+            <>
           <Box overflowX="auto">
           <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
             <Thead bg="gray.50">
@@ -322,7 +346,7 @@ export default function FollowUpsPage() {
                 <Th display={{ base: 'none', sm: 'table-cell' }}>Scheduled At</Th>
                 <Th display={{ base: 'none', md: 'table-cell' }}>Priority</Th>
                 <Th>Status</Th>
-                <Th display={{ base: 'none', lg: 'table-cell' }}>Notes</Th>
+                <Th display={{ base: 'none', lg: 'table-cell' }}>Customer Requirement</Th>
                 <Th>Actions</Th>
               </Tr>
             </Thead>
@@ -386,7 +410,9 @@ export default function FollowUpsPage() {
                         </Badge>
                       </Td>
                       <Td display={{ base: 'none', lg: 'table-cell' }}>
-                        <Text noOfLines={2} fontSize={{ base: 'xs', md: 'sm' }}>{followup.notes || '-'}</Text>
+                        <Text noOfLines={2} fontSize={{ base: 'xs', md: 'sm' }}>
+                          {followup.customerRequirement || '-'}
+                        </Text>
                       </Td>
                       <Td>
                         <Menu>
@@ -452,6 +478,15 @@ export default function FollowUpsPage() {
                 Showing {filteredFollowUps.length} follow-up{filteredFollowUps.length !== 1 ? 's' : ''}
               </Text>
             </Box>
+          )}
+            </>
+          ) : (
+            <CalendarView followUps={filteredFollowUps} onSelectFollowUp={(id) => {
+              const followup = filteredFollowUps.find(f => f.id === id);
+              if (followup) {
+                router.push(`/dashboard/leads/${followup.leadId}`);
+              }
+            }} />
           )}
         </Box>
       )}

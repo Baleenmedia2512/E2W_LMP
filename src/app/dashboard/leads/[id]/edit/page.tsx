@@ -16,6 +16,7 @@ import {
   useToast,
   HStack,
   Spinner,
+  Text,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -203,6 +204,48 @@ export default function EditLeadPage() {
       return;
     }
 
+    // Validate email if provided
+    if (formData.email && formData.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        toast({
+          title: 'Invalid email',
+          description: 'Please enter a valid email address',
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+    }
+
+    // Validate alternate phone if provided
+    if (formData.alternatePhone && formData.alternatePhone.trim()) {
+      const altPhoneDigits = formData.alternatePhone.replace(/\D/g, '');
+      if (altPhoneDigits.length !== 10) {
+        toast({
+          title: 'Invalid alternate phone',
+          description: 'Alternate phone must be exactly 10 digits',
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+    }
+
+    // Validate pincode if provided
+    if (formData.pincode && formData.pincode.trim()) {
+      const pincodeRegex = /^[1-9][0-9]{5}$/;
+      if (!pincodeRegex.test(formData.pincode)) {
+        toast({
+          title: 'Invalid pincode',
+          description: 'Please enter a valid 6-digit pincode',
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -237,13 +280,16 @@ export default function EditLeadPage() {
 
       toast({
         title: 'Lead updated successfully',
-        description: `${formData.name} has been updated`,
+        description: `${formData.name}'s information has been updated. Changes are now visible in the lead list and detail view.`,
         status: 'success',
-        duration: 3000,
+        duration: 4000,
+        isClosable: true,
       });
 
       setLoading(false);
+      // Use router.push with force refresh to ensure lead list updates
       router.push(`/dashboard/leads/${leadId}`);
+      router.refresh();
     } catch (error) {
       toast({
         title: 'Error updating lead',
@@ -268,6 +314,29 @@ export default function EditLeadPage() {
         <CardBody>
           <form onSubmit={handleSubmit}>
             <VStack spacing={6} align="stretch">
+              {/* Protected Fields - Read Only */}
+              <Box bg="gray.50" p={4} borderRadius="md" borderLeft="4px" borderColor="blue.500">
+                <Heading size="sm" mb={3} color="gray.700">Lead Information (Read-Only)</Heading>
+                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                  <Box>
+                    <Text fontSize="xs" fontWeight="bold" color="gray.600">Lead ID</Text>
+                    <Text fontSize="sm" color="gray.800">{lead.id}</Text>
+                  </Box>
+                  <Box>
+                    <Text fontSize="xs" fontWeight="bold" color="gray.600">Created At</Text>
+                    <Text fontSize="sm" color="gray.800">
+                      {new Date(lead.createdAt).toLocaleString()}
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text fontSize="xs" fontWeight="bold" color="gray.600">Last Updated</Text>
+                    <Text fontSize="sm" color="gray.800">
+                      {new Date(lead.updatedAt).toLocaleString()}
+                    </Text>
+                  </Box>
+                </SimpleGrid>
+              </Box>
+
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 <FormControl isRequired>
                   <FormLabel>Name</FormLabel>
@@ -309,7 +378,8 @@ export default function EditLeadPage() {
                     name="alternatePhone"
                     value={formData.alternatePhone}
                     onChange={handleChange}
-                    placeholder="Enter alternate phone"
+                    placeholder="Enter 10 digit alternate phone"
+                    maxLength={10}
                   />
                 </FormControl>
               </SimpleGrid>
@@ -351,7 +421,8 @@ export default function EditLeadPage() {
                     name="pincode"
                     value={formData.pincode}
                     onChange={handleChange}
-                    placeholder="Enter pincode"
+                    placeholder="Enter 6-digit pincode"
+                    maxLength={6}
                   />
                 </FormControl>
               </SimpleGrid>

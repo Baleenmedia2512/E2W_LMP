@@ -71,7 +71,11 @@ export default function CallsPage() {
     const fetchCallLogs = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/calls?limit=100');
+        const params = new URLSearchParams({ limit: '100' });
+        if (statusFilter !== 'all') {
+          params.append('status', statusFilter);
+        }
+        const response = await fetch(`/api/calls?${params.toString()}`);
         const result = await response.json();
         if (result.success) {
           // Sort by createdAt in descending order (most recent first)
@@ -90,7 +94,7 @@ export default function CallsPage() {
       }
     };
     fetchCallLogs();
-  }, []);
+  }, [statusFilter]);
 
   // Filter and search
   const filteredCalls = useMemo(() => {
@@ -115,38 +119,47 @@ export default function CallsPage() {
   }, [callLogs, statusFilter, searchQuery]);
 
   const getCallStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
+      case 'answer':
       case 'completed':
         return 'green';
       case 'busy':
         return 'orange';
-      case 'ring_not_response':
+      case 'wrong_number':
         return 'gray';
+      case 'ring_not_response':
+        return 'red';
       default:
         return 'blue';
     }
   };
 
   const getCallStatusLabel = (status: string) => {
-    switch (status) {
-      case 'completed':
+    if (!status) return 'Unknown';
+    switch (status.toLowerCase()) {
+      case 'answer':
         return 'Answer';
+      case 'completed':
+        return 'Completed';
       case 'busy':
         return 'Busy';
-      case 'ring_not_response':
+      case 'wrong_number':
         return 'Wrong Number';
+      case 'ring_not_response':
+        return 'Ring Not Response';
       default:
-        return status;
+        // Handle any status by capitalizing first letter
+        return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
     }
   };
 
   const formatDuration = (seconds: number | null) => {
-    if (!seconds) return '0m';
+    if (!seconds || seconds === 0) return '0';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     if (mins === 0) return `${secs}s`;
-    if (secs === 0) return `${mins}m`;
-    return `${mins}m ${secs}s`;
+    if (secs === 0) return `${mins}`;
+    return `${mins}.${Math.floor((secs / 60) * 100)}`;
   };
 
   const handleShowRemark = (remark: string | null) => {
@@ -189,10 +202,12 @@ export default function CallsPage() {
               flex={{ base: '1 1 48%', md: '0 1 auto' }}
               size="sm"
             >
-              <option value="all">All Calls</option>
-              <option value="completed">Answer</option>
+              <option value="all">All Status</option>
+              <option value="answer">Answer</option>
               <option value="busy">Busy</option>
-              <option value="ring_not_response">Wrong Number</option>
+              <option value="wrong_number">Wrong Number</option>
+              <option value="ring_not_response">Ring Not Response</option>
+              <option value="completed">Completed</option>
             </Select>
           </HStack>
 
@@ -219,12 +234,11 @@ export default function CallsPage() {
               <Thead bg="gray.50">
                 <Tr>
                   <Th>Lead Name</Th>
-                  <Th>Phone</Th>
-                  <Th>Date & Time</Th>
-                  <Th>Duration</Th>
+                  <Th>Date/Time</Th>
+                  <Th>Duration (min)</Th>
                   <Th>Status</Th>
-                  <Th>Agent</Th>
                   <Th>Customer Requirement</Th>
+                  <Th>Agent Name</Th>
                   <Th>Actions</Th>
                 </Tr>
               </Thead>
@@ -232,16 +246,18 @@ export default function CallsPage() {
                 {filteredCalls.length > 0 ? (
                   filteredCalls.map((call) => (
                     <Tr key={call.id} _hover={{ bg: 'gray.50' }}>
-                      <Td fontWeight="medium" cursor="pointer" color="blue.600">
+                      <Td>
                         <Text
+                          fontWeight="medium"
+                          cursor="pointer"
+                          color="blue.600"
                           onClick={() => router.push(`/dashboard/leads/${call.leadId}`)}
                           _hover={{ textDecoration: 'underline' }}
                         >
                           {call.lead.name}
                         </Text>
                       </Td>
-                      <Td>{call.lead.phone}</Td>
-                      <Td fontSize="xs" whiteSpace="nowrap">
+                      <Td fontSize="sm" whiteSpace="nowrap">
                         {formatDateTime(call.createdAt)}
                       </Td>
                       <Td>{formatDuration(call.duration)}</Td>
@@ -250,25 +266,24 @@ export default function CallsPage() {
                           {getCallStatusLabel(call.callStatus)}
                         </Badge>
                       </Td>
-                      <Td>{call.caller.name || 'N/A'}</Td>
-                      <Td maxW="200px">
+                      <Td maxW="250px">
                         {call.customerRequirement ? (
-                          <Tooltip label={call.customerRequirement} placement="top">
+                          <Tooltip label="Click to view full text" placement="top" hasArrow>
                             <Text
                               noOfLines={2}
-                              fontSize="xs"
+                              fontSize="sm"
                               cursor="pointer"
-                              color="blue.600"
                               onClick={() => handleShowRemark(call.customerRequirement)}
-                              _hover={{ textDecoration: 'underline' }}
+                              _hover={{ color: 'blue.600' }}
                             >
                               {call.customerRequirement}
                             </Text>
                           </Tooltip>
                         ) : (
-                          <Text fontSize="xs" color="gray.500">-</Text>
+                          <Text fontSize="sm" color="gray.400">-</Text>
                         )}
                       </Td>
+                      <Td>{call.caller.name || 'N/A'}</Td>
                       <Td>
                         <Menu>
                           <MenuButton
@@ -276,6 +291,7 @@ export default function CallsPage() {
                             icon={<HiDotsVertical />}
                             variant="ghost"
                             size="sm"
+                            aria-label="Actions"
                           />
                           <MenuList>
                             <MenuItem
@@ -291,7 +307,7 @@ export default function CallsPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={8} textAlign="center" py={8}>
+                    <Td colSpan={7} textAlign="center" py={8}>
                       <Text color="gray.500">
                         {searchQuery || statusFilter !== 'all'
                           ? 'No call logs match your filters'
@@ -314,14 +330,24 @@ export default function CallsPage() {
         </Box>
       )}
 
-      {/* Remark Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="md">
+      {/* Customer Requirement Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Customer Requirement / Remarks</ModalHeader>
+          <ModalHeader>Customer Requirement Details</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <Text whiteSpace="pre-wrap">{selectedRemark}</Text>
+          <ModalBody pb={6}>
+            <Box 
+              bg="gray.50" 
+              p={4} 
+              borderRadius="md" 
+              border="1px solid" 
+              borderColor="gray.200"
+            >
+              <Text whiteSpace="pre-wrap" fontSize="md">
+                {selectedRemark || 'No customer requirement provided'}
+              </Text>
+            </Box>
           </ModalBody>
         </ModalContent>
       </Modal>

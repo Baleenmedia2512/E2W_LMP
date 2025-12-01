@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { notifyLeadAssigned } from '@/shared/lib/utils/notification-service';
 
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
@@ -161,6 +162,15 @@ export async function POST(request: NextRequest) {
           description: `Lead "${lead.name}" was created${assignedToId && !body.assignedToId ? ' and auto-assigned' : ''}`,
         },
       });
+
+      // Send notification if lead is assigned
+      if (assignedToId) {
+        try {
+          await notifyLeadAssigned(lead.id, lead.name, assignedToId);
+        } catch (error) {
+          console.error('Failed to send lead assignment notification:', error);
+        }
+      }
     }
 
     return NextResponse.json(

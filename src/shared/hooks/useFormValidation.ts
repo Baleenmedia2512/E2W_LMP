@@ -9,6 +9,9 @@ export interface ValidationRules {
   pattern?: RegExp;
   email?: boolean;
   phone?: boolean;
+  pincode?: boolean;
+  noFutureDate?: boolean;
+  noPastDate?: boolean;
   custom?: (value: any) => string | undefined;
 }
 
@@ -65,15 +68,39 @@ export function useFormValidation(): UseFormValidationReturn {
 
       // Phone validation
       if (rules.phone) {
-        const phoneRegex = /^[\d\s+\-()]{10,20}$/;
-        if (!phoneRegex.test(value)) {
-          return 'Please enter a valid phone number';
+        const phoneDigits = value.replace(/\D/g, '');
+        if (phoneDigits.length !== 10) {
+          return 'Please enter a valid 10-digit phone number';
+        }
+      }
+
+      // Pincode validation (Indian - 6 digits)
+      if (rules.pincode) {
+        const pincodeRegex = /^[1-9][0-9]{5}$/;
+        if (!pincodeRegex.test(value)) {
+          return 'Please enter a valid 6-digit Indian pincode';
         }
       }
 
       // Pattern validation
       if (rules.pattern && !rules.pattern.test(value)) {
         return `${name} format is invalid`;
+      }
+    }
+
+    // Date validations
+    if (value && (rules.noFutureDate || rules.noPastDate)) {
+      const selectedDate = new Date(value);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+
+      if (rules.noFutureDate && selectedDate > now) {
+        return 'Date cannot be in the future';
+      }
+
+      if (rules.noPastDate && selectedDate < now) {
+        return 'Date cannot be in the past';
       }
     }
 
