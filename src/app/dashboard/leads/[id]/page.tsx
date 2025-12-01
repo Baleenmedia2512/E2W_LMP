@@ -342,15 +342,6 @@ export default function LeadDetailPage() {
                 Log Call
               </Button>
               <Button
-                leftIcon={<HiCalendar />}
-                colorScheme="orange"
-                variant="solid"
-                size="md"
-                onClick={() => router.push(`/dashboard/leads/${leadId}/followup`)}
-              >
-                Schedule Follow-up
-              </Button>
-              <Button
                 leftIcon={<HiRefresh />}
                 colorScheme="purple"
                 variant="outline"

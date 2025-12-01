@@ -141,11 +141,6 @@ export default function CallDialerModal({
     clearAllErrors();
     let hasErrors = false;
 
-    if (!customerRequirement || customerRequirement.trim() === '') {
-      setError('customerRequirement', 'Customer Requirement is required');
-      hasErrors = true;
-    }
-
     // Validate date is not in future
     if (callDate) {
       const selectedDate = new Date(callDate);
@@ -206,7 +201,7 @@ export default function CallDialerModal({
           endedAt: finalEndTime,
           duration,
           callStatus,
-          customerRequirement: customerRequirement.trim(),
+          customerRequirement: remarks || 'Call logged',
           remarks: remarks || null,
         }),
       });
@@ -689,7 +684,7 @@ export default function CallDialerModal({
                       Start Time
                     </Text>
                     <Text fontWeight="medium">
-                      {startTime ? formatDate(startTime) : '-'}
+                      {startTime ? startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--'}
                     </Text>
                   </Box>
                   <Box>
@@ -697,7 +692,7 @@ export default function CallDialerModal({
                       End Time
                     </Text>
                     <Text fontWeight="medium">
-                      {endTime ? formatDate(endTime) : '-'}
+                      {endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--'}
                     </Text>
                   </Box>
                 </HStack>
@@ -740,19 +735,6 @@ export default function CallDialerModal({
                 </Text>
               </FormControl>
 
-              <FormControl>
-                <FormLabel>Duration (minutes) - Optional</FormLabel>
-                <Input
-                  type="number"
-                  value={duration > 0 ? Math.floor(duration / 60) : ''}
-                  onChange={(e) => {
-                    const mins = parseInt(e.target.value) || 0;
-                    setDuration(mins * 60);
-                  }}
-                  placeholder="Enter duration in minutes"
-                />
-              </FormControl>
-
               <FormControl isRequired>
                 <FormLabel>Call Status <Text as="span" color="red.500">*</Text></FormLabel>
                 <Select
@@ -764,23 +746,6 @@ export default function CallDialerModal({
                   <option value="wrong_number">Wrong Number</option>
                 </Select>
               </FormControl>
-
-              <ValidatedTextarea
-                label="Detailed Customer Requirement"
-                name="customerRequirement"
-                value={customerRequirement}
-                onChange={(e) => {
-                  setCustomerRequirement(e.target.value);
-                  clearError('customerRequirement');
-                }}
-                error={errors.customerRequirement}
-                isRequired={true}
-                placeholder="Enter detailed customer requirements..."
-                rows={4}
-                maxLength={500}
-                showCharCount={true}
-                helperText="This field is required"
-              />
 
               <ValidatedTextarea
                 label="Remarks (Optional)"
@@ -912,7 +877,13 @@ export default function CallDialerModal({
                       size="sm"
                       colorScheme={followUpTimeframe === '1hour' ? 'blue' : 'gray'}
                       variant={followUpTimeframe === '1hour' ? 'solid' : 'outline'}
-                      onClick={() => setFollowUpTimeframe('1hour')}
+                      onClick={() => {
+                        setFollowUpTimeframe('1hour');
+                        const now = new Date();
+                        const scheduledDateTime = new Date(now.getTime() + 60 * 60 * 1000);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpTime(scheduledDateTime.toTimeString().slice(0, 5));
+                      }}
                       flex="1"
                     >
                       After 1 Hour
@@ -921,7 +892,14 @@ export default function CallDialerModal({
                       size="sm"
                       colorScheme={followUpTimeframe === 'tomorrow' ? 'blue' : 'gray'}
                       variant={followUpTimeframe === 'tomorrow' ? 'solid' : 'outline'}
-                      onClick={() => setFollowUpTimeframe('tomorrow')}
+                      onClick={() => {
+                        setFollowUpTimeframe('tomorrow');
+                        const now = new Date();
+                        const scheduledDateTime = new Date(now);
+                        scheduledDateTime.setDate(scheduledDateTime.getDate() + 1);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpTime(now.toTimeString().slice(0, 5));
+                      }}
                       flex="1"
                     >
                       Tomorrow
@@ -932,7 +910,14 @@ export default function CallDialerModal({
                       size="sm"
                       colorScheme={followUpTimeframe === '1week' ? 'blue' : 'gray'}
                       variant={followUpTimeframe === '1week' ? 'solid' : 'outline'}
-                      onClick={() => setFollowUpTimeframe('1week')}
+                      onClick={() => {
+                        setFollowUpTimeframe('1week');
+                        const now = new Date();
+                        const scheduledDateTime = new Date(now);
+                        scheduledDateTime.setDate(scheduledDateTime.getDate() + 7);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpTime(now.toTimeString().slice(0, 5));
+                      }}
                       flex="1"
                     >
                       After 1 Week
@@ -941,7 +926,14 @@ export default function CallDialerModal({
                       size="sm"
                       colorScheme={followUpTimeframe === '1month' ? 'blue' : 'gray'}
                       variant={followUpTimeframe === '1month' ? 'solid' : 'outline'}
-                      onClick={() => setFollowUpTimeframe('1month')}
+                      onClick={() => {
+                        setFollowUpTimeframe('1month');
+                        const now = new Date();
+                        const scheduledDateTime = new Date(now);
+                        scheduledDateTime.setMonth(scheduledDateTime.getMonth() + 1);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpTime(now.toTimeString().slice(0, 5));
+                      }}
                       flex="1"
                     >
                       After 1 Month
@@ -951,7 +943,11 @@ export default function CallDialerModal({
                     size="sm"
                     colorScheme={followUpTimeframe === 'custom' ? 'blue' : 'gray'}
                     variant={followUpTimeframe === 'custom' ? 'solid' : 'outline'}
-                    onClick={() => setFollowUpTimeframe('custom')}
+                    onClick={() => {
+                      setFollowUpTimeframe('custom');
+                      setFollowUpDate('');
+                      setFollowUpTime('09:00');
+                    }}
                     width="full"
                   >
                     Custom Date
@@ -959,17 +955,17 @@ export default function CallDialerModal({
                 </VStack>
               </FormControl>
 
-              {followUpTimeframe === 'custom' && (
-                <FormControl isRequired>
-                  <FormLabel>Follow-up Date</FormLabel>
-                  <Input
-                    type="date"
-                    value={followUpDate}
-                    onChange={(e) => setFollowUpDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                </FormControl>
-              )}
+              <FormControl isRequired>
+                <FormLabel>Follow-up Date</FormLabel>
+                <Input
+                  type="date"
+                  value={followUpDate}
+                  onChange={(e) => setFollowUpDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  isReadOnly={followUpTimeframe !== 'custom'}
+                  bg={followUpTimeframe !== 'custom' ? 'gray.100' : 'white'}
+                />
+              </FormControl>
 
               <FormControl>
                 <FormLabel>Follow-up Time</FormLabel>
@@ -978,6 +974,8 @@ export default function CallDialerModal({
                   value={followUpTime}
                   onChange={(e) => setFollowUpTime(e.target.value)}
                   placeholder="09:00"
+                  isReadOnly={followUpTimeframe !== 'custom'}
+                  bg={followUpTimeframe !== 'custom' ? 'gray.100' : 'white'}
                 />
               </FormControl>
 

@@ -12,27 +12,66 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
 
-    const where: any = {};
-    if (leadId) where.leadId = leadId;
-    if (status) where.status = status;
+    // If requesting follow-ups for a specific lead (e.g., lead detail page), return all
+    if (leadId) {
+      const where: any = { leadId };
+      if (status) where.status = status;
 
-    const [followUps, total] = await Promise.all([
-      prisma.followUp.findMany({
-        where,
-        include: {
-          lead: { select: { id: true, name: true, phone: true, status: true } },
-          createdBy: { select: { id: true, name: true, email: true } },
-        },
-        orderBy: { scheduledAt: 'asc' },
-        skip,
-        take: limit,
-      }),
-      prisma.followUp.count({ where }),
-    ]);
+      const [followUps, total] = await Promise.all([
+        prisma.followUp.findMany({
+          where,
+          include: {
+            lead: { select: { id: true, name: true, phone: true, status: true } },
+            createdBy: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { scheduledAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        prisma.followUp.count({ where }),
+      ]);
+
+      return NextResponse.json({
+        success: true,
+        data: followUps,
+        total,
+        page,
+        pageSize: limit,
+        hasMore: skip + limit < total,
+      });
+    }
+
+    // For the follow-up page, fetch only the latest follow-up per lead
+    // Get all follow-ups ordered by scheduled date (latest first)
+    const allFollowUps = await prisma.followUp.findMany({
+      where: status ? { status } : undefined,
+      include: {
+        lead: { select: { id: true, name: true, phone: true, status: true } },
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { scheduledAt: 'desc' },
+    });
+
+    // Filter to keep only the latest follow-up per lead
+    const latestFollowUpsMap = new Map<string, any>();
+    for (const followUp of allFollowUps) {
+      if (!latestFollowUpsMap.has(followUp.leadId)) {
+        latestFollowUpsMap.set(followUp.leadId, followUp);
+      }
+    }
+
+    // Convert map to array and sort by scheduled date
+    const latestFollowUps = Array.from(latestFollowUpsMap.values()).sort(
+      (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+    );
+
+    // Apply pagination
+    const total = latestFollowUps.length;
+    const paginatedFollowUps = latestFollowUps.slice(skip, skip + limit);
 
     return NextResponse.json({
       success: true,
-      data: followUps,
+      data: paginatedFollowUps,
       total,
       page,
       pageSize: limit,
@@ -86,6 +125,20 @@ export async function POST(request: NextRequest) {
         createdBy: { select: { id: true, name: true, email: true } },
       },
     });
+
+    // Update lead status to 'followup' if it's not already won, lost, or unqualified
+    const currentLead = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { status: true },
+    });
+
+    const nonUpdatableStatuses = ['won', 'lost', 'unqualified'];
+    if (currentLead && !nonUpdatableStatuses.includes(currentLead.status)) {
+      await prisma.lead.update({
+        where: { id: body.leadId },
+        data: { status: 'followup' },
+      });
+    }
 
     // Log activity
     await prisma.activityHistory.create({

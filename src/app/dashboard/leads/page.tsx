@@ -54,6 +54,7 @@ import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnre
 import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
 import { formatDate } from '@/shared/lib/date-utils';
+import { formatDateTime } from '@/shared/lib/date-utils';
 import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils/lead-categorization';
 import type { CallLog } from '@/shared/types';
 
@@ -96,6 +97,54 @@ const LeadAge = ({ createdAt }: { createdAt: string | Date }) => {
       <Text>{age} old</Text>
     </HStack>
   );
+};
+
+// Helper function to get status badge color
+const getStatusBadgeColor = (status: string): string => {
+  switch (status) {
+    case 'new':
+      return 'green';
+    case 'contacted':
+      return 'blue';
+    case 'followup':
+      return 'orange';
+    case 'qualified':
+      return 'purple';
+    case 'won':
+      return 'green';
+    case 'lost':
+      return 'red';
+    case 'unqualified':
+      return 'gray';
+    case 'unreach':
+      return 'pink';
+    default:
+      return 'gray';
+  }
+};
+
+// Helper function to format status label
+const getStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'new':
+      return 'New';
+    case 'contacted':
+      return 'Contacted';
+    case 'followup':
+      return 'Follow-up';
+    case 'qualified':
+      return 'Qualified';
+    case 'won':
+      return 'Won';
+    case 'lost':
+      return 'Lost';
+    case 'unqualified':
+      return 'Unqualified';
+    case 'unreach':
+      return 'Unreachable';
+    default:
+      return status;
+  }
 };
 
 // Lead management page with multiple view modes and categorization
@@ -508,11 +557,14 @@ export default function LeadsPage() {
                           <LeadAge createdAt={lead.createdAt} />
                           {followUp && (
                             <HStack mt={2} spacing={2} flexWrap="wrap">
+                              <Badge colorScheme="orange" fontSize={{ base: 'xs', md: 'sm' }}>
+                                Follow-up
+                              </Badge>
                               <Badge colorScheme="red" fontSize={{ base: 'xs', md: 'sm' }}>
                                 Overdue by {timeDiff}
                               </Badge>
                               <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
-                                Due: {dueDate ? formatDate(dueDate) : 'N/A'}
+                                Due: {dueDate ? formatDateTime(dueDate) : 'N/A'}
                               </Text>
                             </HStack>
                           )}
@@ -633,16 +685,19 @@ export default function LeadsPage() {
                           <HStack mt={2} spacing={2} flexWrap="wrap">
                             {isNewLead ? (
                               <>
-                                <Badge colorScheme="blue" fontSize={{ base: 'xs', md: 'sm' }}>New Lead</Badge>
+                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', md: 'sm' }}>
+                                  {getStatusLabel(lead.status)}
+                                </Badge>
                                 <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
                                   Created: {formatDate(lead.createdAt)}
                                 </Text>
                               </>
                             ) : (
                               <>
+                                <Badge colorScheme="orange" fontSize={{ base: 'xs', md: 'sm' }}>Follow-up</Badge>
                                 <Badge colorScheme="blue" fontSize={{ base: 'xs', md: 'sm' }}>Due Today</Badge>
                                 <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
-                                  Due: {dueDate ? formatDate(dueDate) : 'N/A'}
+                                  Due: {dueDate ? formatDateTime(dueDate) : 'N/A'}
                                 </Text>
                               </>
                             )}
@@ -763,11 +818,14 @@ export default function LeadsPage() {
                           <LeadAge createdAt={lead.createdAt} />
                           {followUp && (
                             <HStack mt={2} spacing={2} flexWrap="wrap">
+                              <Badge colorScheme="orange" fontSize={{ base: 'xs', md: 'sm' }}>
+                                Follow-up
+                              </Badge>
                               <Badge colorScheme="green" fontSize={{ base: 'xs', md: 'sm' }}>
                                 In {timeDiff}
                               </Badge>
                               <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.500">
-                                Scheduled: {dueDate ? formatDate(dueDate) : 'N/A'}
+                                Scheduled: {dueDate ? formatDateTime(dueDate) : 'N/A'}
                               </Text>
                             </HStack>
                           )}
