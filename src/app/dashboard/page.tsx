@@ -186,19 +186,19 @@ export default function DashboardPage() {
     }
   };
 
-  // Show toast on auto-refresh
+  // Show toast on auto-refresh (only once when enabled)
   useEffect(() => {
-    if (autoRefresh && data) {
+    if (autoRefresh) {
       toast({
-        title: 'Dashboard Updated',
-        description: 'Stats refreshed automatically',
+        title: 'Auto-refresh Enabled',
+        description: 'Dashboard will refresh every 30 seconds',
         status: 'info',
-        duration: 2000,
+        duration: 3000,
         isClosable: true,
         position: 'bottom-right',
       });
     }
-  }, [data?.data?.timestamp, autoRefresh]);
+  }, [autoRefresh]);
 
   const handleManualRefresh = () => {
     mutate();
@@ -353,15 +353,15 @@ export default function DashboardPage() {
         <StatCard
           label="Total Leads"
           value={stats.totalLeads}
-          helpText="In date range"
+          helpText="All leads in system"
           icon={FiPhone}
           colorScheme="purple"
           onClick={() => router.push('/dashboard/leads')}
         />
         <StatCard
-          label="Won Deals"
+          label="Won Today"
           value={stats.wonLeads}
-          helpText={`${stats.conversionRate}% conversion`}
+          helpText="Deals closed today"
           icon={FiCheckCircle}
           colorScheme="green"
           onClick={() => handleCardClick('won')}
