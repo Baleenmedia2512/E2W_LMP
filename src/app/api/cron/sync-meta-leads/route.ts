@@ -110,11 +110,18 @@ function parseMetaLeadFields(fieldData: any[]): {
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret to prevent unauthorized access
+    // Verify cron secret to prevent unauthorized access (optional for testing)
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    // Allow if: no secret is set, or auth header matches secret
+    if (cronSecret && cronSecret.trim() && authHeader !== `Bearer ${cronSecret.trim()}`) {
+      console.log('Auth failed:', { 
+        hasSecret: !!cronSecret, 
+        secretLength: cronSecret?.length,
+        hasAuth: !!authHeader,
+        authLength: authHeader?.length 
+      });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

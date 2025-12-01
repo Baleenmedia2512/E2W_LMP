@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/dashboard/stats
  * Fetch comprehensive dashboard statistics with optional date range filtering

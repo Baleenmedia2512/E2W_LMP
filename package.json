@@ -26,6 +26,7 @@
     "@emotion/styled": "^11.11.5",
     "@prisma/client": "^5.11.0",
     "bcryptjs": "^2.4.3",
+    "critters": "^0.0.25",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.2.12",
     "jsonwebtoken": "^9.0.2",
