@@ -197,17 +197,7 @@ export async function GET(request: NextRequest) {
                 submittedAt: created_time,
                 syncedAt: new Date().toISOString(),
               } as any,
-              assignedToId: await getNextAgent(),
-            },
-          });
-
-          // Log activity
-          await prisma.activityHistory.create({
-            data: {
-              leadId: lead.id,
-              userId: 'system',
-              action: 'created',
-              description: `Lead imported from Meta form: ${form.name}`,
+              assignedToId: null, // Will assign later manually
             },
           });
 
