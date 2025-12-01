@@ -116,6 +116,7 @@ export function useNetworkSpeed() {
         };
       }
     }
+    return undefined;
   }, []);
 
   return { 
@@ -143,6 +144,7 @@ export function usePrefersReducedMotion() {
       mediaQuery.addEventListener('change', handleChange);
       return () => mediaQuery.removeEventListener('change', handleChange);
     }
+    return undefined;
   }, []);
 
   return prefersReducedMotion;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { VisuallyHidden, useColorModeValue } from '@chakra-ui/react';
 
 /**
