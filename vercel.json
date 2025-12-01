@@ -13,10 +13,6 @@
     {
       "path": "/api/cron/sync-meta-leads",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/check-overdue-followups",
-      "schedule": "0 * * * *"
     }
   ],
   "headers": [

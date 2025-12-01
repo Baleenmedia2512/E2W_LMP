@@ -130,6 +130,62 @@ export default function DashboardPage() {
     }
   );
 
+  // Check for overdue followups on mount and periodically
+  useEffect(() => {
+    const checkOverdueFollowups = async () => {
+      try {
+        const response = await fetch('/api/cron/check-overdue-followups');
+        if (response.ok) {
+          console.log('✅ Overdue followups checked');
+        }
+      } catch (error) {
+        console.error('Failed to check overdue followups:', error);
+      }
+    };
+
+    // Check immediately on mount
+    checkOverdueFollowups();
+
+    // Check every 5 minutes while user is active
+    const interval = setInterval(checkOverdueFollowups, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Manual Meta leads sync
+  const [isSyncing, setIsSyncing] = useState(false);
+  const handleSyncMetaLeads = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/cron/sync-meta-leads');
+      const result = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: 'Meta Leads Synced',
+          description: `Updated ${result.updatedPlaceholders || 0} placeholders, fetched ${result.newLeads || 0} new leads`,
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+        // Refresh dashboard data
+        mutate();
+      } else {
+        throw new Error(result.error || 'Sync failed');
+      }
+    } catch (error) {
+      toast({
+        title: 'Sync Failed',
+        description: error instanceof Error ? error.message : 'Failed to sync Meta leads',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Show toast on auto-refresh
   useEffect(() => {
     if (autoRefresh && data) {
@@ -203,7 +259,7 @@ export default function DashboardPage() {
       {/* Header */}
       <Flex justify="space-between" align="center" flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
-        <HStack spacing={3}>
+        <HStack spacing={3} flexWrap="wrap">
           <FormControl display="flex" alignItems="center" width="auto">
             <FormLabel htmlFor="auto-refresh" mb="0" fontSize="sm" mr={2}>
               Auto-refresh
@@ -215,6 +271,16 @@ export default function DashboardPage() {
               colorScheme="brand"
             />
           </FormControl>
+          <Button
+            leftIcon={<FiRefreshCw />}
+            size="sm"
+            variant="outline"
+            onClick={handleSyncMetaLeads}
+            isLoading={isSyncing}
+            colorScheme="blue"
+          >
+            Sync Meta Leads
+          </Button>
           <Button
             leftIcon={<FiRefreshCw />}
             size="sm"
