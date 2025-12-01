@@ -38,6 +38,8 @@ interface Lead {
   status: string;
   assignedTo?: { id: string; name: string; email: string };
   notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function EditLeadPage() {
@@ -325,13 +327,13 @@ export default function EditLeadPage() {
                   <Box>
                     <Text fontSize="xs" fontWeight="bold" color="gray.600">Created At</Text>
                     <Text fontSize="sm" color="gray.800">
-                      {new Date(lead.createdAt).toLocaleString()}
+                      {lead.createdAt ? new Date(lead.createdAt).toLocaleString() : 'N/A'}
                     </Text>
                   </Box>
                   <Box>
                     <Text fontSize="xs" fontWeight="bold" color="gray.600">Last Updated</Text>
                     <Text fontSize="sm" color="gray.800">
-                      {new Date(lead.updatedAt).toLocaleString()}
+                      {lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'N/A'}
                     </Text>
                   </Box>
                 </SimpleGrid>

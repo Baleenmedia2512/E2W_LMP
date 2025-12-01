@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import prisma from '@/shared/lib/db/prisma';
 import { verifyToken } from '@/shared/lib/auth/auth-utils';
 

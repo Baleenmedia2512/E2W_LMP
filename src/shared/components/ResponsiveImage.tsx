@@ -3,7 +3,7 @@
 import { Box, Image as ChakraImage, Skeleton, ImageProps as ChakraImageProps } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 
-interface ResponsiveImageProps extends Omit<ChakraImageProps, 'src'> {
+interface ResponsiveImageProps extends Omit<ChakraImageProps, 'src' | 'fallback'> {
   src: string;
   alt: string;
   fallback?: string;
@@ -53,6 +53,7 @@ export default function ResponsiveImage({
 
       return () => observer.disconnect();
     }
+    return undefined;
   }, [src, lazy]);
 
   const handleLoad = () => {

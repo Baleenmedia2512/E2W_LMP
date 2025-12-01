@@ -77,7 +77,7 @@ export default function CallDialerModal({
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [followUpPriority, setFollowUpPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [nextAction, setNextAction] = useState<'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | null>(null);
+  const [nextAction, setNextAction] = useState<'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | 'update_status' | 'no_action' | null>(null);
 
   // Auto-start call when modal opens
   useEffect(() => {
@@ -88,6 +88,7 @@ export default function CallDialerModal({
       }, 300);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [isOpen]);
 
   // Timer effect for active call
@@ -115,7 +116,7 @@ export default function CallDialerModal({
     setCallPhase('calling');
     
     // Set initial date and time
-    const dateStr = now.toISOString().split('T')[0];
+    const dateStr = now.toISOString().split('T')[0] || '';
     const timeStr = now.toTimeString().slice(0, 5);
     setCallDate(dateStr);
     setCallTime(timeStr);

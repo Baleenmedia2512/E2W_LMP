@@ -1,17 +1,18 @@
-﻿import type { Metadata } from 'next';
+﻿import type { Metadata, Viewport } from 'next';
 import { Providers } from './providers';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
+  themeColor: '#9c5342',
+};
 
 export const metadata: Metadata = {
   title: 'E2W Lead Management System',
   description: 'Production-ready Lead Management System for E2W',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 5,
-    userScalable: true,
-    viewportFit: 'cover',
-  },
-  themeColor: '#9c5342',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
