@@ -14,6 +14,7 @@ export async function PUT(
       data: {
         status: body.status || undefined,
         completedAt: body.completedAt ? new Date(body.completedAt) : undefined,
+        customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
         notes: body.notes !== undefined ? body.notes : undefined,
         priority: body.priority || undefined,
       },

@@ -25,11 +25,16 @@ import {
   Input,
   Card,
   CardBody,
+  Switch,
+  FormControl,
+  FormLabel,
+  useToast,
 } from '@chakra-ui/react';
 import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 
 const StatCard = ({
   label,
@@ -93,98 +98,85 @@ const getStatusColor = (status: string) => {
   return colors[status] || 'gray';
 };
 
+// Fetcher function for SWR
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
 export default function DashboardPage() {
   const router = useRouter();
+  const toast = useToast();
   
-  const [leads, setLeads] = useState<any[]>([]);
-  const [followUps, setFollowUps] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>(() => {
-    const date = new Date().toISOString().split('T')[0];
-    return date || '';
+    const date = new Date();
+    date.setDate(date.getDate() - 30); // Default to last 30 days
+    return date.toISOString().split('T')[0] || '';
   });
   const [endDate, setEndDate] = useState<string>(() => {
-    const date = new Date().toISOString().split('T')[0];
-    return date || '';
+    return new Date().toISOString().split('T')[0] || '';
   });
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
+  // Build API URL with date filters
+  const statsUrl = `/api/dashboard/stats?startDate=${startDate}&endDate=${endDate}`;
+
+  // Use SWR for real-time data fetching with auto-refresh
+  const { data, error, isLoading, mutate } = useSWR(
+    statsUrl,
+    fetcher,
+    {
+      refreshInterval: autoRefresh ? 30000 : 0, // Refresh every 30 seconds when enabled
+      revalidateOnFocus: true, // Revalidate when window regains focus
+      revalidateOnReconnect: true, // Revalidate when reconnecting
+      dedupingInterval: 2000, // Dedupe requests within 2 seconds
+    }
+  );
+
+  // Show toast on auto-refresh
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [leadsRes, followUpsRes] = await Promise.all([
-          fetch('/api/leads?limit=100'),
-          fetch('/api/followups?limit=100'),
-        ]);
-        
-        const leadsData = await leadsRes.json();
-        const followUpsData = await followUpsRes.json();
-        
-        if (leadsData.success) {
-          setLeads(leadsData.data);
-        }
-        if (followUpsData.success) {
-          setFollowUps(followUpsData.data);
-        }
-      } catch (err) {
-        setError('Failed to fetch data');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, []);
+    if (autoRefresh && data) {
+      toast({
+        title: 'Dashboard Updated',
+        description: 'Stats refreshed automatically',
+        status: 'info',
+        duration: 2000,
+        isClosable: true,
+        position: 'bottom-right',
+      });
+    }
+  }, [data?.data?.timestamp, autoRefresh]);
+
+  const handleManualRefresh = () => {
+    mutate();
+    toast({
+      title: 'Refreshing...',
+      description: 'Updating dashboard data',
+      status: 'info',
+      duration: 1500,
+      isClosable: true,
+      position: 'top-right',
+    });
+  };
 
   const handleCardClick = (filter: string) => {
     router.push(`/dashboard/leads?filter=${filter}`);
   };
 
-  // Filter data based on date range
-  const filteredData = useMemo(() => {
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    const filteredLeads = leads.filter(lead => {
-      const leadDate = new Date(lead.createdAt);
-      return leadDate >= start && leadDate <= end;
-    });
-
-    const filteredFollowUps = followUps.filter(followUp => {
-      const followUpDate = new Date(followUp.scheduledAt);
-      return followUp.status === 'pending' && followUpDate >= start && followUpDate <= end;
-    });
-
-    return { filteredLeads, filteredFollowUps };
-  }, [startDate, endDate, leads, followUps]);
-
-  const todayFollowUps = filteredData.filteredFollowUps.slice(0, 5);
-  const recentLeads = filteredData.filteredLeads.slice(0, 5);
-
-  // Calculate overdue follow-ups with high priority count
-  const now = new Date();
-  const overdueFollowUps = followUps.filter(f => {
-    const scheduledDate = new Date(f.scheduledAt);
-    return f.status === 'pending' && scheduledDate < now;
-  });
-  const highPriorityOverdue = overdueFollowUps.filter(f => f.priority === 'high').length;
-
-  // Calculate stats based on filtered data
-  const stats = {
-    newLeads: filteredData.filteredLeads.filter(l => l.status === 'new').length,
-    qualifiedLeads: filteredData.filteredLeads.filter(l => l.status === 'qualified').length,
-    wonDeals: filteredData.filteredLeads.filter(l => l.status === 'won').length,
-    totalLeads: filteredData.filteredLeads.length,
-    conversionRate: filteredData.filteredLeads.length > 0 
-      ? Math.round((filteredData.filteredLeads.filter(l => l.status === 'won').length / filteredData.filteredLeads.length) * 100)
-      : 0,
+  // Extract data from SWR response
+  const stats = data?.data?.stats || {
+    totalLeads: 0,
+    newLeads: 0,
+    qualifiedLeads: 0,
+    wonLeads: 0,
+    followUpsDue: 0,
+    overdue: 0,
+    highPriorityOverdue: 0,
+    conversionRate: 0,
+    winRate: 0,
   };
 
-  if (loading) {
+  const recentLeads = data?.data?.recentLeads || [];
+  const upcomingFollowUps = data?.data?.upcomingFollowUps || [];
+
+  if (isLoading && !data) {
     return (
       <VStack spacing={4} align="stretch">
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
@@ -200,7 +192,7 @@ export default function DashboardPage() {
       <VStack spacing={4} align="stretch">
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
         <Box bg="red.50" p={4} borderRadius="lg" color="red.700">
-          {error}
+          Failed to load dashboard. Please try refreshing.
         </Box>
       </VStack>
     );
@@ -211,14 +203,28 @@ export default function DashboardPage() {
       {/* Header */}
       <Flex justify="space-between" align="center" flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
-        <Button
-          leftIcon={<FiRefreshCw />}
-          size="sm"
-          variant="outline"
-          onClick={() => window.location.reload()}
-        >
-          Refresh
-        </Button>
+        <HStack spacing={3}>
+          <FormControl display="flex" alignItems="center" width="auto">
+            <FormLabel htmlFor="auto-refresh" mb="0" fontSize="sm" mr={2}>
+              Auto-refresh
+            </FormLabel>
+            <Switch
+              id="auto-refresh"
+              isChecked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              colorScheme="brand"
+            />
+          </FormControl>
+          <Button
+            leftIcon={<FiRefreshCw />}
+            size="sm"
+            variant="outline"
+            onClick={handleManualRefresh}
+            isLoading={isLoading}
+          >
+            Refresh
+          </Button>
+        </HStack>
       </Flex>
 
       {/* Date Filter */}
@@ -265,16 +271,16 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Follow-ups Due"
-          value={todayFollowUps.length}
+          value={stats.followUpsDue}
           helpText="Due soon"
           icon={FiClock}
           colorScheme="orange"
-          onClick={() => handleCardClick('followups')}
+          onClick={() => router.push('/dashboard/followups')}
         />
         <StatCard
           label="Overdue"
-          value={overdueFollowUps.length}
-          helpText={highPriorityOverdue > 0 ? `${highPriorityOverdue} high priority` : 'Needs attention'}
+          value={stats.overdue}
+          helpText={stats.highPriorityOverdue > 0 ? `${stats.highPriorityOverdue} high priority` : 'Needs attention'}
           icon={FiAlertCircle}
           colorScheme="red"
           onClick={() => router.push('/dashboard/followups?filter=overdue')}
@@ -289,7 +295,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Won Deals"
-          value={stats.wonDeals}
+          value={stats.wonLeads}
           helpText={`${stats.conversionRate}% conversion`}
           icon={FiCheckCircle}
           colorScheme="green"
@@ -330,7 +336,7 @@ export default function DashboardPage() {
           <Stat>
             <StatLabel fontSize="sm">Conversion Rate</StatLabel>
             <StatNumber color="blue.600">{stats.conversionRate}%</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">View reports</StatHelpText>
+            <StatHelpText fontSize="xs" color="gray.500">Won / Total leads</StatHelpText>
           </Stat>
         </Box>
         <Box 
@@ -341,19 +347,19 @@ export default function DashboardPage() {
           borderWidth="1px"
           cursor="pointer"
           transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "purple.500" }}
-          onClick={() => router.push('/dashboard/dsr')}
+          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "teal.500" }}
+          onClick={() => router.push('/dashboard/reports')}
         >
           <Stat>
-            <StatLabel fontSize="sm">Team Performance</StatLabel>
-            <StatNumber fontSize="2xl" color="purple.600">DSR</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Daily reports</StatHelpText>
+            <StatLabel fontSize="sm">Win Rate</StatLabel>
+            <StatNumber fontSize="2xl" color="teal.600">{stats.winRate}%</StatNumber>
+            <StatHelpText fontSize="xs" color="gray.500">Won / Closed deals</StatHelpText>
           </Stat>
         </Box>
       </SimpleGrid>
 
       {/* Today's Follow-ups */}
-      {todayFollowUps.length > 0 && (
+      {upcomingFollowUps.length > 0 && (
         <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
           <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
             <Heading size={{ base: 'sm', md: 'md' }}>Upcoming Follow-ups</Heading>
@@ -372,12 +378,12 @@ export default function DashboardPage() {
                 <Tr>
                   <Th>Time</Th>
                   <Th>Lead</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }}>Status</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }}>Priority</Th>
                   <Th display={{ base: 'none', sm: 'table-cell' }}>Notes</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {todayFollowUps.map((followUp) => {
+                {upcomingFollowUps.map((followUp: any) => {
                   const scheduledDate = followUp.scheduledAt ? new Date(followUp.scheduledAt) : null;
                   const isValidDate = scheduledDate && !isNaN(scheduledDate.getTime());
                   
@@ -397,12 +403,15 @@ export default function DashboardPage() {
                         </Link>
                       </Td>
                       <Td display={{ base: 'none', md: 'table-cell' }}>
-                        <Badge colorScheme={followUp.status === 'pending' ? 'orange' : 'green'}>
-                          {followUp.status}
+                        <Badge colorScheme={
+                          followUp.priority === 'high' ? 'red' : 
+                          followUp.priority === 'medium' ? 'orange' : 'blue'
+                        }>
+                          {followUp.priority}
                         </Badge>
                       </Td>
                       <Td display={{ base: 'none', sm: 'table-cell' }}>
-                        <Text noOfLines={1} fontSize="sm">{followUp.notes || '-'}</Text>
+                        <Text noOfLines={1} fontSize="sm">{followUp.notes || followUp.customerRequirement || '-'}</Text>
                       </Td>
                     </Tr>
                   );
@@ -437,7 +446,7 @@ export default function DashboardPage() {
               </Tr>
             </Thead>
             <Tbody>
-              {recentLeads.map((lead) => (
+              {recentLeads.map((lead: any) => (
                 <Tr key={lead.id}>
                   <Td>
                     <Link href={`/dashboard/leads/${lead.id}`}>
