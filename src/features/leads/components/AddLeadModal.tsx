@@ -78,19 +78,37 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
       try {
         const response = await fetch('/api/users');
         if (response.ok) {
-          const data = await response.json();
+          const result = await response.json();
+          console.log('Fetched users:', result); // Debug log
+          
+          // API returns { success: true, data: [...] }
+          const usersList = result.data || result.users || [];
+          console.log('Users list:', usersList); // Debug log
+          
           if (user?.role === 'sales_agent') {
-            setAgents(data.users.filter((u: User) => u.id === user.id));
+            setAgents(usersList.filter((u: User) => u.id === user.id));
           } else if (user?.role === 'team_lead') {
-            setAgents(data.users.filter((u: User) => 
+            setAgents(usersList.filter((u: User) => 
               u.role === 'sales_agent' || u.id === user.id
             ));
           } else {
-            setAgents(data.users || []);
+            setAgents(usersList);
           }
+          
+          console.log('Filtered agents:', agents.length); // Debug log
+        } else {
+          console.error('Failed to fetch users - response not ok');
+          setAgents([]);
         }
       } catch (err) {
         console.error('Failed to fetch agents:', err);
+        setAgents([]);
+        toast({
+          title: 'Warning',
+          description: 'Could not load users list',
+          status: 'warning',
+          duration: 3000,
+        });
       }
     };
     
