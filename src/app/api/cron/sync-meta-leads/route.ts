@@ -171,10 +171,10 @@ export async function GET(request: NextRequest) {
       take: 50, // Process max 50 at a time
     });
 
+    let updatedCount = 0;
+
     if (placeholderLeads.length > 0) {
       console.log(`⚠️ Found ${placeholderLeads.length} placeholder leads (webhook may have failed)`);
-
-    let updatedCount = 0;
 
     for (const lead of placeholderLeads) {
       const metadata = lead.metadata as any;
