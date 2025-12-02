@@ -41,29 +41,53 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // For the follow-up page, fetch only the latest follow-up per lead
-    // Get all follow-ups ordered by scheduled date (latest first)
+    // For the follow-up page, fetch only the NEXT pending follow-up per lead
+    // Get all pending follow-ups
     const allFollowUps = await prisma.followUp.findMany({
-      where: status ? { status } : undefined,
+      where: status ? { status } : { status: 'pending' },
       include: {
         lead: { select: { id: true, name: true, phone: true, status: true } },
         createdBy: { select: { id: true, name: true, email: true } },
       },
-      orderBy: { scheduledAt: 'desc' },
+      orderBy: { scheduledAt: 'asc' }, // Order by earliest first
     });
 
-    // Filter to keep only the latest follow-up per lead
-    const latestFollowUpsMap = new Map<string, any>();
+    // Filter to keep only the NEXT (earliest pending) follow-up per lead
+    const now = new Date();
+    const nextFollowUpsMap = new Map<string, any>();
+    
     for (const followUp of allFollowUps) {
-      if (!latestFollowUpsMap.has(followUp.leadId)) {
-        latestFollowUpsMap.set(followUp.leadId, followUp);
+      if (!nextFollowUpsMap.has(followUp.leadId)) {
+        // For each lead, take the first follow-up we encounter (which is the earliest due to orderBy)
+        nextFollowUpsMap.set(followUp.leadId, followUp);
       }
     }
 
-    // Convert map to array and sort by scheduled date
-    const latestFollowUps = Array.from(latestFollowUpsMap.values()).sort(
-      (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-    );
+    // Convert map to array and apply smart sorting:
+    // 1. Upcoming follow-ups first (soonest/next one at the top)
+    // 2. Overdue follow-ups last (most overdue first)
+    const allFollowUpsArray = Array.from(nextFollowUpsMap.values());
+    
+    const overdue: any[] = [];
+    const upcoming: any[] = [];
+    
+    allFollowUpsArray.forEach(followUp => {
+      const scheduledDate = new Date(followUp.scheduledAt);
+      if (scheduledDate < now && followUp.status === 'pending') {
+        overdue.push(followUp);
+      } else {
+        upcoming.push(followUp);
+      }
+    });
+    
+    // Sort upcoming by scheduled date (earliest/next one first)
+    upcoming.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    
+    // Sort overdue by scheduled date (most overdue first)
+    overdue.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    
+    // Combine: upcoming first, then overdue
+    const latestFollowUps = [...upcoming, ...overdue];
 
     // Apply pagination
     const total = latestFollowUps.length;
@@ -144,7 +168,7 @@ export async function POST(request: NextRequest) {
         leadId: body.leadId,
         userId: body.createdById,
         action: 'followup_scheduled',
-        description: `Follow-up scheduled for ${new Date(body.scheduledAt).toLocaleDateString()}`,
+        description: `Follow-up scheduled for ${new Date(body.scheduledAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}`,
       },
     });
 

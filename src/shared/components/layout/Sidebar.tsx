@@ -18,6 +18,7 @@ import {
   FiPhone,
   FiClock,
   FiBell,
+  FiTarget,
 } from 'react-icons/fi';
 
 interface NavItem {
@@ -30,6 +31,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: FiHome, permission: 'canViewOwnDashboard' },
   { name: 'Leads', href: '/dashboard/leads', icon: FiUsers, permission: 'canViewLeads' },
+  { name: 'Lead Outcomes', href: '/dashboard/leads/outcomes', icon: FiTarget, permission: 'canViewLeads' },
   { name: 'Calls', href: '/dashboard/calls', icon: FiPhone, permission: 'canLogCall' },
   { name: 'Follow-ups', href: '/dashboard/followups', icon: FiClock, permission: 'canManageFollowup' },
   { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, permission: 'canViewDSR' },

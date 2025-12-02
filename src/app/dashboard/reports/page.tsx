@@ -252,7 +252,7 @@ export default function ReportsPage() {
             </Box>
             <Box pt={7}>
               <Text fontSize="sm" color="gray.600">
-                Showing data from {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                Showing data from {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
               </Text>
             </Box>
           </HStack>

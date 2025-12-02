@@ -426,19 +426,22 @@ export default function DashboardPage() {
                 <Tr>
                   <Th>Time</Th>
                   <Th>Lead</Th>
-                  <Th display={{ base: 'none', sm: 'table-cell' }}>Notes</Th>
+                  <Th display={{ base: 'none', sm: 'table-cell' }}>Status</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }}>Notes</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {upcomingFollowUps.map((followUp: any) => {
                   const scheduledDate = followUp.scheduledAt ? new Date(followUp.scheduledAt) : null;
                   const isValidDate = scheduledDate && !isNaN(scheduledDate.getTime());
+                  const now = new Date();
+                  const isOverdue = isValidDate && scheduledDate < now;
                   
                   return (
-                    <Tr key={followUp.id}>
+                    <Tr key={followUp.id} bg={isOverdue ? 'red.50' : 'white'}>
                       <Td>
                         {isValidDate 
-                          ? format(scheduledDate, 'MMM dd, HH:mm')
+                          ? format(scheduledDate, 'dd/MM/yy hh:mm a')
                           : 'Invalid date'
                         }
                       </Td>
@@ -450,6 +453,17 @@ export default function DashboardPage() {
                         </Link>
                       </Td>
                       <Td display={{ base: 'none', sm: 'table-cell' }}>
+                        {isOverdue ? (
+                          <Badge colorScheme="red" fontSize="xs">
+                            🔴 Overdue
+                          </Badge>
+                        ) : (
+                          <Badge colorScheme="green" fontSize="xs">
+                            ⏰ Upcoming
+                          </Badge>
+                        )}
+                      </Td>
+                      <Td display={{ base: 'none', md: 'table-cell' }}>
                         <Text noOfLines={1} fontSize="sm">{followUp.notes || followUp.customerRequirement || '-'}</Text>
                       </Td>
                     </Tr>

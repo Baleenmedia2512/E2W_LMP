@@ -3,13 +3,13 @@
 export interface CategorizedLead {
   lead: Lead;
   followUp?: FollowUp;
-  category: 'overdue' | 'today' | 'future';
+  category: 'overdue' | 'new' | 'future';
   sortValue: number;
 }
 
 export interface LeadCategories {
   overdue: CategorizedLead[];
-  today: CategorizedLead[];
+  newLeads: CategorizedLead[];
   future: CategorizedLead[];
 }
 
@@ -53,16 +53,20 @@ export function categorizeAndSortLeads(
       (f) => f.leadId === lead.id && f.status === 'pending'
     );
 
+    console.log(`Lead ${lead.name} (${lead.id}): Found ${leadFollowUps.length} pending follow-ups`);
+
     if (leadFollowUps.length === 0) {
-      // No follow-up history = Today's / New lead
+      // No follow-up history = New lead
       const createdAtDate = ensureDate(lead.createdAt);
       categorized.push({
         lead,
-        category: 'today',
+        category: 'new',
         sortValue: createdAtDate.getTime(),
       });
     } else {
-      // Has follow-up(s) - check if overdue, today, or future
+      // Has follow-up(s) - find the NEXT (earliest) pending follow-up
+      // This ensures that if a lead has multiple follow-ups (e.g., 10:02, 10:03, 10:05)
+      // and current time is 10:04, we show 10:05 as the next follow-up
       const nextFollowUp = leadFollowUps.reduce((earliest, current) => {
         const earliestDate = ensureDate(earliest.scheduledAt);
         const currentDate = ensureDate(current.scheduledAt);
@@ -71,24 +75,16 @@ export function categorizeAndSortLeads(
 
       const dueDate = ensureDate(nextFollowUp.scheduledAt);
 
-      if (dueDate < todayStart) {
-        // Overdue - before today - sort by oldest first (most overdue first)
+      if (dueDate < now) {
+        // Overdue - past current time - sort by oldest first (most overdue first)
         categorized.push({
           lead,
           followUp: nextFollowUp,
           category: 'overdue',
           sortValue: dueDate.getTime(),
         });
-      } else if (dueDate >= todayStart && dueDate <= todayEnd) {
-        // Today's follow-up - due today - sort by time (oldest first)
-        categorized.push({
-          lead,
-          followUp: nextFollowUp,
-          category: 'today',
-          sortValue: dueDate.getTime(),
-        });
       } else {
-        // Future - after today - sort by scheduled time (ascending)
+        // Scheduled (today or future) - sort by scheduled time (earliest first)
         categorized.push({
           lead,
           followUp: nextFollowUp,
@@ -104,15 +100,15 @@ export function categorizeAndSortLeads(
     .filter((item) => item.category === 'overdue')
     .sort((a, b) => a.sortValue - b.sortValue); // Oldest first (most overdue first)
 
-  const today = categorized
-    .filter((item) => item.category === 'today')
-    .sort((a, b) => a.sortValue - b.sortValue); // Oldest first
+  const newLeads = categorized
+    .filter((item) => item.category === 'new')
+    .sort((a, b) => b.sortValue - a.sortValue); // Newest first
 
   const future = categorized
     .filter((item) => item.category === 'future')
     .sort((a, b) => a.sortValue - b.sortValue); // Earliest due date first
 
-  return { overdue, today, future };
+  return { overdue, newLeads, future };
 }
 
 /**

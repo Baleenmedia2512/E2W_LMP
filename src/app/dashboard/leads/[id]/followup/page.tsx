@@ -28,6 +28,15 @@ interface Lead {
   status: string;
 }
 
+interface FollowUp {
+  id: string;
+  leadId: string;
+  scheduledAt: string;
+  status: string;
+  customerRequirement?: string;
+  notes?: string;
+}
+
 export default function ScheduleFollowUpPage() {
   const router = useRouter();
   const params = useParams();
@@ -35,19 +44,42 @@ export default function ScheduleFollowUpPage() {
   const [loading, setLoading] = useState(false);
   const [loadingLead, setLoadingLead] = useState(true);
   const [lead, setLead] = useState<Lead | null>(null);
+  const [existingFollowUp, setExistingFollowUp] = useState<FollowUp | null>(null);
   const leadId = params?.id as string;
 
   useEffect(() => {
-    const fetchLead = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`/api/leads/${leadId}`);
-        if (!res.ok) throw new Error('Lead not found');
-        const data = await res.json();
-        setLead(data);
+        const [leadRes, followUpRes] = await Promise.all([
+          fetch(`/api/leads/${leadId}`),
+          fetch(`/api/followups?leadId=${leadId}&status=pending&limit=1`)
+        ]);
+        
+        if (!leadRes.ok) throw new Error('Lead not found');
+        const leadData = await leadRes.json();
+        setLead(leadData.data || leadData);
+
+        // Check if there's an existing pending follow-up
+        if (followUpRes.ok) {
+          const followUpData = await followUpRes.json();
+          if (followUpData.success && followUpData.data && followUpData.data.length > 0) {
+            const existingFU = followUpData.data[0];
+            setExistingFollowUp(existingFU);
+            
+            // Pre-populate form with existing follow-up data
+            const scheduledDate = new Date(existingFU.scheduledAt);
+            setFormData({
+              date: scheduledDate.toISOString().split('T')[0],
+              time: scheduledDate.toTimeString().slice(0, 5),
+              customerRequirement: existingFU.customerRequirement || '',
+              notes: existingFU.notes || '',
+            });
+          }
+        }
       } catch (error) {
         toast({
           title: 'Error',
-          description: 'Failed to load lead',
+          description: 'Failed to load data',
           status: 'error',
           duration: 3000,
         });
@@ -58,7 +90,7 @@ export default function ScheduleFollowUpPage() {
     };
 
     if (leadId) {
-      fetchLead();
+      fetchData();
     }
   }, [leadId, toast, router]);
 
@@ -100,14 +132,18 @@ export default function ScheduleFollowUpPage() {
     );
   }
 
-  // Generate time options in 15-minute intervals
+  // Generate time options in 15-minute intervals (12-hour format)
   const generateTimeOptions = () => {
     const times = [];
     for (let h = 0; h < 24; h++) {
       for (let m = 0; m < 60; m += 15) {
-        const hour = h.toString().padStart(2, '0');
+        const hour24 = h.toString().padStart(2, '0');
         const minute = m.toString().padStart(2, '0');
-        times.push(`${hour}:${minute}`);
+        const hour12 = h % 12 || 12;
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const display = `${hour12.toString().padStart(2, '0')}:${minute} ${ampm}`;
+        const value = `${hour24}:${minute}`; // Store as 24-hour for backend
+        times.push({ value, display });
       }
     }
     return times;
@@ -201,24 +237,43 @@ export default function ScheduleFollowUpPage() {
       // Create scheduled date/time
       const scheduledDateTime = new Date(`${formData.date}T${formData.time}`);
 
-      // Create follow-up via API
-      const res = await fetch('/api/followups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadId: lead.id,
-          scheduledAt: scheduledDateTime.toISOString(),
-          status: 'pending',
-          customerRequirement: formData.customerRequirement,
-          notes: formData.notes,
-          createdById: 'current-user-id',
-        }),
-      });
+      let res;
+      let actionDescription = '';
+
+      if (existingFollowUp) {
+        // Update existing follow-up
+        res = await fetch(`/api/followups/${existingFollowUp.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scheduledAt: scheduledDateTime.toISOString(),
+            customerRequirement: formData.customerRequirement,
+            notes: formData.notes,
+            status: 'pending',
+          }),
+        });
+        actionDescription = 'followup_rescheduled';
+      } else {
+        // Create new follow-up
+        res = await fetch('/api/followups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: lead.id,
+            scheduledAt: scheduledDateTime.toISOString(),
+            status: 'pending',
+            customerRequirement: formData.customerRequirement,
+            notes: formData.notes,
+            createdById: 'current-user-id',
+          }),
+        });
+        actionDescription = 'followup_scheduled';
+      }
 
       const result = await res.json();
 
       if (!res.ok) {
-        throw new Error(result.error || 'Failed to schedule follow-up');
+        throw new Error(result.error || `Failed to ${existingFollowUp ? 'reschedule' : 'schedule'} follow-up`);
       }
 
       // Log activity with customer requirement
@@ -228,8 +283,8 @@ export default function ScheduleFollowUpPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             leadId: lead.id,
-            action: 'followup_scheduled',
-            description: `Follow-up scheduled for ${scheduledDateTime.toLocaleDateString()} at ${scheduledDateTime.toLocaleTimeString()} - ${formData.customerRequirement}`,
+            action: actionDescription,
+            description: `Follow-up ${existingFollowUp ? 'rescheduled' : 'scheduled'} for ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} at ${scheduledDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })} - ${formData.customerRequirement}`,
           }),
         });
       } catch (err) {
@@ -237,16 +292,20 @@ export default function ScheduleFollowUpPage() {
       }
 
       toast({
-        title: 'Follow-up scheduled successfully',
-        description: `Follow-up with ${lead.name} scheduled for ${scheduledDateTime.toLocaleDateString()} at ${scheduledDateTime.toLocaleTimeString()}`,
+        title: existingFollowUp ? 'Follow-up rescheduled successfully' : 'Follow-up scheduled successfully',
+        description: `Follow-up with ${lead.name} ${existingFollowUp ? 'rescheduled' : 'scheduled'} for ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} at ${scheduledDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
         status: 'success',
         duration: 5000,
       });
 
-      setLoading(false);
-      // Navigate back and trigger a refresh
-      router.push(`/dashboard/leads/${leadId}`);
-      router.refresh();
+      // Navigate back with forced refresh
+      const backUrl = `/dashboard/leads/${leadId}`;
+      router.push(backUrl);
+      
+      // Use window.location for hard refresh to clear all caches
+      setTimeout(() => {
+        window.location.href = backUrl;
+      }, 100);
     } catch (error) {
       toast({
         title: 'Error scheduling follow-up',
@@ -261,7 +320,9 @@ export default function ScheduleFollowUpPage() {
   return (
     <Box p={8}>
       <HStack justify="space-between" mb={6}>
-        <Heading size="lg">Schedule Follow-up - {lead.name}</Heading>
+        <Heading size="lg">
+          {existingFollowUp ? 'Reschedule' : 'Schedule'} Follow-up - {lead.name}
+        </Heading>
         <Button variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
@@ -302,8 +363,8 @@ export default function ScheduleFollowUpPage() {
                     onChange={handleChange}
                   >
                     {generateTimeOptions().map((time) => (
-                      <option key={time} value={time}>
-                        {time}
+                      <option key={time.value} value={time.value}>
+                        {time.display}
                       </option>
                     ))}
                   </Select>
@@ -361,9 +422,9 @@ export default function ScheduleFollowUpPage() {
                   type="submit"
                   colorScheme="orange"
                   isLoading={loading}
-                  loadingText="Scheduling..."
+                  loadingText={existingFollowUp ? 'Rescheduling...' : 'Scheduling...'}
                 >
-                  Schedule Follow-up
+                  {existingFollowUp ? 'Reschedule Follow-up' : 'Schedule Follow-up'}
                 </Button>
               </HStack>
             </VStack>

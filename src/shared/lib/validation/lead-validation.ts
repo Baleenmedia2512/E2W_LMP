@@ -31,11 +31,12 @@ export const validateLeadPhone = (phone: string): ValidationResult => {
   
   const digitsOnly = phone.replace(/\D/g, '');
   
-  if (digitsOnly.length !== 10) {
-    return { isValid: false, error: 'Phone number must be exactly 10 digits' };
+  // Accept 10 digits (local) or 10-15 digits (international with country code)
+  if (digitsOnly.length === 10 || (digitsOnly.length >= 10 && digitsOnly.length <= 15)) {
+    return { isValid: true };
   }
   
-  return { isValid: true };
+  return { isValid: false, error: 'Phone number must be 10 digits or include valid country code' };
 };
 
 export const validateLeadEmail = (email: string, required = false): ValidationResult => {
