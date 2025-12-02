@@ -76,18 +76,19 @@ export default function EditLeadPage() {
         const res = await fetch('/api/users');
         if (res.ok) {
           const data = await res.json();
+          const usersList = data.data || data.users || [];
           // Filter based on role:
           // Sales Agent: sees only themselves
           // Lead/Team Lead: sees sales agents + themselves
           // Super Agent/Admin: sees all
           if (user?.role === 'sales_agent') {
-            setAgents(data.users.filter((u: any) => u.id === user.id));
+            setAgents(usersList.filter((u: any) => u.id === user.id));
           } else if (user?.role === 'team_lead') {
-            setAgents(data.users.filter((u: any) => 
+            setAgents(usersList.filter((u: any) => 
               u.role === 'sales_agent' || u.id === user.id
             ));
           } else {
-            setAgents(data.users || []);
+            setAgents(usersList);
           }
         }
       } catch (error) {
@@ -485,23 +486,23 @@ export default function EditLeadPage() {
                     <option value="lost">Lost</option>
                   </Select>
                 </FormControl>
-              </SimpleGrid>
 
-              <FormControl>
-                <FormLabel>Assign To</FormLabel>
-                <Select
-                  name="assignedToId"
-                  value={formData.assignedToId}
-                  onChange={handleChange}
-                  placeholder="Select agent (optional)"
-                >
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name} ({agent.email})
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
+                <FormControl>
+                  <FormLabel>Assign To</FormLabel>
+                  <Select
+                    name="assignedToId"
+                    value={formData.assignedToId}
+                    onChange={handleChange}
+                    placeholder="Select agent (optional)"
+                  >
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name} ({agent.email})
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              </SimpleGrid>
 
               <FormControl>
                 <FormLabel>Notes</FormLabel>
