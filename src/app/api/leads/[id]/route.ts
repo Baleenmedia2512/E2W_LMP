@@ -58,9 +58,9 @@ export async function PUT(
 
     if (body.phone) {
       const phoneDigits = body.phone.replace(/\D/g, '');
-      if (phoneDigits.length !== 10) {
+      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
         return NextResponse.json(
-          { success: false, error: 'Phone number must be exactly 10 digits' },
+          { success: false, error: 'Phone number must be 10 digits or include valid country code' },
           { status: 400 }
         );
       }

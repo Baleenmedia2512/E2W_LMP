@@ -125,65 +125,66 @@ export default function LeadDetailPage() {
   const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
   const [requalifyLoading, setRequalifyLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  // Function to refresh data
+  const refreshData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const [leadRes, callsRes, followupsRes, activityRes] = await Promise.all([
-          fetch(`/api/leads/${leadId}`, { cache: 'no-store' }),
-          fetch(`/api/calls?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
-          fetch(`/api/followups?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
-          fetch(`/api/activity?leadId=${leadId}&limit=50`, { cache: 'no-store' }),
-        ]);
+      const [leadRes, callsRes, followupsRes, activityRes] = await Promise.all([
+        fetch(`/api/leads/${leadId}`, { cache: 'no-store' }),
+        fetch(`/api/calls?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
+        fetch(`/api/followups?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
+        fetch(`/api/activity?leadId=${leadId}&limit=50`, { cache: 'no-store' }),
+      ]);
 
-        if (!leadRes.ok) {
-          throw new Error('Lead not found');
-        }
-
-        const leadDataResponse = await leadRes.json();
-        const callsData = await callsRes.json();
-        const followupsData = await followupsRes.json();
-        const activityData = await activityRes.json();
-
-        // Extract lead data from response wrapper
-        const leadData = leadDataResponse.data || leadDataResponse;
-        setLead(leadData);
-        
-        // Extract data arrays from API responses
-        const leadCalls = Array.isArray(callsData) 
-          ? callsData
-          : callsData.data || [];
-        
-        const leadFollowups = Array.isArray(followupsData)
-          ? followupsData
-          : followupsData.data || [];
-
-        // Extract activity history
-        const activities = Array.isArray(activityData)
-          ? activityData
-          : activityData.data || [];
-
-        setCallLogs(leadCalls);
-        setFollowUps(leadFollowups);
-        setActivityHistory(activities);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load lead');
-        toast({
-          title: 'Error',
-          description: 'Failed to load lead details',
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-        });
-      } finally {
-        setLoading(false);
+      if (!leadRes.ok) {
+        throw new Error('Lead not found');
       }
-    };
 
+      const leadDataResponse = await leadRes.json();
+      const callsData = await callsRes.json();
+      const followupsData = await followupsRes.json();
+      const activityData = await activityRes.json();
+
+      // Extract lead data from response wrapper
+      const leadData = leadDataResponse.data || leadDataResponse;
+      setLead(leadData);
+      
+      // Extract data arrays from API responses
+      const leadCalls = Array.isArray(callsData) 
+        ? callsData
+        : callsData.data || [];
+      
+      const leadFollowups = Array.isArray(followupsData)
+        ? followupsData
+        : followupsData.data || [];
+
+      // Extract activity history
+      const activities = Array.isArray(activityData)
+        ? activityData
+        : activityData.data || [];
+
+      setCallLogs(leadCalls);
+      setFollowUps(leadFollowups);
+      setActivityHistory(activities);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load lead');
+      toast({
+        title: 'Error',
+        description: 'Failed to load lead details',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (leadId) {
-      fetchData();
+      refreshData();
     }
   }, [leadId, toast]);
 

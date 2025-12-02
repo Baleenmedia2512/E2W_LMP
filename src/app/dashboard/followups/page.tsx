@@ -144,15 +144,54 @@ export default function FollowUpsPage() {
       });
     }
 
-    // Sort by scheduled date
-    filtered.sort((a, b) => {
+    // Separate into overdue and upcoming, then sort each group
+    const overdue: FollowUp[] = [];
+    const upcoming: FollowUp[] = [];
+
+    filtered.forEach(followup => {
+      const scheduledDate = new Date(followup.scheduledAt);
+      if (scheduledDate < now && followup.status === 'pending') {
+        overdue.push(followup);
+      } else {
+        upcoming.push(followup);
+      }
+    });
+
+    // Sort upcoming by scheduled date (earliest/next one first)
+    upcoming.sort((a, b) => {
       const aScheduled = new Date(a.scheduledAt);
       const bScheduled = new Date(b.scheduledAt);
       return aScheduled.getTime() - bScheduled.getTime();
     });
 
-    return filtered;
+    // Sort overdue by scheduled date (most overdue first)
+    overdue.sort((a, b) => {
+      const aScheduled = new Date(a.scheduledAt);
+      const bScheduled = new Date(b.scheduledAt);
+      return aScheduled.getTime() - bScheduled.getTime();
+    });
+
+    // Return upcoming first, then overdue
+    return [...upcoming, ...overdue];
   }, [searchQuery, dateFilter, followUps]);
+
+  // Separate upcoming and overdue for display with sections
+  const { upcomingFollowUps, overdueFollowUps } = useMemo(() => {
+    const now = new Date();
+    const upcoming: FollowUp[] = [];
+    const overdue: FollowUp[] = [];
+
+    filteredFollowUps.forEach(followup => {
+      const scheduledDate = new Date(followup.scheduledAt);
+      if (scheduledDate < now && followup.status === 'pending') {
+        overdue.push(followup);
+      } else {
+        upcoming.push(followup);
+      }
+    });
+
+    return { upcomingFollowUps: upcoming, overdueFollowUps: overdue };
+  }, [filteredFollowUps]);
 
   // Count overdue follow-ups
   const overdueCount = useMemo(() => {

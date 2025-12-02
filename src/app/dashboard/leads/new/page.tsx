@@ -55,27 +55,29 @@ export default function NewLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchLeads = async () => {
-      try {
-        const res = await fetch('/api/leads?limit=100');
-        if (!res.ok) throw new Error('Failed to fetch leads');
-        const data = await res.json();
-        
-        const leadsList = Array.isArray(data) ? data : data.data || [];
-        setLeads(leadsList);
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to load leads',
-          status: 'error',
-          duration: 3000,
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Fetch leads function
+  const fetchLeads = async () => {
+    try {
+      const res = await fetch('/api/leads?limit=100', { cache: 'no-store' });
+      if (!res.ok) throw new Error('Failed to fetch leads');
+      const data = await res.json();
+      
+      const leadsList = Array.isArray(data) ? data : data.data || [];
+      setLeads(leadsList);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load leads',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Initial fetch
+  useEffect(() => {
     fetchLeads();
   }, [toast]);
 

@@ -116,8 +116,8 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
       hasErrors = true;
     } else {
       const phoneDigits = formData.phone.replace(/\D/g, '');
-      if (phoneDigits.length !== 10) {
-        setError('phone', 'Client Contact must be exactly 10 digits');
+      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+        setError('phone', 'Client Contact must be 10 digits or include valid country code');
         hasErrors = true;
       }
     }
@@ -139,8 +139,8 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
     // Validate alternate phone if provided
     if (formData.alternatePhone.trim()) {
       const altPhoneDigits = formData.alternatePhone.replace(/\D/g, '');
-      if (altPhoneDigits.length !== 10) {
-        setError('alternatePhone', 'Alternate Phone must be exactly 10 digits');
+      if (altPhoneDigits.length < 10 || altPhoneDigits.length > 15) {
+        setError('alternatePhone', 'Alternate Phone must be 10 digits or include valid country code');
         hasErrors = true;
       }
     }
@@ -260,15 +260,15 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
 
     if (name === 'phone' && value.trim()) {
       const phoneDigits = value.replace(/\D/g, '');
-      if (phoneDigits.length !== 10) {
-        setError('phone', 'Client Contact must be exactly 10 digits');
+      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+        setError('phone', 'Client Contact must be 10 digits or include valid country code');
       }
     }
 
     if (name === 'alternatePhone' && value.trim()) {
       const altPhoneDigits = value.replace(/\D/g, '');
-      if (altPhoneDigits.length !== 10) {
-        setError('alternatePhone', 'Alternate Phone must be exactly 10 digits');
+      if (altPhoneDigits.length < 10 || altPhoneDigits.length > 15) {
+        setError('alternatePhone', 'Alternate Phone must be 10 digits or include valid country code');
       }
     }
 

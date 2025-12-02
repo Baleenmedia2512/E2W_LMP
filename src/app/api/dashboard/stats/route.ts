@@ -137,15 +137,21 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
 
-      // Upcoming follow-ups (top 5)
+      // All pending follow-ups for smart sorting
       prisma.followUp.findMany({
-        where: followUpsWhere,
+        where: {
+          status: 'pending',
+          ...(userId && {
+            lead: {
+              assignedToId: userId,
+            },
+          }),
+        },
         include: {
           lead: { select: { id: true, name: true, phone: true, status: true } },
           createdBy: { select: { id: true, name: true, email: true } },
         },
         orderBy: { scheduledAt: 'asc' },
-        take: 5,
       }),
     ]);
 
@@ -157,17 +163,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Now count pending and overdue from the latest follow-ups only
-    let pendingFollowUps = 0;
-    let overdueFollowUps = 0;
-
+    // Separate into upcoming and overdue for smart display
+    const upcomingArray: any[] = [];
+    const overdueArray: any[] = [];
+    
     for (const followUp of latestFollowUpsMap.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
       if (scheduledDate < now) {
-        overdueFollowUps++;
+        overdueArray.push(followUp);
+      } else {
+        upcomingArray.push(followUp);
       }
-      pendingFollowUps++;
     }
+    
+    // Sort upcoming by scheduled date (next one first)
+    upcomingArray.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    
+    // Sort overdue by scheduled date (most overdue first)
+    overdueArray.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    
+    // Combine for display: upcoming first (next 5), then overdue if needed
+    const displayFollowUps = [...upcomingArray.slice(0, 5), ...overdueArray.slice(0, Math.max(0, 5 - upcomingArray.length))];
+
+    // Now count pending and overdue from the latest follow-ups only
+    const pendingFollowUps = latestFollowUpsMap.size;
+    const overdueFollowUps = overdueArray.length;
 
     // Calculate conversion rate
     const conversionRate = totalLeads > 0 
@@ -195,7 +215,7 @@ export async function GET(request: NextRequest) {
           winRate,
         },
         recentLeads,
-        upcomingFollowUps,
+        upcomingFollowUps: displayFollowUps,
         timestamp: new Date().toISOString(),
       },
     });

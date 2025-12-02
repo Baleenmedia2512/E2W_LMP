@@ -129,13 +129,13 @@ export function getDateRangeString(startDate: string, endDate: string): string {
   const end = new Date(endDate);
   
   const options: Intl.DateTimeFormatOptions = { 
-    year: 'numeric', 
-    month: 'short', 
-    day: 'numeric' 
+    year: '2-digit', 
+    month: '2-digit', 
+    day: '2-digit' 
   };
   
-  const startStr = start.toLocaleDateString('en-US', options);
-  const endStr = end.toLocaleDateString('en-US', options);
+  const startStr = start.toLocaleDateString('en-GB', options);
+  const endStr = end.toLocaleDateString('en-GB', options);
   
   if (startStr === endStr) {
     return startStr;

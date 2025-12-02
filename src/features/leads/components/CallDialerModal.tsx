@@ -8,7 +8,6 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  ModalCloseButton,
   Button,
   VStack,
   HStack,
@@ -81,7 +80,15 @@ export default function CallDialerModal({
   const [followUpTime, setFollowUpTime] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [followUpPriority, setFollowUpPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [nextAction, setNextAction] = useState<'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | 'update_status' | 'no_action' | null>(null);
+  const [nextAction, setNextAction] = useState<'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | 'update_status' | null>(null);
+  
+  // Unqualified form state
+  const [unqualifiedReason, setUnqualifiedReason] = useState('');
+  const [unqualifiedNotes, setUnqualifiedNotes] = useState('');
+  
+  // Unreachable form state
+  const [unreachableReason, setUnreachableReason] = useState('');
+  const [unreachableNotes, setUnreachableNotes] = useState('');
 
   // Auto-start call when modal opens
   useEffect(() => {
@@ -239,7 +246,7 @@ export default function CallDialerModal({
     }
   };
 
-  const handleNextAction = async (action: 'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | 'update_status' | 'no_action') => {
+  const handleNextAction = async (action: 'followup' | 'unqualified' | 'unreachable' | 'win' | 'lost' | 'update_status') => {
     if (!callSaved) {
       toast({
         title: 'Error',
@@ -250,82 +257,28 @@ export default function CallDialerModal({
       });
       return;
     }
-
-    setNextAction(action);
     
     if (action === 'followup') {
-      // Stay in modal and show follow-up form
+      // Set nextAction for follow-up and stay in modal to show follow-up form
+      setNextAction(action);
       setCallPhase('ended');
-    } else if (action === 'update_status') {
-      // Could redirect to lead edit or show status update form
-      toast({
-        title: 'Update Lead Status',
-        description: 'Redirecting to lead details...',
-        status: 'info',
-        duration: 2000,
-        isClosable: true,
-      });
-      // Reload page to show updated call log
-      window.location.reload();
     } else if (action === 'unqualified') {
-      // Open unqualified modal if callback provided, otherwise update directly
+      // Open unqualified modal without closing this modal
       if (onOpenUnqualified) {
-        handleClose();
         onOpenUnqualified();
       } else {
-        try {
-          await fetch(`/api/leads/${leadId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'unqualified',
-              customerRequirement: remarks || 'Marked as unqualified from call',
-              notes: remarks,
-            }),
-          });
-          
-          toast({
-            title: 'Lead Marked as Unqualified',
-            description: `${leadName} has been marked as unqualified`,
-            status: 'info',
-            duration: 3000,
-            isClosable: true,
-          });
-          handleClose();
-          window.location.reload();
-        } catch (error) {
-          console.error('Failed to update lead:', error);
-        }
+        // Fallback: show form in same modal if no callback provided
+        setNextAction(action);
+        setCallPhase('ended');
       }
     } else if (action === 'unreachable') {
-      // Open unreachable modal if callback provided, otherwise update directly
+      // Open unreachable modal without closing this modal
       if (onOpenUnreachable) {
-        handleClose();
         onOpenUnreachable();
       } else {
-        try {
-          await fetch(`/api/leads/${leadId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'unreach',
-              customerRequirement: remarks || 'Marked as unreachable from call',
-              notes: remarks,
-            }),
-          });
-          
-          toast({
-            title: 'Lead Marked as Unreachable',
-            description: `${leadName} has been marked as unreachable`,
-            status: 'info',
-            duration: 3000,
-            isClosable: true,
-          });
-          handleClose();
-          window.location.reload();
-        } catch (error) {
-          console.error('Failed to update lead:', error);
-        }
+        // Fallback: show form in same modal if no callback provided
+        setNextAction(action);
+        setCallPhase('ended');
       }
     } else if (action === 'win') {
       // Update lead status to won via API
@@ -375,19 +328,10 @@ export default function CallDialerModal({
       } catch (error) {
         console.error('Failed to update lead:', error);
       }
-    } else if (action === 'no_action') {
+    } else if (action === 'update_status') {
       handleClose();
       window.location.reload();
     }
-  };
-
-  const handleSkipNextAction = () => {
-    handleClose();
-  };
-
-  const handleBackToNextAction = () => {
-    setNextAction(null);
-    setCallPhase('next-action');
   };
 
   const handleSaveFollowUp = async () => {
@@ -501,15 +445,9 @@ export default function CallDialerModal({
           isClosable: true,
         });
 
-        // Reset follow-up form
-        setFollowUpTimeframe('tomorrow');
-        setFollowUpDate('');
-        setFollowUpTime('');
-        setFollowUpNotes('');
-        
-        // Close modal after successful save
+        // Close modal and navigate to follow-ups page
         handleClose();
-        window.location.reload();
+        window.location.href = '/dashboard/followups';
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to create follow-up');
@@ -524,6 +462,94 @@ export default function CallDialerModal({
         isClosable: true,
       });
       console.error('Follow-up error:', error);
+    }
+  };
+
+  const handleSaveUnqualified = async () => {
+    if (!unqualifiedReason.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please provide a reason for marking as unqualified',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'unqualified',
+          customerRequirement: unqualifiedReason,
+          notes: unqualifiedNotes || unqualifiedReason,
+        }),
+      });
+      
+      toast({
+        title: 'Lead Marked as Unqualified',
+        description: `${leadName} has been marked as unqualified`,
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      handleClose();
+      window.location.href = '/dashboard/leads/unqualified';
+    } catch (error) {
+      console.error('Failed to update lead:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to mark lead as unqualified',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleSaveUnreachable = async () => {
+    if (!unreachableReason.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please provide a reason for marking as unreachable',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'unreach',
+          customerRequirement: unreachableReason,
+          notes: unreachableNotes || unreachableReason,
+        }),
+      });
+      
+      toast({
+        title: 'Lead Marked as Unreachable',
+        description: `${leadName} has been marked as unreachable`,
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      handleClose();
+      window.location.href = '/dashboard/leads/unreachable';
+    } catch (error) {
+      console.error('Failed to update lead:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to mark lead as unreachable',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
@@ -554,11 +580,37 @@ export default function CallDialerModal({
     setFollowUpNotes('');
     setFollowUpPriority('medium');
     setNextAction(null);
+    setUnqualifiedReason('');
+    setUnqualifiedNotes('');
+    setUnreachableReason('');
+    setUnreachableNotes('');
     setCallSaved(false);
     setHasUnsavedChanges(false);
     clearAllErrors();
     confirmDialog.onClose();
     onClose();
+  };
+
+  const handleBackButton = () => {
+    // Smart navigation based on current phase
+    if (callPhase === 'ended' && (nextAction === 'followup' || nextAction === 'unqualified' || nextAction === 'unreachable')) {
+      // If in any action form, go back to next action selection
+      setNextAction(null);
+      setCallPhase('next-action');
+    } else if (callPhase === 'next-action') {
+      // If in next action, go back to call details
+      setCallPhase('ended');
+    } else if (callPhase === 'ended') {
+      // If in call details without next action, close with confirmation if unsaved
+      if (hasUnsavedChanges && !callSaved) {
+        confirmDialog.onOpen();
+      } else {
+        handleClose();
+      }
+    } else {
+      // For dialing or calling phase, close modal
+      handleClose();
+    }
   };
 
   return (
@@ -567,17 +619,31 @@ export default function CallDialerModal({
         <ModalOverlay />
         <ModalContent mx={{ base: 0, md: 4 }} my={{ base: 0, md: 8 }}>
           <ModalHeader fontSize={{ base: 'lg', md: 'xl' }}>
-            {callPhase === 'dialing' && 'Make a Call'}
-            {callPhase === 'calling' && 'Call in Progress'}
-            {callPhase === 'ended' && 'Call Details'}
-            {callPhase === 'next-action' && 'Next Action'}
+            {callPhase !== 'next-action' && (
+              <HStack spacing={2}>
+                <IconButton
+                  aria-label="Go back"
+                  icon={<HiArrowLeft />}
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleBackButton}
+                />
+                <Text>
+                  {callPhase === 'dialing' && 'Make a Call'}
+                  {callPhase === 'calling' && 'Call in Progress'}
+                  {callPhase === 'ended' && 'Call Details'}
+                </Text>
+              </HStack>
+            )}
+            {callPhase === 'next-action' && (
+              <Text>Next Action</Text>
+            )}
             {hasUnsavedChanges && !callSaved && (
               <Text as="span" color="orange.500" fontSize="sm" ml={2}>
                 (Unsaved)
               </Text>
             )}
           </ModalHeader>
-          <ModalCloseButton />
 
         <ModalBody>
           {/* Dialing Phase */}
@@ -702,16 +768,6 @@ export default function CallDialerModal({
                 >
                   Lost
                 </Button>
-
-                <Button
-                  width="full"
-                  size="md"
-                  variant="outline"
-                  mt={2}
-                  onClick={() => handleNextAction('no_action')}
-                >
-                  Skip - Done
-                </Button>
               </VStack>
             </VStack>
           )}
@@ -726,7 +782,7 @@ export default function CallDialerModal({
                       Start Time
                     </Text>
                     <Text fontWeight="medium">
-                      {startTime ? startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--'}
+                      {startTime ? startTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '--:--'}
                     </Text>
                   </Box>
                   <Box>
@@ -734,7 +790,7 @@ export default function CallDialerModal({
                       End Time
                     </Text>
                     <Text fontWeight="medium">
-                      {endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--'}
+                      {endTime ? endTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : '--:--'}
                     </Text>
                   </Box>
                 </HStack>
@@ -797,9 +853,9 @@ export default function CallDialerModal({
                   const value = e.target.value;
                   if (!remarksInitialized && value.length > 0) {
                     const now = new Date();
-                    const dateTimeStr = now.toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
+                    const dateTimeStr = now.toLocaleString('en-GB', {
+                      year: '2-digit',
+                      month: '2-digit',
                       day: '2-digit',
                       hour: '2-digit',
                       minute: '2-digit',
@@ -848,9 +904,9 @@ export default function CallDialerModal({
                 onFocus={(e) => {
                   if (!remarksInitialized && remarks === '') {
                     const now = new Date();
-                    const dateTimeStr = now.toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
+                    const dateTimeStr = now.toLocaleString('en-GB', {
+                      year: '2-digit',
+                      month: '2-digit',
                       day: '2-digit',
                       hour: '2-digit',
                       minute: '2-digit',
@@ -896,20 +952,9 @@ export default function CallDialerModal({
           {/* Follow-up Only - After Next Action Selection */}
           {callPhase === 'ended' && nextAction === 'followup' && (
             <VStack spacing={4} align="stretch">
-              <HStack justify="space-between" align="center" mb={2}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  leftIcon={<HiArrowLeft />}
-                  onClick={handleBackToNextAction}
-                >
-                  Back
-                </Button>
-                <Text fontSize="lg" fontWeight="medium">
-                  Schedule Follow-up
-                </Text>
-                <Box width="60px" /> {/* Spacer for alignment */}
-              </HStack>
+              <Text fontSize="lg" fontWeight="medium" textAlign="center">
+                Schedule Follow-up
+              </Text>
 
               <FormControl>
                 <FormLabel>Follow-up Timeframe</FormLabel>
@@ -1031,40 +1076,99 @@ export default function CallDialerModal({
                 />
               </FormControl>
 
-              <HStack spacing={3}>
-                <Button variant="ghost" onClick={handleClose} flex="1">
-                  Cancel
-                </Button>
-                <Button
-                  colorScheme="orange"
-                  onClick={handleSaveFollowUp}
-                  isDisabled={followUpTimeframe === 'custom' && !followUpDate}
-                  flex="1"
+              <Button
+                width="full"
+                colorScheme="orange"
+                onClick={handleSaveFollowUp}
+                isDisabled={followUpTimeframe === 'custom' && !followUpDate}
+                size="lg"
+              >
+                Schedule Follow-up
+              </Button>
+            </VStack>
+          )}
+
+          {/* Unqualified Form */}
+          {callPhase === 'ended' && nextAction === 'unqualified' && (
+            <VStack spacing={4} align="stretch">
+              <Text fontSize="lg" fontWeight="medium" textAlign="center" color="purple.700">
+                Mark as Unqualified
+              </Text>
+
+              <FormControl isRequired>
+                <FormLabel>Reason for Unqualified <Text as="span" color="red.500">*</Text></FormLabel>
+                <Select
+                  value={unqualifiedReason}
+                  onChange={(e) => setUnqualifiedReason(e.target.value)}
+                  placeholder="Select reason"
                 >
-                  Schedule Follow-up
-                </Button>
-              </HStack>
+                  <option value="Not interested">Not interested</option>
+                  <option value="Budget constraints">Budget constraints</option>
+                  <option value="Wrong target audience">Wrong target audience</option>
+                  <option value="Already using competitor">Already using competitor</option>
+                  <option value="Not decision maker">Not decision maker</option>
+                  <option value="Other">Other</option>
+                </Select>
+              </FormControl>
+
+              <Button
+                width="full"
+                colorScheme="purple"
+                onClick={handleSaveUnqualified}
+                isDisabled={!unqualifiedReason.trim()}
+                size="lg"
+              >
+                Mark as Unqualified
+              </Button>
+            </VStack>
+          )}
+
+          {/* Unreachable Form */}
+          {callPhase === 'ended' && nextAction === 'unreachable' && (
+            <VStack spacing={4} align="stretch">
+              <Text fontSize="lg" fontWeight="medium" textAlign="center" color="pink.700">
+                Mark as Unreachable
+              </Text>
+
+              <FormControl isRequired>
+                <FormLabel>Reason for Unreachable <Text as="span" color="red.500">*</Text></FormLabel>
+                <Select
+                  value={unreachableReason}
+                  onChange={(e) => setUnreachableReason(e.target.value)}
+                  placeholder="Select reason"
+                >
+                  <option value="Phone not answering">Phone not answering</option>
+                  <option value="Number not in service">Number not in service</option>
+                  <option value="Wrong number">Wrong number</option>
+                  <option value="Call declined multiple times">Call declined multiple times</option>
+                  <option value="Voicemail full">Voicemail full</option>
+                  <option value="Other">Other</option>
+                </Select>
+              </FormControl>
+
+              <Button
+                width="full"
+                colorScheme="pink"
+                onClick={handleSaveUnreachable}
+                isDisabled={!unreachableReason.trim()}
+                size="lg"
+              >
+                Mark as Unreachable
+              </Button>
             </VStack>
           )}
         </ModalBody>
 
         <ModalFooter>
-          {callPhase === 'ended' && !['followup', 'win', 'lost', 'unqualified', 'unreachable'].includes(nextAction || '') ? (
-            <HStack spacing={3}>
-              <Button variant="ghost" onClick={handleClose}>
-                Cancel
-              </Button>
-              <Button 
-                colorScheme="blue" 
-                onClick={handleSaveCall}
-                isDisabled={callSaved}
-              >
-                {callSaved ? 'Call Saved' : 'Save Call'}
-              </Button>
-            </HStack>
-          ) : callPhase === 'next-action' || ['followup', 'win', 'lost', 'unqualified', 'unreachable'].includes(nextAction || '') ? null : (
-            <Button variant="ghost" onClick={handleClose}>
-              Cancel
+          {callPhase === 'ended' && !['followup', 'win', 'lost', 'unqualified', 'unreachable'].includes(nextAction || '') && (
+            <Button 
+              width="full"
+              colorScheme="blue" 
+              onClick={handleSaveCall}
+              isDisabled={callSaved}
+              size="lg"
+            >
+              {callSaved ? 'Call Saved' : 'Save Call'}
             </Button>
           )}
         </ModalFooter>
