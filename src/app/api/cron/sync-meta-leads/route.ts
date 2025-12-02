@@ -7,12 +7,16 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Meta Graph API Polling Endpoint
- * Fetches leads that were received via webhook but need full data
- * Also serves as backup to catch any missed webhooks
+ * Meta Leads Backup Sync (Safety Net Only)
  * 
- * Schedule: Run every 15-30 minutes via cron job
+ * PURPOSE: Backup to catch any leads that webhook might have missed
+ * Webhook now fetches FULL data in real-time, so this is just a safety net
+ * 
+ * Schedule: Run every 30-60 minutes via DirectAdmin cron
  * URL: /api/cron/sync-meta-leads
+ * 
+ * NOTE: In normal operation, webhook handles everything in real-time.
+ * This cron only catches edge cases (webhook failures, network issues, etc.)
  */
 
 // Fetch campaign name from Meta Graph API
@@ -155,9 +159,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('🔄 Starting Meta leads sync...');
+    console.log('🔄 Starting Meta leads backup sync (safety net)...');
 
-    // Step 1: Update placeholder leads that need data fetch
+    // Step 1: Check for any old placeholder leads (shouldn't exist with new webhook)
     const placeholderLeads = await prisma.lead.findMany({
       where: {
         source: 'Meta',
@@ -167,7 +171,8 @@ export async function GET(request: NextRequest) {
       take: 50, // Process max 50 at a time
     });
 
-    console.log(`📋 Found ${placeholderLeads.length} placeholder leads to update`);
+    if (placeholderLeads.length > 0) {
+      console.log(`⚠️ Found ${placeholderLeads.length} placeholder leads (webhook may have failed)`);
 
     let updatedCount = 0;
 
@@ -218,17 +223,13 @@ export async function GET(request: NextRequest) {
       updatedCount++;
     }
 
-    // Step 2: Fetch new leads from Meta (backup in case webhook missed any)
-    // Get last sync timestamp
-    const lastSyncRecord = await prisma.lead.findFirst({
-      where: { source: 'Meta' },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    });
+    } else {
+      console.log('✅ No placeholder leads found (webhook working correctly)');
+    }
 
-    const since = lastSyncRecord
-      ? Math.floor(lastSyncRecord.createdAt.getTime() / 1000)
-      : Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000); // Last 24 hours
+    // Step 2: Backup check - fetch any leads from last hour that webhook might have missed
+    // Only check last hour since webhook should handle everything in real-time
+    const since = Math.floor((Date.now() - 60 * 60 * 1000) / 1000); // Last 1 hour only
 
     // Fetch leads from Meta
     const leadsResponse = await fetch(
