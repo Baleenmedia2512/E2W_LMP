@@ -64,7 +64,6 @@ model Lead {
   campaign            String?
   customerRequirement String?
   status              String    @default("new") // new, followup, contacted, qualified, unreach, unqualified, won, lost
-  priority            String    @default("medium") // low, medium, high
   notes               String?   @db.LongText
   callAttempts        Int       @default(0) // Counter for call attempts
   metadata            Json?
@@ -97,7 +96,7 @@ model CallLog {
   endedAt         DateTime?
   duration        Int?      // in seconds
   remarks         String?   @db.Text
-  callStatus      String?   // completed, busy, ring_not_response
+  callStatus      String?   // answer, busy, wrong_number, ring_not_response
   attemptNumber   Int       @default(1)
   recordingUrl    String?
   customerRequirement String?
@@ -117,11 +116,9 @@ model FollowUp {
   id                  String    @id @default(cuid())
   leadId              String
   scheduledAt         DateTime
-  completedAt         DateTime?
   customerRequirement String?   @db.Text // Customer requirement for context
   notes               String?   @db.Text
-  status              String    @default("pending") // pending, completed, cancelled
-  priority            String    @default("medium") // low, medium, high
+  status              String    @default("pending") // pending, cancelled
   createdById         String
   metadata            Json?
   createdAt           DateTime  @default(now())

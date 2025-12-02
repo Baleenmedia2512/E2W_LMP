@@ -30,10 +30,17 @@ import {
   ModalHeader,
   ModalBody,
   ModalCloseButton,
+  SimpleGrid,
+  Card,
+  CardBody,
+  Flex,
+  Divider,
+  ButtonGroup,
+  Button,
 } from '@chakra-ui/react';
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { HiDotsVertical, HiEye, HiSearch } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
 import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
 
 interface CallLog {
@@ -57,6 +64,15 @@ interface CallLog {
   createdAt: string;
 }
 
+interface CallHistoryGroup {
+  leadId: string;
+  leadName: string;
+  leadPhone: string;
+  latestCall: CallLog;
+  totalAttempts: number;
+  allCalls: CallLog[];
+}
+
 export default function CallsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState('all');
@@ -66,6 +82,9 @@ export default function CallsPage() {
   const [error, setError] = useState<string | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
+  const { isOpen: isHistoryOpen, onOpen: onHistoryOpen, onClose: onHistoryClose } = useDisclosure();
+  const [selectedLeadHistory, setSelectedLeadHistory] = useState<CallLog[]>([]);
+  const [viewMode, setViewMode] = useState<'table' | 'tile'>('table');
 
   useEffect(() => {
     const fetchCallLogs = async () => {
@@ -96,32 +115,59 @@ export default function CallsPage() {
     fetchCallLogs();
   }, [statusFilter]);
 
+  // Group calls by lead and get latest attempt for each
+  const groupedCalls = useMemo(() => {
+    const groups = new Map<string, CallHistoryGroup>();
+    
+    callLogs.forEach(call => {
+      if (!groups.has(call.leadId)) {
+        groups.set(call.leadId, {
+          leadId: call.leadId,
+          leadName: call.lead.name,
+          leadPhone: call.lead.phone,
+          latestCall: call,
+          totalAttempts: 1,
+          allCalls: [call],
+        });
+      } else {
+        const group = groups.get(call.leadId)!;
+        group.allCalls.push(call);
+        group.totalAttempts++;
+        // Update latest call if this one is more recent
+        if (new Date(call.createdAt) > new Date(group.latestCall.createdAt)) {
+          group.latestCall = call;
+        }
+      }
+    });
+    
+    return Array.from(groups.values());
+  }, [callLogs]);
+
   // Filter and search
   const filteredCalls = useMemo(() => {
-    let filtered = callLogs;
+    let filtered = groupedCalls;
 
     // Status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(c => c.callStatus === statusFilter);
+      filtered = filtered.filter(g => g.latestCall.callStatus === statusFilter);
     }
 
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.lead.name.toLowerCase().includes(query) ||
-        c.lead.phone.toLowerCase().includes(query) ||
-        c.caller.name.toLowerCase().includes(query)
+      filtered = filtered.filter(g =>
+        g.leadName.toLowerCase().includes(query) ||
+        g.leadPhone.toLowerCase().includes(query) ||
+        g.latestCall.caller.name.toLowerCase().includes(query)
       );
     }
 
     return filtered;
-  }, [callLogs, statusFilter, searchQuery]);
+  }, [groupedCalls, statusFilter, searchQuery]);
 
   const getCallStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'answer':
-      case 'completed':
         return 'green';
       case 'busy':
         return 'orange';
@@ -139,8 +185,6 @@ export default function CallsPage() {
     switch (status.toLowerCase()) {
       case 'answer':
         return 'Answer';
-      case 'completed':
-        return 'Completed';
       case 'busy':
         return 'Busy';
       case 'wrong_number':
@@ -167,10 +211,37 @@ export default function CallsPage() {
     onOpen();
   };
 
+  const handleViewHistory = (calls: CallLog[]) => {
+    // Sort calls by date descending (most recent first)
+    const sorted = [...calls].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    setSelectedLeadHistory(sorted);
+    onHistoryOpen();
+  };
+
   return (
     <Box>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={3}>
         <Heading size="lg">Call History</Heading>
+        <ButtonGroup size="sm" isAttached variant="outline">
+          <Button
+            leftIcon={<HiViewList />}
+            onClick={() => setViewMode('table')}
+            colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
+            variant={viewMode === 'table' ? 'solid' : 'outline'}
+          >
+            Table
+          </Button>
+          <Button
+            leftIcon={<HiViewGrid />}
+            onClick={() => setViewMode('tile')}
+            colorScheme={viewMode === 'tile' ? 'blue' : 'gray'}
+            variant={viewMode === 'tile' ? 'solid' : 'outline'}
+          >
+            Tiles
+          </Button>
+        </ButtonGroup>
       </HStack>
 
       {error && (
@@ -207,14 +278,13 @@ export default function CallsPage() {
               <option value="busy">Busy</option>
               <option value="wrong_number">Wrong Number</option>
               <option value="ring_not_response">Ring Not Response</option>
-              <option value="completed">Completed</option>
             </Select>
           </HStack>
 
           {(searchQuery || statusFilter !== 'all') && (
             <HStack>
               <Text fontSize="sm" color="gray.600">
-                Showing {filteredCalls.length} of {callLogs.length} calls
+                Showing {filteredCalls.length} of {groupedCalls.length} leads
               </Text>
             </HStack>
           )}
@@ -227,14 +297,15 @@ export default function CallsPage() {
         </Box>
       )}
 
-      {!loading && (
+      {!loading && viewMode === 'table' && (
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
           <Box overflowX="auto">
             <Table variant="simple" size="sm">
               <Thead bg="gray.50">
                 <Tr>
                   <Th>Lead Name</Th>
-                  <Th>Date/Time</Th>
+                  <Th>Last Called</Th>
+                  <Th>Attempts</Th>
                   <Th>Duration (min)</Th>
                   <Th>Status</Th>
                   <Th>Customer Requirement</Th>
@@ -244,46 +315,51 @@ export default function CallsPage() {
               </Thead>
               <Tbody>
                 {filteredCalls.length > 0 ? (
-                  filteredCalls.map((call) => (
-                    <Tr key={call.id} _hover={{ bg: 'gray.50' }}>
+                  filteredCalls.map((group) => (
+                    <Tr key={group.leadId} _hover={{ bg: 'gray.50' }}>
                       <Td>
                         <Text
                           fontWeight="medium"
                           cursor="pointer"
                           color="blue.600"
-                          onClick={() => router.push(`/dashboard/leads/${call.leadId}`)}
+                          onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
                           _hover={{ textDecoration: 'underline' }}
                         >
-                          {call.lead.name}
+                          {group.leadName}
                         </Text>
                       </Td>
                       <Td fontSize="sm" whiteSpace="nowrap">
-                        {formatDateTime(call.createdAt)}
+                        {formatDateTime(group.latestCall.createdAt)}
                       </Td>
-                      <Td>{formatDuration(call.duration)}</Td>
                       <Td>
-                        <Badge colorScheme={getCallStatusColor(call.callStatus)}>
-                          {getCallStatusLabel(call.callStatus)}
+                        <Badge colorScheme="purple" variant="subtle">
+                          {group.totalAttempts}
+                        </Badge>
+                      </Td>
+                      <Td>{formatDuration(group.latestCall.duration)}</Td>
+                      <Td>
+                        <Badge colorScheme={getCallStatusColor(group.latestCall.callStatus)}>
+                          {getCallStatusLabel(group.latestCall.callStatus)}
                         </Badge>
                       </Td>
                       <Td maxW="250px">
-                        {call.customerRequirement ? (
+                        {group.latestCall.customerRequirement ? (
                           <Tooltip label="Click to view full text" placement="top" hasArrow>
                             <Text
                               noOfLines={2}
                               fontSize="sm"
                               cursor="pointer"
-                              onClick={() => handleShowRemark(call.customerRequirement)}
+                              onClick={() => handleShowRemark(group.latestCall.customerRequirement)}
                               _hover={{ color: 'blue.600' }}
                             >
-                              {call.customerRequirement}
+                              {group.latestCall.customerRequirement}
                             </Text>
                           </Tooltip>
                         ) : (
                           <Text fontSize="sm" color="gray.400">-</Text>
                         )}
                       </Td>
-                      <Td>{call.caller.name || 'N/A'}</Td>
+                      <Td>{group.latestCall.caller.name || 'N/A'}</Td>
                       <Td>
                         <Menu>
                           <MenuButton
@@ -294,9 +370,17 @@ export default function CallsPage() {
                             aria-label="Actions"
                           />
                           <MenuList>
+                            {group.totalAttempts > 1 && (
+                              <MenuItem
+                                icon={<HiEye />}
+                                onClick={() => handleViewHistory(group.allCalls)}
+                              >
+                                View All Calls ({group.totalAttempts})
+                              </MenuItem>
+                            )}
                             <MenuItem
                               icon={<HiEye />}
-                              onClick={() => router.push(`/dashboard/leads/${call.leadId}`)}
+                              onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
                             >
                               View Lead
                             </MenuItem>
@@ -307,7 +391,7 @@ export default function CallsPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={7} textAlign="center" py={8}>
+                    <Td colSpan={8} textAlign="center" py={8}>
                       <Text color="gray.500">
                         {searchQuery || statusFilter !== 'all'
                           ? 'No call logs match your filters'
@@ -323,10 +407,169 @@ export default function CallsPage() {
           {filteredCalls.length > 0 && (
             <Box p={4} borderTopWidth="1px">
               <Text fontSize="sm" color="gray.600">
-                Showing {filteredCalls.length} call{filteredCalls.length !== 1 ? 's' : ''}
+                Showing {filteredCalls.length} lead{filteredCalls.length !== 1 ? 's' : ''} with {filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0)} total call{filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0) !== 1 ? 's' : ''}
               </Text>
             </Box>
           )}
+        </Box>
+      )}
+
+      {!loading && viewMode === 'tile' && (
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+          {filteredCalls.length > 0 ? (
+            filteredCalls.map((group) => (
+              <Card
+                key={group.leadId}
+                variant="outline"
+                _hover={{ boxShadow: 'md', borderColor: 'blue.300' }}
+                transition="all 0.2s"
+              >
+                <CardBody>
+                  <VStack align="stretch" spacing={3}>
+                    {/* Header */}
+                    <Flex justify="space-between" align="start">
+                      <Box flex="1">
+                        <Text
+                          fontSize="lg"
+                          fontWeight="bold"
+                          color="blue.600"
+                          cursor="pointer"
+                          onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
+                          _hover={{ textDecoration: 'underline' }}
+                          mb={1}
+                        >
+                          {group.leadName}
+                        </Text>
+                        <Text fontSize="sm" color="gray.600">
+                          {group.leadPhone}
+                        </Text>
+                      </Box>
+                      <Menu>
+                        <MenuButton
+                          as={IconButton}
+                          icon={<HiDotsVertical />}
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Actions"
+                        />
+                        <MenuList>
+                          {group.totalAttempts > 1 && (
+                            <MenuItem
+                              icon={<HiEye />}
+                              onClick={() => handleViewHistory(group.allCalls)}
+                            >
+                              View All Calls ({group.totalAttempts})
+                            </MenuItem>
+                          )}
+                          <MenuItem
+                            icon={<HiEye />}
+                            onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
+                          >
+                            View Lead
+                          </MenuItem>
+                        </MenuList>
+                      </Menu>
+                    </Flex>
+
+                    <Divider />
+
+                    {/* Stats Row */}
+                    <SimpleGrid columns={3} spacing={2}>
+                      <Box>
+                        <Text fontSize="xs" color="gray.500" mb={1}>
+                          Attempts
+                        </Text>
+                        <Badge colorScheme="purple" fontSize="md">
+                          {group.totalAttempts}
+                        </Badge>
+                      </Box>
+                      <Box>
+                        <Text fontSize="xs" color="gray.500" mb={1}>
+                          Duration
+                        </Text>
+                        <Text fontSize="sm" fontWeight="medium">
+                          {formatDuration(group.latestCall.duration)} min
+                        </Text>
+                      </Box>
+                      <Box>
+                        <Text fontSize="xs" color="gray.500" mb={1}>
+                          Status
+                        </Text>
+                        <Badge colorScheme={getCallStatusColor(group.latestCall.callStatus)} fontSize="xs">
+                          {getCallStatusLabel(group.latestCall.callStatus)}
+                        </Badge>
+                      </Box>
+                    </SimpleGrid>
+
+                    <Divider />
+
+                    {/* Last Called */}
+                    <Box>
+                      <Text fontSize="xs" color="gray.500" mb={1}>
+                        Last Called
+                      </Text>
+                      <Text fontSize="sm" fontWeight="medium">
+                        {formatDateTime(group.latestCall.createdAt)}
+                      </Text>
+                    </Box>
+
+                    {/* Agent */}
+                    <Box>
+                      <Text fontSize="xs" color="gray.500" mb={1}>
+                        Agent
+                      </Text>
+                      <Text fontSize="sm" fontWeight="medium">
+                        {group.latestCall.caller.name || 'N/A'}
+                      </Text>
+                    </Box>
+
+                    {/* Customer Requirement */}
+                    {group.latestCall.customerRequirement && (
+                      <Box>
+                        <Text fontSize="xs" color="gray.500" mb={1}>
+                          Customer Requirement
+                        </Text>
+                        <Text
+                          fontSize="sm"
+                          noOfLines={2}
+                          cursor="pointer"
+                          color="gray.700"
+                          onClick={() => handleShowRemark(group.latestCall.customerRequirement)}
+                          _hover={{ color: 'blue.600' }}
+                        >
+                          {group.latestCall.customerRequirement}
+                        </Text>
+                      </Box>
+                    )}
+                  </VStack>
+                </CardBody>
+              </Card>
+            ))
+          ) : (
+            <Box
+              gridColumn="1 / -1"
+              textAlign="center"
+              py={12}
+              bg="white"
+              borderRadius="lg"
+              border="1px solid"
+              borderColor="gray.200"
+            >
+              <Text color="gray.500">
+                {searchQuery || statusFilter !== 'all'
+                  ? 'No call logs match your filters'
+                  : 'No call logs found'}
+              </Text>
+            </Box>
+          )}
+        </SimpleGrid>
+      )}
+
+      {!loading && viewMode === 'tile' && filteredCalls.length > 0 && (
+        <Box mt={4} p={4} bg="white" borderRadius="lg" boxShadow="sm">
+          <Text fontSize="sm" color="gray.600">
+            Showing {filteredCalls.length} lead{filteredCalls.length !== 1 ? 's' : ''} with {filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0)} total call{filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0) !== 1 ? 's' : ''}
+          </Text>
         </Box>
       )}
 
@@ -346,6 +589,74 @@ export default function CallsPage() {
             >
               <Text whiteSpace="pre-wrap" fontSize="md">
                 {selectedRemark || 'No customer requirement provided'}
+              </Text>
+            </Box>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Call History Modal */}
+      <Modal isOpen={isHistoryOpen} onClose={onHistoryClose} size="4xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            All Call History
+            {selectedLeadHistory.length > 0 && ` - ${selectedLeadHistory[0].lead.name}`}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Box overflowX="auto">
+              <Table variant="simple" size="sm">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Date/Time</Th>
+                    <Th>Duration (min)</Th>
+                    <Th>Status</Th>
+                    <Th>Customer Requirement</Th>
+                    <Th>Agent Name</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {selectedLeadHistory.map((call, index) => (
+                    <Tr key={call.id} bg={index === 0 ? 'blue.50' : 'white'}>
+                      <Td fontSize="sm" whiteSpace="nowrap">
+                        {formatDateTime(call.createdAt)}
+                        {index === 0 && (
+                          <Badge ml={2} colorScheme="blue" fontSize="xs">Latest</Badge>
+                        )}
+                      </Td>
+                      <Td>{formatDuration(call.duration)}</Td>
+                      <Td>
+                        <Badge colorScheme={getCallStatusColor(call.callStatus)}>
+                          {getCallStatusLabel(call.callStatus)}
+                        </Badge>
+                      </Td>
+                      <Td maxW="300px">
+                        {call.customerRequirement ? (
+                          <Tooltip label="Click to view full text" placement="top" hasArrow>
+                            <Text
+                              noOfLines={2}
+                              fontSize="sm"
+                              cursor="pointer"
+                              onClick={() => handleShowRemark(call.customerRequirement)}
+                              _hover={{ color: 'blue.600' }}
+                            >
+                              {call.customerRequirement}
+                            </Text>
+                          </Tooltip>
+                        ) : (
+                          <Text fontSize="sm" color="gray.400">-</Text>
+                        )}
+                      </Td>
+                      <Td>{call.caller.name || 'N/A'}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+            <Box mt={4} p={3} bg="blue.50" borderRadius="md">
+              <Text fontSize="sm" color="gray.700">
+                Total Calls: <strong>{selectedLeadHistory.length}</strong>
               </Text>
             </Box>
           </ModalBody>

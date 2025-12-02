@@ -49,6 +49,7 @@ import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnre
 import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
 import MarkAsWonModal from '@/features/leads/components/MarkAsWonModal';
 import MarkAsLostModal from '@/features/leads/components/MarkAsLostModal';
+import CallAttemptsModal from '@/shared/components/CallAttemptsModal';
 
 interface Lead {
   id: string;
@@ -113,6 +114,7 @@ export default function LeadDetailPage() {
   const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
   const { isOpen: isWonOpen, onOpen: onWonOpen, onClose: onWonClose } = useDisclosure();
   const { isOpen: isLostOpen, onOpen: onLostOpen, onClose: onLostClose } = useDisclosure();
+  const { isOpen: isCallAttemptsOpen, onOpen: onCallAttemptsOpen, onClose: onCallAttemptsClose } = useDisclosure();
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
@@ -120,68 +122,69 @@ export default function LeadDetailPage() {
   const [activityHistory, setActivityHistory] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup' | 'contacted' | 'qualified'>('new');
+  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
   const [requalifyLoading, setRequalifyLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  // Function to refresh data
+  const refreshData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const [leadRes, callsRes, followupsRes, activityRes] = await Promise.all([
-          fetch(`/api/leads/${leadId}`, { cache: 'no-store' }),
-          fetch(`/api/calls?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
-          fetch(`/api/followups?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
-          fetch(`/api/activity?leadId=${leadId}&limit=50`, { cache: 'no-store' }),
-        ]);
+      const [leadRes, callsRes, followupsRes, activityRes] = await Promise.all([
+        fetch(`/api/leads/${leadId}`, { cache: 'no-store' }),
+        fetch(`/api/calls?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
+        fetch(`/api/followups?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
+        fetch(`/api/activity?leadId=${leadId}&limit=50`, { cache: 'no-store' }),
+      ]);
 
-        if (!leadRes.ok) {
-          throw new Error('Lead not found');
-        }
-
-        const leadDataResponse = await leadRes.json();
-        const callsData = await callsRes.json();
-        const followupsData = await followupsRes.json();
-        const activityData = await activityRes.json();
-
-        // Extract lead data from response wrapper
-        const leadData = leadDataResponse.data || leadDataResponse;
-        setLead(leadData);
-        
-        // Extract data arrays from API responses
-        const leadCalls = Array.isArray(callsData) 
-          ? callsData
-          : callsData.data || [];
-        
-        const leadFollowups = Array.isArray(followupsData)
-          ? followupsData
-          : followupsData.data || [];
-
-        // Extract activity history
-        const activities = Array.isArray(activityData)
-          ? activityData
-          : activityData.data || [];
-
-        setCallLogs(leadCalls);
-        setFollowUps(leadFollowups);
-        setActivityHistory(activities);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load lead');
-        toast({
-          title: 'Error',
-          description: 'Failed to load lead details',
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-        });
-      } finally {
-        setLoading(false);
+      if (!leadRes.ok) {
+        throw new Error('Lead not found');
       }
-    };
 
+      const leadDataResponse = await leadRes.json();
+      const callsData = await callsRes.json();
+      const followupsData = await followupsRes.json();
+      const activityData = await activityRes.json();
+
+      // Extract lead data from response wrapper
+      const leadData = leadDataResponse.data || leadDataResponse;
+      setLead(leadData);
+      
+      // Extract data arrays from API responses
+      const leadCalls = Array.isArray(callsData) 
+        ? callsData
+        : callsData.data || [];
+      
+      const leadFollowups = Array.isArray(followupsData)
+        ? followupsData
+        : followupsData.data || [];
+
+      // Extract activity history
+      const activities = Array.isArray(activityData)
+        ? activityData
+        : activityData.data || [];
+
+      setCallLogs(leadCalls);
+      setFollowUps(leadFollowups);
+      setActivityHistory(activities);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load lead');
+      toast({
+        title: 'Error',
+        description: 'Failed to load lead details',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (leadId) {
-      fetchData();
+      refreshData();
     }
   }, [leadId, toast]);
 
@@ -340,15 +343,6 @@ export default function LeadDetailPage() {
                 onClick={onCallDialerOpen}
               >
                 Log Call
-              </Button>
-              <Button
-                leftIcon={<HiCalendar />}
-                colorScheme="orange"
-                variant="solid"
-                size="md"
-                onClick={() => router.push(`/dashboard/leads/${leadId}/followup`)}
-              >
-                Schedule Follow-up
               </Button>
               <Button
                 leftIcon={<HiRefresh />}
@@ -528,6 +522,21 @@ export default function LeadDetailPage() {
                 {/* Call Logs Tab */}
                 <TabPanel>
                   <VStack align="stretch" spacing={4}>
+                    {callLogs && callLogs.length > 0 && (
+                      <HStack justify="space-between">
+                        <Text fontSize="sm" color="gray.600">
+                          Showing {callLogs.length} call log{callLogs.length !== 1 ? 's' : ''}
+                        </Text>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          colorScheme="blue"
+                          onClick={onCallAttemptsOpen}
+                        >
+                          View All Attempts
+                        </Button>
+                      </HStack>
+                    )}
                     {callLogs && callLogs.length > 0 ? (
                       <Table size="sm" variant="simple">
                         <Thead bg="gray.50">
@@ -616,7 +625,6 @@ export default function LeadDetailPage() {
                           <Tr>
                             <Th>Scheduled Date</Th>
                             <Th>Status</Th>
-                            <Th>Priority</Th>
                             <Th>Notes</Th>
                           </Tr>
                         </Thead>
@@ -625,29 +633,14 @@ export default function LeadDetailPage() {
                             <Tr key={followup.id}>
                               <Td>{formatDateTime(followup.scheduledAt)}</Td>
                               <Td>
-                                <Badge
+                                <Badge 
                                   colorScheme={
-                                    followup.status === 'completed' 
-                                      ? 'green' 
-                                      : followup.status === 'cancelled'
+                                    followup.status === 'cancelled'
                                       ? 'red'
-                                      : 'yellow'
-                                  }
-                                >
-                                  {followup.status}
-                                </Badge>
-                              </Td>
-                              <Td>
-                                <Badge
-                                  colorScheme={
-                                    followup.priority === 'high' 
-                                      ? 'red' 
-                                      : followup.priority === 'medium'
-                                      ? 'orange'
                                       : 'blue'
                                   }
                                 >
-                                  {followup.priority || 'medium'}
+                                  {followup.status}
                                 </Badge>
                               </Td>
                               <Td>
@@ -729,6 +722,8 @@ export default function LeadDetailPage() {
           leadId={leadId}
           leadName={lead.name}
           leadPhone={lead.phone}
+          onOpenUnreachable={onUnreachableOpen}
+          onOpenUnqualified={onUnqualifiedOpen}
         />
       )}
 
@@ -807,12 +802,10 @@ export default function LeadDetailPage() {
                 <FormLabel fontWeight="600">New Status</FormLabel>
                 <Select
                   value={requalifyStatus}
-                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup' | 'contacted' | 'qualified')}
+                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup')}
                 >
                   <option value="new">New</option>
                   <option value="followup">Follow-up</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="qualified">Qualified</option>
                 </Select>
               </FormControl>
             </VStack>
@@ -832,6 +825,16 @@ export default function LeadDetailPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Call Attempts Modal */}
+      {lead && (
+        <CallAttemptsModal
+          isOpen={isCallAttemptsOpen}
+          onClose={onCallAttemptsClose}
+          leadId={lead.id}
+          leadName={lead.name}
+        />
+      )}
     </Box>
   );
 }

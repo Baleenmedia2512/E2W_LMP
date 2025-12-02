@@ -17,7 +17,6 @@ export const createLeadSchema = z.object({
   source: z.string().min(1, 'Source is required'),
   campaign: z.string().optional().nullable(),
   status: z.enum(['new', 'followup', 'unreach', 'unqualified']).default('new'),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
   assignedToId: z.string().cuid().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
   metadata: z.record(z.unknown()).optional().nullable(),
@@ -47,16 +46,13 @@ export const createFollowUpSchema = z.object({
   scheduledAt: z.string().datetime().or(z.date()),
   customerRequirement: z.string().min(1, 'Customer requirement is required').max(500, 'Customer requirement must be less than 500 characters'),
   notes: z.string().max(2000).optional().nullable(),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
 export const updateFollowUpSchema = z.object({
   scheduledAt: z.string().datetime().or(z.date()).optional(),
   customerRequirement: z.string().max(500).optional(),
   notes: z.string().max(2000).optional().nullable(),
-  status: z.enum(['pending', 'completed', 'cancelled']).optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-  completedAt: z.string().datetime().or(z.date()).optional().nullable(),
+  status: z.enum(['pending', 'cancelled']).optional(),
 });
 
 // DSR export validations

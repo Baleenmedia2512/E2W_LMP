@@ -12,27 +12,90 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
 
-    const where: any = {};
-    if (leadId) where.leadId = leadId;
-    if (status) where.status = status;
+    // If requesting follow-ups for a specific lead (e.g., lead detail page), return all
+    if (leadId) {
+      const where: any = { leadId };
+      if (status) where.status = status;
 
-    const [followUps, total] = await Promise.all([
-      prisma.followUp.findMany({
-        where,
-        include: {
-          lead: { select: { id: true, name: true, phone: true, status: true } },
-          createdBy: { select: { id: true, name: true, email: true } },
-        },
-        orderBy: { scheduledAt: 'asc' },
-        skip,
-        take: limit,
-      }),
-      prisma.followUp.count({ where }),
-    ]);
+      const [followUps, total] = await Promise.all([
+        prisma.followUp.findMany({
+          where,
+          include: {
+            lead: { select: { id: true, name: true, phone: true, status: true } },
+            createdBy: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { scheduledAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        prisma.followUp.count({ where }),
+      ]);
+
+      return NextResponse.json({
+        success: true,
+        data: followUps,
+        total,
+        page,
+        pageSize: limit,
+        hasMore: skip + limit < total,
+      });
+    }
+
+    // For the follow-up page, fetch only the NEXT pending follow-up per lead
+    // Get all pending follow-ups
+    const allFollowUps = await prisma.followUp.findMany({
+      where: status ? { status } : { status: 'pending' },
+      include: {
+        lead: { select: { id: true, name: true, phone: true, status: true } },
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { scheduledAt: 'asc' }, // Order by earliest first
+    });
+
+    // Filter to keep only the NEXT (earliest pending) follow-up per lead
+    const now = new Date();
+    const nextFollowUpsMap = new Map<string, any>();
+    
+    for (const followUp of allFollowUps) {
+      if (!nextFollowUpsMap.has(followUp.leadId)) {
+        // For each lead, take the first follow-up we encounter (which is the earliest due to orderBy)
+        nextFollowUpsMap.set(followUp.leadId, followUp);
+      }
+    }
+
+    // Convert map to array and apply smart sorting:
+    // 1. Upcoming follow-ups first (soonest/next one at the top)
+    // 2. Overdue follow-ups last (most overdue first)
+    const allFollowUpsArray = Array.from(nextFollowUpsMap.values());
+    
+    const overdue: any[] = [];
+    const upcoming: any[] = [];
+    
+    allFollowUpsArray.forEach(followUp => {
+      const scheduledDate = new Date(followUp.scheduledAt);
+      if (scheduledDate < now && followUp.status === 'pending') {
+        overdue.push(followUp);
+      } else {
+        upcoming.push(followUp);
+      }
+    });
+    
+    // Sort upcoming by scheduled date (earliest/next one first)
+    upcoming.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    
+    // Sort overdue by scheduled date (most overdue first)
+    overdue.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    
+    // Combine: upcoming first, then overdue
+    const latestFollowUps = [...upcoming, ...overdue];
+
+    // Apply pagination
+    const total = latestFollowUps.length;
+    const paginatedFollowUps = latestFollowUps.slice(skip, skip + limit);
 
     return NextResponse.json({
       success: true,
-      data: followUps,
+      data: paginatedFollowUps,
       total,
       page,
       pageSize: limit,
@@ -74,11 +137,9 @@ export async function POST(request: NextRequest) {
       data: {
         leadId: body.leadId,
         scheduledAt: scheduledDateTime,
-        completedAt: body.completedAt ? new Date(body.completedAt) : null,
-        customerRequirement: body.customerRequirement,
+        customerRequirement: body.customerRequirement || null,
         notes: body.notes || null,
         status: body.status || 'pending',
-        priority: body.priority || 'medium',
         createdById: body.createdById,
       },
       include: {
@@ -87,13 +148,27 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Update lead status to 'followup' if it's not already won, lost, or unqualified
+    const currentLead = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { status: true },
+    });
+
+    const nonUpdatableStatuses = ['won', 'lost', 'unqualified'];
+    if (currentLead && !nonUpdatableStatuses.includes(currentLead.status)) {
+      await prisma.lead.update({
+        where: { id: body.leadId },
+        data: { status: 'followup' },
+      });
+    }
+
     // Log activity
     await prisma.activityHistory.create({
       data: {
         leadId: body.leadId,
         userId: body.createdById,
         action: 'followup_scheduled',
-        description: `Follow-up scheduled for ${new Date(body.scheduledAt).toLocaleDateString()}`,
+        description: `Follow-up scheduled for ${new Date(body.scheduledAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}`,
       },
     });
 

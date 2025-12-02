@@ -146,7 +146,7 @@ export default function CallAttemptsModal({
                   Total Attempts: <strong>{attempts.length}</strong>
                 </Text>
                 <Badge colorScheme="blue">
-                  Latest: {format(new Date(attempts[attempts.length - 1]?.startedAt || new Date()), 'MMM dd, yyyy HH:mm')}
+                  Latest: {format(new Date(attempts[attempts.length - 1]?.startedAt || new Date()), 'dd/MM/yy hh:mm a')}
                 </Badge>
               </HStack>
 
@@ -177,10 +177,10 @@ export default function CallAttemptsModal({
                           )}
                         </Td>
                         <Td fontSize="sm">
-                          {format(new Date(attempt.startedAt), 'MMM dd, yyyy')}
+                          {format(new Date(attempt.startedAt), 'dd/MM/yy')}
                           <br />
                           <Text as="span" color="gray.600" fontSize="xs">
-                            {format(new Date(attempt.startedAt), 'HH:mm:ss')}
+                            {format(new Date(attempt.startedAt), 'hh:mm:ss a')}
                           </Text>
                         </Td>
                         <Td>{formatDuration(attempt.duration)}</Td>

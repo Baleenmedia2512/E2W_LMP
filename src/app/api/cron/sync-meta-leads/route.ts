@@ -110,18 +110,17 @@ function parseMetaLeadFields(fieldData: any[]): {
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret to prevent unauthorized access (optional for testing)
+    // Check if this is an external cron call or internal dashboard call
     const authHeader = request.headers.get('authorization');
+    const referer = request.headers.get('referer');
     const cronSecret = process.env.CRON_SECRET;
-
-    // Allow if: no secret is set, or auth header matches secret
-    if (cronSecret && cronSecret.trim() && authHeader !== `Bearer ${cronSecret.trim()}`) {
-      console.log('Auth failed:', { 
-        hasSecret: !!cronSecret, 
-        secretLength: cronSecret?.length,
-        hasAuth: !!authHeader,
-        authLength: authHeader?.length 
-      });
+    
+    // Allow internal calls from the dashboard (same origin)
+    const isInternalCall = referer && (referer.includes('localhost') || referer.includes(request.headers.get('host') || ''));
+    
+    // For external cron calls, verify the secret
+    if (!isInternalCall && cronSecret && cronSecret.trim() && authHeader !== `Bearer ${cronSecret.trim()}`) {
+      console.log('Auth failed - external call without valid token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -209,12 +208,14 @@ export async function GET(request: NextRequest) {
     );
 
     if (!leadsResponse.ok) {
-      console.error('Failed to fetch leads from Meta:', leadsResponse.status);
+      const errorText = await leadsResponse.text();
+      console.error('Failed to fetch leads from Meta:', leadsResponse.status, errorText);
       return NextResponse.json({
         success: true,
         updatedPlaceholders: updatedCount,
         newLeads: 0,
-        message: 'Placeholder update completed, but failed to fetch new leads',
+        message: `Placeholder update completed. Meta API error: ${leadsResponse.status}`,
+        error: errorText,
       });
     }
 
@@ -252,7 +253,6 @@ export async function GET(request: NextRequest) {
               email: parsed.email,
               source: 'Meta',
               status: 'new',
-              priority: 'medium',
               customerRequirement: parsed.customFields.message || null,
               notes: 'Lead fetched via Meta Graph API polling',
               metadata: {

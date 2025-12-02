@@ -186,19 +186,19 @@ export default function DashboardPage() {
     }
   };
 
-  // Show toast on auto-refresh
+  // Show toast on auto-refresh (only once when enabled)
   useEffect(() => {
-    if (autoRefresh && data) {
+    if (autoRefresh) {
       toast({
-        title: 'Dashboard Updated',
-        description: 'Stats refreshed automatically',
+        title: 'Auto-refresh Enabled',
+        description: 'Dashboard will refresh every 30 seconds',
         status: 'info',
-        duration: 2000,
+        duration: 3000,
         isClosable: true,
         position: 'bottom-right',
       });
     }
-  }, [data?.data?.timestamp, autoRefresh]);
+  }, [autoRefresh]);
 
   const handleManualRefresh = () => {
     mutate();
@@ -224,7 +224,6 @@ export default function DashboardPage() {
     wonLeads: 0,
     followUpsDue: 0,
     overdue: 0,
-    highPriorityOverdue: 0,
     conversionRate: 0,
     winRate: 0,
   };
@@ -346,7 +345,7 @@ export default function DashboardPage() {
         <StatCard
           label="Overdue"
           value={stats.overdue}
-          helpText={stats.highPriorityOverdue > 0 ? `${stats.highPriorityOverdue} high priority` : 'Needs attention'}
+          helpText="Needs attention"
           icon={FiAlertCircle}
           colorScheme="red"
           onClick={() => router.push('/dashboard/followups?filter=overdue')}
@@ -354,15 +353,15 @@ export default function DashboardPage() {
         <StatCard
           label="Total Leads"
           value={stats.totalLeads}
-          helpText="In date range"
+          helpText="All leads in system"
           icon={FiPhone}
           colorScheme="purple"
           onClick={() => router.push('/dashboard/leads')}
         />
         <StatCard
-          label="Won Deals"
+          label="Won Today"
           value={stats.wonLeads}
-          helpText={`${stats.conversionRate}% conversion`}
+          helpText="Deals closed today"
           icon={FiCheckCircle}
           colorScheme="green"
           onClick={() => handleCardClick('won')}
@@ -370,24 +369,7 @@ export default function DashboardPage() {
       </SimpleGrid>
 
       {/* Summary Stats - All Clickable */}
-      <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={{ base: 4, md: 6 }}>
-        <Box 
-          bg="white" 
-          p={6} 
-          borderRadius="lg" 
-          boxShadow="sm" 
-          borderWidth="1px"
-          cursor="pointer"
-          transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "green.500" }}
-          onClick={() => handleCardClick('qualified')}
-        >
-          <Stat>
-            <StatLabel fontSize="sm">Qualified Leads</StatLabel>
-            <StatNumber color="green.600">{stats.qualifiedLeads}</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Click to view</StatHelpText>
-          </Stat>
-        </Box>
+      <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={{ base: 4, md: 6 }}>
         <Box 
           bg="white" 
           p={6} 
@@ -444,20 +426,22 @@ export default function DashboardPage() {
                 <Tr>
                   <Th>Time</Th>
                   <Th>Lead</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }}>Priority</Th>
-                  <Th display={{ base: 'none', sm: 'table-cell' }}>Notes</Th>
+                  <Th display={{ base: 'none', sm: 'table-cell' }}>Status</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }}>Notes</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {upcomingFollowUps.map((followUp: any) => {
                   const scheduledDate = followUp.scheduledAt ? new Date(followUp.scheduledAt) : null;
                   const isValidDate = scheduledDate && !isNaN(scheduledDate.getTime());
+                  const now = new Date();
+                  const isOverdue = isValidDate && scheduledDate < now;
                   
                   return (
-                    <Tr key={followUp.id}>
+                    <Tr key={followUp.id} bg={isOverdue ? 'red.50' : 'white'}>
                       <Td>
                         {isValidDate 
-                          ? format(scheduledDate, 'MMM dd, HH:mm')
+                          ? format(scheduledDate, 'dd/MM/yy hh:mm a')
                           : 'Invalid date'
                         }
                       </Td>
@@ -468,15 +452,18 @@ export default function DashboardPage() {
                           </Text>
                         </Link>
                       </Td>
-                      <Td display={{ base: 'none', md: 'table-cell' }}>
-                        <Badge colorScheme={
-                          followUp.priority === 'high' ? 'red' : 
-                          followUp.priority === 'medium' ? 'orange' : 'blue'
-                        }>
-                          {followUp.priority}
-                        </Badge>
-                      </Td>
                       <Td display={{ base: 'none', sm: 'table-cell' }}>
+                        {isOverdue ? (
+                          <Badge colorScheme="red" fontSize="xs">
+                            🔴 Overdue
+                          </Badge>
+                        ) : (
+                          <Badge colorScheme="green" fontSize="xs">
+                            ⏰ Upcoming
+                          </Badge>
+                        )}
+                      </Td>
+                      <Td display={{ base: 'none', md: 'table-cell' }}>
                         <Text noOfLines={1} fontSize="sm">{followUp.notes || followUp.customerRequirement || '-'}</Text>
                       </Td>
                     </Tr>
