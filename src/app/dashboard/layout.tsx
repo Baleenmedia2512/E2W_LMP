@@ -27,8 +27,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Enable auto-sync for Meta leads every 2 minutes when user is logged in
-  useMetaAutoSync(isAuthenticated);
+  // Auto-sync disabled - now handled by DirectAdmin cron job (every 5 minutes)
+  // This prevents duplicate API calls and reduces client-side load
+  // useMetaAutoSync(isAuthenticated);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
