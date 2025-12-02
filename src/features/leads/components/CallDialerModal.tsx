@@ -263,18 +263,20 @@ export default function CallDialerModal({
       setNextAction(action);
       setCallPhase('ended');
     } else if (action === 'unqualified') {
-      // Open unqualified modal without closing this modal
+      // Open unqualified modal and close call dialer
       if (onOpenUnqualified) {
-        onOpenUnqualified();
+        handleClose(); // Close the call dialer modal first
+        onOpenUnqualified(); // Then open the unqualified modal
       } else {
         // Fallback: show form in same modal if no callback provided
         setNextAction(action);
         setCallPhase('ended');
       }
     } else if (action === 'unreachable') {
-      // Open unreachable modal without closing this modal
+      // Open unreachable modal and close call dialer
       if (onOpenUnreachable) {
-        onOpenUnreachable();
+        handleClose(); // Close the call dialer modal first
+        onOpenUnreachable(); // Then open the unreachable modal
       } else {
         // Fallback: show form in same modal if no callback provided
         setNextAction(action);
@@ -423,6 +425,7 @@ export default function CallDialerModal({
 
     try {
       // Create follow-up via API
+      // Note: The API will automatically mark all previous pending follow-ups as completed
       const response = await fetch('/api/followups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
