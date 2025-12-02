@@ -231,6 +231,61 @@ export async function POST(request: NextRequest) {
             console.log(`📨 Received Meta lead: ${metaLeadId}`);
 
             try {
+              // Fetch FULL lead data immediately from Meta Graph API
+              const accessToken = process.env.META_ACCESS_TOKEN;
+              if (!accessToken) {
+                console.error('❌ META_ACCESS_TOKEN not configured');
+                continue;
+              }
+
+              const leadResponse = await fetch(
+                `https://graph.facebook.com/v21.0/${metaLeadId}?fields=id,created_time,field_data&access_token=${accessToken}`,
+                { method: 'GET' }
+              );
+
+              if (!leadResponse.ok) {
+                console.error(`❌ Failed to fetch lead data for ${metaLeadId}`);
+                continue;
+              }
+
+              const leadData = await leadResponse.json();
+              const fieldData = leadData.field_data || [];
+
+              // Parse lead fields
+              let name = '';
+              let phone = '';
+              let email: string | null = null;
+              const customFields: Record<string, any> = {};
+
+              for (const field of fieldData) {
+                const fieldName = field.name.toLowerCase();
+                const fieldValue = field.values[0];
+
+                if (fieldName.includes('name') || fieldName === 'full_name') {
+                  name = fieldValue;
+                } else if (fieldName.includes('phone') || fieldName === 'phone_number') {
+                  phone = fieldValue;
+                } else if (fieldName.includes('email')) {
+                  email = fieldValue;
+                } else {
+                  customFields[field.name] = fieldValue;
+                }
+              }
+
+              // Validate required fields
+              if (!phone) {
+                console.error(`❌ No phone number for lead ${metaLeadId}`);
+                continue;
+              }
+
+              // Check for duplicates (silently skip)
+              const duplicate = await checkDuplicateLead(phone, email, metaLeadId);
+              
+              if (duplicate) {
+                // Skip silently - duplicates are normal and expected
+                continue;
+              }
+
               // Fetch campaign name if campaign ID exists
               let campaignName = null;
               if (campaignId) {
@@ -246,39 +301,33 @@ export async function POST(request: NextRequest) {
                 adId,
                 adgroupId,
                 campaignId,
+                ...customFields,
                 submittedAt: new Date(parseInt(createdTime) * 1000).toISOString(),
                 webhookReceived: new Date().toISOString(),
-                needsDataFetch: true,
+                dataFetchedAt: new Date().toISOString(),
               };
 
-              // Check for duplicates (silently skip)
-              const duplicate = await checkDuplicateLead('', null, metaLeadId);
-              
-              if (duplicate) {
-                // Skip silently - duplicates are normal and expected
-                continue;
-              }
-
-              // Get agent assignment (optional)
+              // Get agent assignment
               const assignedTo = await getNextAgentForRoundRobin();
-              console.log(`Agent assignment: ${assignedTo || 'None (will assign later)'}`);
+              console.log(`👤 Agent assignment: ${assignedTo || 'None'}`);
 
-              // Create placeholder lead
+              // Create COMPLETE lead with full data
               const lead = await prisma.lead.create({
                 data: {
-                  name: `Meta Lead ${metaLeadId.substring(0, 8)}`,
-                  phone: 'PENDING',
-                  email: null,
+                  name: name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
+                  phone: phone,
+                  email: email,
                   source: 'Meta',
                   campaign: campaignName || campaignId || null,
                   status: 'new',
-                  notes: 'Lead received from Meta webhook. Full data pending fetch.',
+                  customerRequirement: customFields.message || null,
+                  notes: 'Lead received via Meta webhook (real-time)',
                   metadata: metadata as any,
                   assignedToId: assignedTo,
                 },
               });
 
-              console.log(`✅ Lead created: ${lead.id}`);
+              console.log(`✅ Lead created: ${lead.name} (${lead.phone}) - ID: ${lead.id}`);
 
               // Log activity
               await prisma.activityHistory.create({
@@ -286,7 +335,7 @@ export async function POST(request: NextRequest) {
                   leadId: lead.id,
                   userId: 'system',
                   action: 'created',
-                  description: `Meta lead received via webhook. Lead ID: ${metaLeadId}`,
+                  description: `Meta lead received via webhook (real-time). Lead ID: ${metaLeadId}`,
                 },
               });
 
