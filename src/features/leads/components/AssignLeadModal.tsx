@@ -67,11 +67,15 @@ export default function AssignLeadModal({
     try {
       const response = await fetch('/api/users');
       if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched users:', data.users); // Debug log
+        const result = await response.json();
+        console.log('Fetched users response:', result); // Debug log
+        
+        // API returns {success: true, data: users} format
+        const usersList = result.data || result.users || [];
+        console.log('Users list:', usersList); // Debug log
         
         // Filter to show only active agents
-        const activeAgents = (data.users || []).filter((user: User) => {
+        const activeAgents = usersList.filter((user: User) => {
           const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
           console.log('User:', user.name, 'Role:', roleName); // Debug log
           

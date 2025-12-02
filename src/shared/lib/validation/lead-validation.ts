@@ -102,7 +102,6 @@ export const validateLeadData = (data: {
   alternatePhone?: string;
   source: string;
   status: string;
-  priority?: string;
   pincode?: string;
 }): { isValid: boolean; errors: Record<string, string> } => {
   const errors: Record<string, string> = {};
@@ -139,13 +138,6 @@ export const validateLeadData = (data: {
   const statusValidation = validateLeadStatus(data.status);
   if (!statusValidation.isValid) {
     errors.status = statusValidation.error!;
-  }
-  
-  if (data.priority) {
-    const priorityValidation = validateLeadPriority(data.priority);
-    if (!priorityValidation.isValid) {
-      errors.priority = priorityValidation.error!;
-    }
   }
   
   if (data.pincode) {

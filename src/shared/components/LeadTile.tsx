@@ -41,15 +41,6 @@ const getStatusColor = (status: string) => {
   return colors[status] || 'gray';
 };
 
-const getPriorityColor = (priority: string) => {
-  const colors: Record<string, string> = {
-    high: 'red',
-    medium: 'yellow',
-    low: 'green',
-  };
-  return colors[priority] || 'gray';
-};
-
 export default function LeadTile({
   lead,
   userRole,
@@ -81,9 +72,6 @@ export default function LeadTile({
             <HStack spacing={2} mt={1} flexWrap="wrap">
               <Badge colorScheme={getStatusColor(lead.status)} fontSize="xs">
                 {lead.status.toUpperCase()}
-              </Badge>
-              <Badge colorScheme={getPriorityColor(lead.priority)} fontSize="xs" variant="subtle">
-                {lead.priority.toUpperCase()}
               </Badge>
               {lead.callAttempts > 0 && (
                 <Tooltip label={`${lead.callAttempts} call attempt${lead.callAttempts !== 1 ? 's' : ''}`}>

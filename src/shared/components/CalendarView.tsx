@@ -27,7 +27,6 @@ interface FollowUp {
   status: 'pending' | 'cancelled';
   customerRequirement: string | null;
   notes: string | null;
-  priority: 'low' | 'medium' | 'high';
   createdAt: string;
 }
 

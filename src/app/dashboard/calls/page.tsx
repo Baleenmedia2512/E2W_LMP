@@ -601,7 +601,7 @@ export default function CallsPage() {
         <ModalContent>
           <ModalHeader>
             All Call History
-            {selectedLeadHistory.length > 0 && ` - ${selectedLeadHistory[0].lead.name}`}
+            {selectedLeadHistory[0]?.lead?.name && ` - ${selectedLeadHistory[0].lead.name}`}
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
