@@ -968,7 +968,7 @@ export default function CallDialerModal({
                         setFollowUpTimeframe('1hour');
                         const now = new Date();
                         const scheduledDateTime = new Date(now.getTime() + 60 * 60 * 1000);
-                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]!);
                         setFollowUpTime(scheduledDateTime.toTimeString().slice(0, 5));
                       }}
                       flex="1"
@@ -984,7 +984,7 @@ export default function CallDialerModal({
                         const now = new Date();
                         const scheduledDateTime = new Date(now);
                         scheduledDateTime.setDate(scheduledDateTime.getDate() + 1);
-                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]!);
                         setFollowUpTime(now.toTimeString().slice(0, 5));
                       }}
                       flex="1"
@@ -1002,7 +1002,7 @@ export default function CallDialerModal({
                         const now = new Date();
                         const scheduledDateTime = new Date(now);
                         scheduledDateTime.setDate(scheduledDateTime.getDate() + 7);
-                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]!);
                         setFollowUpTime(now.toTimeString().slice(0, 5));
                       }}
                       flex="1"
@@ -1018,7 +1018,7 @@ export default function CallDialerModal({
                         const now = new Date();
                         const scheduledDateTime = new Date(now);
                         scheduledDateTime.setMonth(scheduledDateTime.getMonth() + 1);
-                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]);
+                        setFollowUpDate(scheduledDateTime.toISOString().split('T')[0]!);
                         setFollowUpTime(now.toTimeString().slice(0, 5));
                       }}
                       flex="1"

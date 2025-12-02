@@ -519,7 +519,7 @@ export default function DSRPage() {
             isActive={activeCard === 'completedCalls'}
           />
 
-          // Overdue Follow-ups Card */}
+          {/* Overdue Follow-ups Card */}
           <DSRCard
             label="Overdue Follow-ups"
             value={stats.overdueFollowUps || 0}

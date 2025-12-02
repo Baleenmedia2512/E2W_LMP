@@ -35,7 +35,6 @@ export interface Lead {
   campaign: string | null;
   customerRequirement: string | null;
   status: 'new' | 'followup' | 'unreach' | 'unqualified' | 'contacted' | 'qualified' | 'won' | 'lost';
-  priority: 'low' | 'medium' | 'high';
   callAttempts: number;
   assignedToId: string | null;
   createdById: string | null;
@@ -60,7 +59,6 @@ export interface LeadUpdatePayload {
   campaign?: string | null;
   customerRequirement?: string | null;
   status?: 'new' | 'followup' | 'unreach' | 'unqualified' | 'contacted' | 'qualified' | 'won' | 'lost';
-  priority?: 'low' | 'medium' | 'high';
   notes?: string | null;
   assignedToId?: string | null;
   updatedById?: string;
@@ -88,7 +86,7 @@ export interface FollowUp {
   id: string;
   leadId: string;
   scheduledAt: Date;
-  completedAt: Date | null;
+  customerRequirement?: string | null;
   notes?: string | null;
   status: 'pending' | 'cancelled';
   createdById: string;
