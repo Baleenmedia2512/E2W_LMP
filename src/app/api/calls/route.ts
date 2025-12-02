@@ -61,14 +61,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate customerRequirement is required
-    if (!body.customerRequirement || body.customerRequirement.trim() === '') {
-      return NextResponse.json(
-        { success: false, error: 'customerRequirement is required' },
-        { status: 400 }
-      );
-    }
-
     const callLog = await prisma.callLog.create({
       data: {
         leadId: body.leadId,
@@ -77,7 +69,7 @@ export async function POST(request: NextRequest) {
         endedAt: body.endedAt ? new Date(body.endedAt) : null,
         duration: body.duration || null,
         remarks: body.remarks || null,
-        callStatus: body.callStatus || 'completed',
+        callStatus: body.callStatus || 'answer',
         attemptNumber: body.attemptNumber || 1,
         customerRequirement: body.customerRequirement || null,
       },
@@ -121,7 +113,7 @@ export async function POST(request: NextRequest) {
         leadId: body.leadId,
         userId: body.callerId,
         action: 'call_logged',
-        description: `Call logged - Status: ${body.callStatus || 'completed'}`,
+        description: `Call logged - Status: ${body.callStatus || 'answer'}`,
       },
     });
 

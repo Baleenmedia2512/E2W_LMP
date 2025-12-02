@@ -68,11 +68,24 @@ export default function AssignLeadModal({
       const response = await fetch('/api/users');
       if (response.ok) {
         const data = await response.json();
-        // Filter to show only active agents (sales_agent, team_lead, super_agent)
+        console.log('Fetched users:', data.users); // Debug log
+        
+        // Filter to show only active agents
         const activeAgents = (data.users || []).filter((user: User) => {
-          const role = typeof user.role === 'string' ? user.role : user.role?.name;
-          return role && ['sales_agent', 'team_lead', 'super_agent'].includes(role);
+          const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
+          console.log('User:', user.name, 'Role:', roleName); // Debug log
+          
+          // Include all agent-type roles (adjust based on your actual role names)
+          return roleName && (
+            roleName.toLowerCase().includes('agent') || 
+            roleName.toLowerCase().includes('lead') ||
+            roleName === 'sales_agent' || 
+            roleName === 'team_lead' || 
+            roleName === 'super_agent'
+          );
         });
+        
+        console.log('Filtered agents:', activeAgents); // Debug log
         setUsers(activeAgents);
       } else {
         console.warn('Failed to fetch users, using empty list');

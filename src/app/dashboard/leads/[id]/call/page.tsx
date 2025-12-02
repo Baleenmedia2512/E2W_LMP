@@ -74,7 +74,7 @@ export default function LogCallPage() {
     date: now.toISOString().split('T')[0],
     time: now.toTimeString().slice(0, 5),
     duration: '',
-    status: 'completed' as 'completed' | 'busy' | 'ring_not_response',
+    status: 'answer' as 'answer' | 'busy' | 'wrong_number' | 'ring_not_response',
     customerRequirement: '',
     nextAction: 'no-action' as 'no-action' | 'followup' | 'unreach' | 'unqualified',
   });
@@ -83,7 +83,6 @@ export default function LogCallPage() {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('09:00');
   const [followUpNotes, setFollowUpNotes] = useState('');
-  const [followUpPriority, setFollowUpPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
   if (loadingLead) {
     return (
@@ -205,7 +204,6 @@ export default function LogCallPage() {
             scheduledAt: followUpDateTime.toISOString(),
             status: 'pending',
             notes: followUpNotes || 'Follow-up scheduled from call log',
-            priority: followUpPriority,
             createdById: user.id,
           }),
         });
@@ -388,18 +386,6 @@ export default function LogCallPage() {
                       value={followUpTime}
                       onChange={(e) => setFollowUpTime(e.target.value)}
                     />
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel>Priority</FormLabel>
-                    <Select
-                      value={followUpPriority}
-                      onChange={(e) => setFollowUpPriority(e.target.value as 'low' | 'medium' | 'high')}
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </Select>
                   </FormControl>
 
                   <FormControl>

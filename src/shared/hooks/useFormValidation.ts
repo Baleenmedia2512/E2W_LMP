@@ -69,8 +69,8 @@ export function useFormValidation(): UseFormValidationReturn {
       // Phone validation
       if (rules.phone) {
         const phoneDigits = value.replace(/\D/g, '');
-        if (phoneDigits.length !== 10) {
-          return 'Please enter a valid 10-digit phone number';
+        if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+          return 'Phone number must be 10 digits or include valid country code';
         }
       }
 

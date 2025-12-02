@@ -86,11 +86,6 @@ export default function QuickActionsMenu({
     }
   };
 
-  const handleScheduleFollowup = (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    router.push(`/dashboard/leads/${lead.id}/followup`);
-  };
-
   const handleAssign = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (canAssignLeads && onAssign) {
@@ -160,17 +155,6 @@ export default function QuickActionsMenu({
               </MenuItem>
             </Tooltip>
           )}
-          
-          <Tooltip label="Schedule a follow-up" placement="left" hasArrow>
-            <MenuItem 
-              icon={<HiClock />} 
-              onClick={handleScheduleFollowup}
-              fontSize="sm"
-              _hover={{ bg: 'orange.50' }}
-            >
-              Schedule Follow-up
-            </MenuItem>
-          </Tooltip>
           
           {/* Assignment Action */}
           {canAssignLeads && onAssign && (

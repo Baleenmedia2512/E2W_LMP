@@ -194,12 +194,12 @@ export default function EditLeadPage() {
       return;
     }
 
-    // Validate phone number is exactly 10 digits
+    // Validate phone number (10 digits local or 10-15 digits international)
     const phoneDigits = formData.phone.replace(/\D/g, '');
-    if (phoneDigits.length !== 10) {
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       toast({
         title: 'Invalid phone number',
-        description: 'Phone number must be exactly 10 digits',
+        description: 'Phone number must be 10 digits or include valid country code',
         status: 'error',
         duration: 3000,
       });
@@ -223,10 +223,10 @@ export default function EditLeadPage() {
     // Validate alternate phone if provided
     if (formData.alternatePhone && formData.alternatePhone.trim()) {
       const altPhoneDigits = formData.alternatePhone.replace(/\D/g, '');
-      if (altPhoneDigits.length !== 10) {
+      if (altPhoneDigits.length < 10 || altPhoneDigits.length > 15) {
         toast({
           title: 'Invalid alternate phone',
-          description: 'Alternate phone must be exactly 10 digits',
+          description: 'Alternate phone must be 10 digits or include valid country code',
           status: 'error',
           duration: 3000,
         });
@@ -327,13 +327,13 @@ export default function EditLeadPage() {
                   <Box>
                     <Text fontSize="xs" fontWeight="bold" color="gray.600">Created At</Text>
                     <Text fontSize="sm" color="gray.800">
-                      {lead.createdAt ? new Date(lead.createdAt).toLocaleString() : 'N/A'}
+                      {lead.createdAt ? new Date(lead.createdAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                     </Text>
                   </Box>
                   <Box>
                     <Text fontSize="xs" fontWeight="bold" color="gray.600">Last Updated</Text>
                     <Text fontSize="sm" color="gray.800">
-                      {lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'N/A'}
+                      {lead.updatedAt ? new Date(lead.updatedAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                     </Text>
                   </Box>
                 </SimpleGrid>

@@ -186,7 +186,6 @@ export async function GET(request: NextRequest) {
               email: parsed.email,
               source: 'Meta',
               status: 'new',
-              priority: 'medium',
               customerRequirement: parsed.customFields.message || null,
               notes: `Lead from Meta form: ${form.name}`,
               metadata: {

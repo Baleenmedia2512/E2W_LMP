@@ -24,7 +24,7 @@ interface FollowUp {
     status?: string;
   };
   scheduledAt: string;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'cancelled';
   customerRequirement: string | null;
   notes: string | null;
   priority: 'low' | 'medium' | 'high';
@@ -190,9 +190,10 @@ export default function CalendarView({ followUps, onSelectFollowUp }: CalendarVi
                               <Text fontWeight="bold">{followUp.lead.name}</Text>
                               <Text fontSize="xs">{followUp.customerRequirement}</Text>
                               <Text fontSize="xs">
-                                {new Date(followUp.scheduledAt).toLocaleTimeString('en-US', {
+                                {new Date(followUp.scheduledAt).toLocaleTimeString('en-GB', {
                                   hour: '2-digit',
                                   minute: '2-digit',
+                                  hour12: true,
                                 })}
                               </Text>
                             </Box>
@@ -204,10 +205,8 @@ export default function CalendarView({ followUps, onSelectFollowUp }: CalendarVi
                             bg={
                               isOverdue
                                 ? 'red.100'
-                                : followUp.status === 'completed'
-                                ? 'green.100'
-                                : followUp.priority === 'high'
-                                ? 'orange.100'
+                                : followUp.status === 'cancelled'
+                                ? 'gray.100'
                                 : 'blue.100'
                             }
                             borderRadius="sm"
@@ -216,9 +215,10 @@ export default function CalendarView({ followUps, onSelectFollowUp }: CalendarVi
                             _hover={{ opacity: 0.8 }}
                           >
                             <Text fontSize="xs" noOfLines={1} fontWeight="medium">
-                              {new Date(followUp.scheduledAt).toLocaleTimeString('en-US', {
+                              {new Date(followUp.scheduledAt).toLocaleTimeString('en-GB', {
                                 hour: '2-digit',
                                 minute: '2-digit',
+                                hour12: true,
                               })}{' '}
                               {followUp.lead.name}
                             </Text>

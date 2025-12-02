@@ -519,12 +519,11 @@ export default function DSRPage() {
             isActive={activeCard === 'completedCalls'}
           />
 
-          {/* Overdue Follow-ups Card */}
+          // Overdue Follow-ups Card */}
           <DSRCard
             label="Overdue Follow-ups"
             value={stats.overdueFollowUps || 0}
-            total={stats.highPriorityOverdue || 0}
-            helpText={(stats.highPriorityOverdue || 0) > 0 ? `${stats.highPriorityOverdue} high priority` : 'Needs attention'}
+            helpText="Needs attention"
             icon={HiClock}
             colorScheme="dark"
             type="overdue"
