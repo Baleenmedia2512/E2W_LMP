@@ -15,6 +15,27 @@ export const runtime = 'nodejs';
  * URL: /api/cron/sync-meta-leads
  */
 
+// Fetch campaign name from Meta Graph API
+async function fetchCampaignName(campaignId: string): Promise<string | null> {
+  try {
+    const accessToken = process.env.META_ACCESS_TOKEN;
+    if (!accessToken || !campaignId) return null;
+
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${campaignId}?fields=name&access_token=${accessToken}`,
+      { method: 'GET' }
+    );
+
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    return data.name || null;
+  } catch (error) {
+    console.error(`Error fetching campaign name for ${campaignId}:`, error);
+    return null;
+  }
+}
+
 // Round-robin assignment helper
 async function getNextAgentForRoundRobin(): Promise<string | null> {
   try {
@@ -172,11 +193,19 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
+      // Fetch campaign name if available
+      let campaignName = lead.campaign;
+      if (metadata?.campaignId && (!campaignName || campaignName === metadata.campaignId)) {
+        const fetchedName = await fetchCampaignName(metadata.campaignId);
+        if (fetchedName) campaignName = fetchedName;
+      }
+
       // Update the lead
       await updateLeadWithMetaData(lead.id, {
         name: parsed.name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
         phone: parsed.phone,
         email: parsed.email,
+        campaign: campaignName,
         customerRequirement: parsed.customFields.message || null,
         metadata: {
           ...metadata,
@@ -221,6 +250,7 @@ export async function GET(request: NextRequest) {
 
     const formsData = await leadsResponse.json();
     let newLeadsCount = 0;
+    let duplicatesSkipped = 0;
 
     if (formsData.data && formsData.data.length > 0) {
       for (const form of formsData.data) {
@@ -237,12 +267,24 @@ export async function GET(request: NextRequest) {
 
           if (!parsed.phone) continue;
 
-          // Check for duplicates
+          // Check for duplicates (silently skip without logging)
           const duplicate = await findDuplicateLead(parsed.phone, parsed.email, metaLeadId);
 
           if (duplicate) {
-            console.log(`⚠️ Duplicate lead skipped: ${metaLeadId}`);
+            // Skip silently - duplicates are expected and normal
+            duplicatesSkipped++;
             continue;
+          }
+
+          // Fetch campaign name if campaign ID exists in metadata
+          let campaignName = null;
+          const leadMetadata = metaLead.ad_id ? 
+            await fetch(`https://graph.facebook.com/v21.0/${metaLead.ad_id}?fields=campaign_id&access_token=${accessToken}`)
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null) : null;
+          
+          if (leadMetadata?.campaign_id) {
+            campaignName = await fetchCampaignName(leadMetadata.campaign_id);
           }
 
           // Create new lead
@@ -252,12 +294,14 @@ export async function GET(request: NextRequest) {
               phone: parsed.phone,
               email: parsed.email,
               source: 'Meta',
+              campaign: campaignName,
               status: 'new',
               customerRequirement: parsed.customFields.message || null,
               notes: 'Lead fetched via Meta Graph API polling',
               metadata: {
                 metaLeadId,
                 formId: form.id,
+                campaignId: leadMetadata?.campaign_id || null,
                 ...parsed.customFields,
                 submittedAt: metaLead.created_time,
                 pollingFetched: new Date().toISOString(),
@@ -282,12 +326,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`✅ Sync complete: ${updatedCount} updated, ${newLeadsCount} new leads`);
+    // Only log if there were actual changes
+    if (updatedCount > 0 || newLeadsCount > 0) {
+      console.log(`✅ Sync: ${newLeadsCount} new, ${updatedCount} updated, ${duplicatesSkipped} duplicates auto-ignored`);
+    }
 
     return NextResponse.json({
       success: true,
       updatedPlaceholders: updatedCount,
       newLeads: newLeadsCount,
+      duplicatesSkipped: duplicatesSkipped,
       message: 'Sync completed successfully',
     });
   } catch (error) {
