@@ -17,6 +17,7 @@ import {
   Spinner
 } from '@chakra-ui/react';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { useMetaAutoSync } from '@/shared/hooks/useMetaAutoSync';
 import Sidebar from '@/shared/components/layout/Sidebar';
 import Header from '@/shared/components/layout/Header';
 
@@ -25,6 +26,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Enable auto-sync for Meta leads every 2 minutes when user is logged in
+  useMetaAutoSync(isAuthenticated);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

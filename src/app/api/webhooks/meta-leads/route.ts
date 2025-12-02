@@ -94,6 +94,27 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
   return null;
 }
 
+// Fetch campaign name from Meta Graph API
+async function fetchCampaignName(campaignId: string): Promise<string | null> {
+  try {
+    const accessToken = process.env.META_ACCESS_TOKEN;
+    if (!accessToken || !campaignId) return null;
+
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${campaignId}?fields=name&access_token=${accessToken}`,
+      { method: 'GET' }
+    );
+
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    return data.name || null;
+  } catch (error) {
+    console.error(`Error fetching campaign name for ${campaignId}:`, error);
+    return null;
+  }
+}
+
 // Round-robin assignment helper
 async function getNextAgentForRoundRobin(): Promise<string | null> {
   try {
@@ -210,6 +231,13 @@ export async function POST(request: NextRequest) {
             console.log(`📨 Received Meta lead: ${metaLeadId}`);
 
             try {
+              // Fetch campaign name if campaign ID exists
+              let campaignName = null;
+              if (campaignId) {
+                campaignName = await fetchCampaignName(campaignId);
+                console.log(`📊 Campaign: ${campaignName || campaignId}`);
+              }
+
               // Create metadata object
               const metadata = {
                 metaLeadId,
@@ -223,11 +251,11 @@ export async function POST(request: NextRequest) {
                 needsDataFetch: true,
               };
 
-              // Check for duplicates
+              // Check for duplicates (silently skip)
               const duplicate = await checkDuplicateLead('', null, metaLeadId);
               
               if (duplicate) {
-                console.log(`⚠️ Duplicate lead skipped: ${metaLeadId}`);
+                // Skip silently - duplicates are normal and expected
                 continue;
               }
 
@@ -242,9 +270,9 @@ export async function POST(request: NextRequest) {
                   phone: 'PENDING',
                   email: null,
                   source: 'Meta',
-                  campaign: campaignId || null,
+                  campaign: campaignName || campaignId || null,
                   status: 'new',
-                  notes: 'Lead received from Meta webhook. Full data pending fetch.',,
+                  notes: 'Lead received from Meta webhook. Full data pending fetch.',
                   metadata: metadata as any,
                   assignedToId: assignedTo,
                 },

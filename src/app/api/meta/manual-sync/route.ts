@@ -9,6 +9,26 @@ export const dynamic = 'force-dynamic';
  * GET /api/meta/manual-sync
  */
 
+// Fetch campaign name from Meta Graph API
+async function fetchCampaignName(campaignId: string, accessToken: string): Promise<string | null> {
+  try {
+    if (!campaignId || !accessToken) return null;
+
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${campaignId}?fields=name&access_token=${accessToken}`,
+      { method: 'GET' }
+    );
+
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    return data.name || null;
+  } catch (error) {
+    console.error(`Error fetching campaign name for ${campaignId}:`, error);
+    return null;
+  }
+}
+
 // Round-robin assignment
 async function getNextAgent(): Promise<string | null> {
   const agents = await prisma.user.findMany({
@@ -155,7 +175,7 @@ export async function GET(request: NextRequest) {
       // Process each lead
       for (const metaLead of leads) {
         try {
-          const { id: metaLeadId, field_data, created_time } = metaLead;
+          const { id: metaLeadId, field_data, created_time, ad_id } = metaLead;
 
           if (!field_data || field_data.length === 0) {
             console.log(`   ⚠️ No field data for lead ${metaLeadId}`);
@@ -178,6 +198,26 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
+          // Fetch campaign name if ad ID exists
+          let campaignName = null;
+          let campaignId = null;
+          if (ad_id) {
+            try {
+              const adResponse = await fetch(
+                `https://graph.facebook.com/v21.0/${ad_id}?fields=campaign_id&access_token=${accessToken}`
+              );
+              if (adResponse.ok) {
+                const adData = await adResponse.json();
+                campaignId = adData.campaign_id;
+                if (campaignId) {
+                  campaignName = await fetchCampaignName(campaignId, accessToken);
+                }
+              }
+            } catch (err) {
+              console.log(`   ⚠️ Could not fetch campaign for ad ${ad_id}`);
+            }
+          }
+
           // Create new lead
           const lead = await prisma.lead.create({
             data: {
@@ -185,6 +225,7 @@ export async function GET(request: NextRequest) {
               phone: parsed.phone,
               email: parsed.email,
               source: 'Meta',
+              campaign: campaignName,
               status: 'new',
               customerRequirement: parsed.customFields.message || null,
               notes: `Lead from Meta form: ${form.name}`,
@@ -192,6 +233,8 @@ export async function GET(request: NextRequest) {
                 metaLeadId,
                 formId: form.id,
                 formName: form.name,
+                adId: ad_id,
+                campaignId,
                 ...parsed.customFields,
                 submittedAt: created_time,
                 syncedAt: new Date().toISOString(),
@@ -201,7 +244,7 @@ export async function GET(request: NextRequest) {
           });
 
           newLeads++;
-          console.log(`   ✅ Created: ${lead.name} (${lead.phone})`);
+          console.log(`   ✅ Created: ${lead.name} (${lead.phone})${campaignName ? ` - Campaign: ${campaignName}` : ''}`);
         } catch (error) {
           console.error(`   ❌ Error processing lead:`, error);
           errors++;

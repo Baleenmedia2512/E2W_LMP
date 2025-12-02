@@ -61,6 +61,7 @@ export async function updateLeadWithMetaData(
     name?: string;
     phone?: string;
     email?: string | null;
+    campaign?: string | null;
     customerRequirement?: string | null;
     metadata?: Record<string, any>;
   }
