@@ -264,7 +264,12 @@ export default function DashboardPage() {
   };
 
   const handleCardClick = (filter: string) => {
-    router.push(`/dashboard/leads?filter=${filter}`);
+    // For 'won' status, redirect to outcomes page with today filter
+    if (filter === 'won') {
+      router.push('/dashboard/leads/outcomes?status=won&date=today');
+    } else {
+      router.push(`/dashboard/leads?filter=${filter}`);
+    }
   };
 
   // Extract data from SWR response

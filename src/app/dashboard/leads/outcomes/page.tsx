@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
   Heading,
@@ -65,16 +65,25 @@ interface OutcomeSection {
 
 export default function LeadOutcomesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { user } = useAuth();
+  
+  // Get initial filters from URL params
+  const initialDateFilter = searchParams.get('date') as 'all' | 'today' | 'week' | 'month' || 'all';
+  const initialStatusFilter = searchParams.get('status') || null;
   
   // State for filters (applies to all sections)
   const [searchQuery, setSearchQuery] = useState('');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month'>(initialDateFilter);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
+  
+  // Ref for scrolling to Won section
+  const wonSectionRef = useRef<HTMLDivElement>(null);
   
   // State for data
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -115,19 +124,28 @@ export default function LeadOutcomesPage() {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
+        // Format date as YYYY-MM-DD in local timezone
+        const formatLocalDate = (date: Date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        
         if (dateRangeFilter === 'today') {
-          params.append('startDate', today.toISOString().split('T')[0]);
-          params.append('endDate', today.toISOString().split('T')[0]);
+          const todayStr = formatLocalDate(today);
+          params.append('startDate', todayStr);
+          params.append('endDate', todayStr);
         } else if (dateRangeFilter === 'week') {
           const weekAgo = new Date(today);
           weekAgo.setDate(weekAgo.getDate() - 7);
-          params.append('startDate', weekAgo.toISOString().split('T')[0]);
-          params.append('endDate', today.toISOString().split('T')[0]);
+          params.append('startDate', formatLocalDate(weekAgo));
+          params.append('endDate', formatLocalDate(today));
         } else if (dateRangeFilter === 'month') {
           const monthAgo = new Date(today);
           monthAgo.setDate(monthAgo.getDate() - 30);
-          params.append('startDate', monthAgo.toISOString().split('T')[0]);
-          params.append('endDate', today.toISOString().split('T')[0]);
+          params.append('startDate', formatLocalDate(monthAgo));
+          params.append('endDate', formatLocalDate(today));
         }
       }
       
@@ -167,6 +185,15 @@ export default function LeadOutcomesPage() {
   useEffect(() => {
     fetchData();
   }, [searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]);
+
+  // Auto-scroll to highlighted section on mount
+  useEffect(() => {
+    if (highlightStatus === 'won' && wonSectionRef.current) {
+      setTimeout(() => {
+        wonSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 500); // Wait for data to load
+    }
+  }, [highlightStatus, leads]);
 
   // Filter and sort leads by status
   const filterLeadsByStatus = (status: string) => {
@@ -515,7 +542,15 @@ export default function LeadOutcomesPage() {
       {/* Outcome Sections */}
       <VStack spacing={6} align="stretch">
         {sections.map((section) => (
-          <Box key={section.status}>
+          <Box 
+            key={section.status}
+            ref={section.status === 'won' ? wonSectionRef : null}
+            border={highlightStatus === section.status ? '2px solid' : 'none'}
+            borderColor={highlightStatus === section.status ? `${section.colorScheme}.400` : 'transparent'}
+            borderRadius="lg"
+            p={highlightStatus === section.status ? 2 : 0}
+            transition="all 0.3s"
+          >
             <Flex
               align="center"
               mb={4}
