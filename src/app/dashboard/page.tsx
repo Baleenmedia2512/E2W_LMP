@@ -132,27 +132,9 @@ export default function DashboardPage() {
     }
   );
 
-  // Check for overdue followups on mount and periodically
-  useEffect(() => {
-    const checkOverdueFollowups = async () => {
-      try {
-        const response = await fetch('/api/cron/check-overdue-followups');
-        if (response.ok) {
-          console.log('✅ Overdue followups checked');
-        }
-      } catch (error) {
-        console.error('Failed to check overdue followups:', error);
-      }
-    };
-
-    // Check immediately on mount
-    checkOverdueFollowups();
-
-    // Check every 5 minutes while user is active
-    const interval = setInterval(checkOverdueFollowups, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Note: Overdue follow-up checks are handled by server-side cron jobs
+  // configured in vercel.json or your hosting platform's cron scheduler.
+  // These should NOT be called from client-side code as they require authentication.
 
   // Manual Meta leads sync
   const [isSyncing, setIsSyncing] = useState(false);
