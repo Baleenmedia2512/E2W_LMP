@@ -66,13 +66,26 @@ export default function AssignLeadModal({
     setIsLoadingUsers(true);
     try {
       const response = await fetch('/api/users');
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Fetched users response:', result); // Debug log
-        
+      const result = await response.json();
+      
+      console.log('Fetched users response:', result); // Debug log
+      
+      if (response.ok && result.success) {
         // API returns {success: true, data: users} format
-        const usersList = result.data || result.users || [];
+        const usersList = result.data || [];
         console.log('Users list:', usersList); // Debug log
+        
+        if (usersList.length === 0) {
+          console.warn('No users returned from API');
+          setUsers([]);
+          toast({
+            title: 'Notice',
+            description: 'No users found in the system',
+            status: 'info',
+            duration: 3000,
+          });
+          return;
+        }
         
         // Filter to show only active agents
         const activeAgents = usersList.filter((user: User) => {
@@ -90,18 +103,38 @@ export default function AssignLeadModal({
         });
         
         console.log('Filtered agents:', activeAgents); // Debug log
-        setUsers(activeAgents);
+        
+        if (activeAgents.length === 0) {
+          console.warn('No agents found after filtering');
+          // Show all users if no agents found
+          setUsers(usersList);
+          toast({
+            title: 'Notice',
+            description: 'No agents found, showing all users',
+            status: 'info',
+            duration: 3000,
+          });
+        } else {
+          setUsers(activeAgents);
+        }
       } else {
-        console.warn('Failed to fetch users, using empty list');
+        console.error('Failed to fetch users:', result.error || 'Unknown error');
         setUsers([]);
+        toast({
+          title: 'Error',
+          description: result.error || 'Could not load users',
+          status: 'error',
+          duration: 3000,
+        });
       }
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]);
       toast({
-        title: 'Warning',
-        description: 'Could not load all users',
-        status: 'warning',
-        duration: 2000,
+        title: 'Error',
+        description: 'Network error while loading users',
+        status: 'error',
+        duration: 3000,
       });
     } finally {
       setIsLoadingUsers(false);
