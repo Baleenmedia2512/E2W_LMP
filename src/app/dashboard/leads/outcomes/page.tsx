@@ -90,14 +90,14 @@ export default function LeadOutcomesPage() {
   
   const { isOpen: isRescheduleOpen, onOpen: onRescheduleOpen, onClose: onRescheduleClose } = useDisclosure();
   
-  // Sorting state for each section
+  // Sorting state for each section (default: newest first)
   const [sortConfig, setSortConfig] = useState<{
     [key: string]: { field: string; direction: 'asc' | 'desc' };
   }>({
-    unqualified: { field: 'createdAt', direction: 'desc' },
-    unreach: { field: 'createdAt', direction: 'desc' },
-    won: { field: 'createdAt', direction: 'desc' },
-    lost: { field: 'createdAt', direction: 'desc' },
+    unqualified: { field: 'updatedAt', direction: 'desc' },
+    unreach: { field: 'updatedAt', direction: 'desc' },
+    won: { field: 'updatedAt', direction: 'desc' },
+    lost: { field: 'updatedAt', direction: 'desc' },
   });
 
   const fetchData = async () => {
@@ -109,8 +109,32 @@ export default function LeadOutcomesPage() {
       if (searchQuery) params.append('search', searchQuery);
       if (ownerFilter !== 'all') params.append('assignedToId', ownerFilter);
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
+      
+      // Handle date range filter
+      if (dateRangeFilter !== 'all') {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        if (dateRangeFilter === 'today') {
+          params.append('startDate', today.toISOString().split('T')[0]);
+          params.append('endDate', today.toISOString().split('T')[0]);
+        } else if (dateRangeFilter === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          params.append('startDate', weekAgo.toISOString().split('T')[0]);
+          params.append('endDate', today.toISOString().split('T')[0]);
+        } else if (dateRangeFilter === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          params.append('startDate', monthAgo.toISOString().split('T')[0]);
+          params.append('endDate', today.toISOString().split('T')[0]);
+        }
+      }
+      
+      // Custom date range (overrides dateRangeFilter if both are set)
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
+      
       params.append('limit', '500');
       
       const [leadsRes, usersRes] = await Promise.all([
@@ -142,67 +166,12 @@ export default function LeadOutcomesPage() {
 
   useEffect(() => {
     fetchData();
-  }, [searchQuery, ownerFilter, sourceFilter, startDate, endDate]);
+  }, [searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]);
 
   // Filter and sort leads by status
   const filterLeadsByStatus = (status: string) => {
+    // Only filter by status - other filters are already applied by the API
     let filtered = leads.filter(lead => lead.status === status);
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (lead) =>
-          lead.name.toLowerCase().includes(query) ||
-          lead.phone.toLowerCase().includes(query) ||
-          lead.email?.toLowerCase().includes(query)
-      );
-    }
-
-    // Owner filter
-    if (ownerFilter !== 'all') {
-      filtered = filtered.filter(lead => lead.assignedTo?.id === ownerFilter);
-    }
-
-    // Source filter
-    if (sourceFilter !== 'all') {
-      filtered = filtered.filter(lead => lead.source === sourceFilter);
-    }
-
-    // Date range filter
-    if (dateRangeFilter !== 'all') {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      filtered = filtered.filter((lead) => {
-        const leadDate = new Date(lead.createdAt);
-        const leadDay = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
-        
-        if (dateRangeFilter === 'today') {
-          return leadDay.getTime() === today.getTime();
-        } else if (dateRangeFilter === 'week') {
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return leadDay >= weekAgo;
-        } else if (dateRangeFilter === 'month') {
-          const monthAgo = new Date(today);
-          monthAgo.setDate(monthAgo.getDate() - 30);
-          return leadDay >= monthAgo;
-        }
-        return true;
-      });
-    }
-
-    // Custom date range
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filtered = filtered.filter((lead) => {
-        const leadDate = new Date(lead.createdAt);
-        return leadDate >= start && leadDate <= end;
-      });
-    }
 
     // Apply sorting
     const config = sortConfig[status];
@@ -387,7 +356,6 @@ export default function LeadOutcomesPage() {
           scheduledAt: scheduledAt.toISOString(),
           customerRequirement: followUpNotes || 'Rescheduled from unreachable status',
           notes: followUpNotes || 'Rescheduled from unreachable status',
-          status: 'pending',
           createdById: userId,
         }),
       });
@@ -587,10 +555,10 @@ export default function LeadOutcomesPage() {
                       <Th>Status</Th>
                       <Th 
                         cursor="pointer" 
-                        onClick={() => handleSort(section.status, 'createdAt')}
+                        onClick={() => handleSort(section.status, 'updatedAt')}
                         _hover={{ bg: 'gray.100' }}
                       >
-                        Created Date {sortConfig[section.status]?.field === 'createdAt' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
+                        Last Updated {sortConfig[section.status]?.field === 'updatedAt' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
                       <Th 
                         cursor="pointer" 
@@ -616,7 +584,7 @@ export default function LeadOutcomesPage() {
                             {section.title}
                           </Badge>
                         </Td>
-                        <Td>{formatDate(lead.createdAt)}</Td>
+                        <Td>{formatDate(lead.updatedAt)}</Td>
                         <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
                         <Td onClick={(e) => e.stopPropagation()}>
                           <HStack spacing={1}>

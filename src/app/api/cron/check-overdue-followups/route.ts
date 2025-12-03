@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
     // This prevents sending duplicate notifications on every run
     const overdueFollowUps = await prisma.followUp.findMany({
       where: {
-        status: 'pending',
         scheduledAt: {
           gte: oneHourAgo,
           lt: now,

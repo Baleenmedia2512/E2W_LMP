@@ -12,7 +12,6 @@ export async function PUT(
     const followUp = await prisma.followUp.update({
       where: { id: params.id },
       data: {
-        status: body.status || undefined,
         scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
         customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
         notes: body.notes !== undefined ? body.notes : undefined,

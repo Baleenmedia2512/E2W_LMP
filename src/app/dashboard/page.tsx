@@ -105,13 +105,13 @@ export default function DashboardPage() {
   const toast = useToast();
   
   const [startDate, setStartDate] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30); // Default to last 30 days
-    return date.toISOString().split('T')[0] || '';
+    // Default to Today
+    return new Date().toISOString().split('T')[0] || '';
   });
   const [endDate, setEndDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0] || '';
   });
+  const [dateRangeLabel, setDateRangeLabel] = useState<string>('Today');
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Build API URL with date filters
@@ -211,6 +211,47 @@ export default function DashboardPage() {
     });
   };
 
+  const setQuickDateRange = (range: 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last30days') => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    switch (range) {
+      case 'today':
+        setStartDate(todayStr);
+        setEndDate(todayStr);
+        setDateRangeLabel('Today');
+        break;
+      case 'yesterday':
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        setStartDate(yesterdayStr);
+        setEndDate(yesterdayStr);
+        setDateRangeLabel('Yesterday');
+        break;
+      case 'last7days':
+        const last7 = new Date(today);
+        last7.setDate(last7.getDate() - 6);
+        setStartDate(last7.toISOString().split('T')[0]);
+        setEndDate(todayStr);
+        setDateRangeLabel('Last 7 Days');
+        break;
+      case 'thisMonth':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        setStartDate(monthStart.toISOString().split('T')[0]);
+        setEndDate(todayStr);
+        setDateRangeLabel('This Month');
+        break;
+      case 'last30days':
+        const last30 = new Date(today);
+        last30.setDate(last30.getDate() - 29);
+        setStartDate(last30.toISOString().split('T')[0]);
+        setEndDate(todayStr);
+        setDateRangeLabel('Last 30 Days');
+        break;
+    }
+  };
+
   const handleCardClick = (filter: string) => {
     router.push(`/dashboard/leads?filter=${filter}`);
   };
@@ -219,16 +260,28 @@ export default function DashboardPage() {
   const stats = data?.data?.stats || {
     totalLeads: 0,
     newLeads: 0,
-    qualifiedLeads: 0,
     wonLeads: 0,
+    lostLeads: 0,
     followUpsDue: 0,
     overdue: 0,
+    conversations: 0,
     conversionRate: 0,
     winRate: 0,
   };
 
   const recentLeads = data?.data?.recentLeads || [];
   const upcomingFollowUps = data?.data?.upcomingFollowUps || [];
+
+  // Dynamic label helper
+  const getLabel = (baseLabel: string) => {
+    if (dateRangeLabel === 'Today') {
+      return `${baseLabel} Today`;
+    } else if (dateRangeLabel === 'Yesterday') {
+      return `${baseLabel} Yesterday`;
+    } else {
+      return `${baseLabel} (${dateRangeLabel})`;
+    }
+  };
 
   if (isLoading && !data) {
     return (
@@ -294,76 +347,133 @@ export default function DashboardPage() {
       {/* Date Filter */}
       <Card boxShadow="sm">
         <CardBody>
-          <Flex gap={3} flexWrap="wrap" align="center">
+          <VStack align="stretch" spacing={3}>
             <Box>
               <Text fontSize="sm" fontWeight="semibold" mb={2}>
-                Start Date
+                Quick Date Range: <Badge colorScheme="blue" ml={2}>{dateRangeLabel}</Badge>
               </Text>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                max={endDate}
-                size="md"
-              />
+              <Flex gap={2} flexWrap="wrap">
+                <Button
+                  size="sm"
+                  colorScheme={dateRangeLabel === 'Today' ? 'blue' : 'gray'}
+                  variant={dateRangeLabel === 'Today' ? 'solid' : 'outline'}
+                  onClick={() => setQuickDateRange('today')}
+                >
+                  Today
+                </Button>
+                <Button
+                  size="sm"
+                  colorScheme={dateRangeLabel === 'Yesterday' ? 'blue' : 'gray'}
+                  variant={dateRangeLabel === 'Yesterday' ? 'solid' : 'outline'}
+                  onClick={() => setQuickDateRange('yesterday')}
+                >
+                  Yesterday
+                </Button>
+                <Button
+                  size="sm"
+                  colorScheme={dateRangeLabel === 'Last 7 Days' ? 'blue' : 'gray'}
+                  variant={dateRangeLabel === 'Last 7 Days' ? 'solid' : 'outline'}
+                  onClick={() => setQuickDateRange('last7days')}
+                >
+                  Last 7 Days
+                </Button>
+                <Button
+                  size="sm"
+                  colorScheme={dateRangeLabel === 'This Month' ? 'blue' : 'gray'}
+                  variant={dateRangeLabel === 'This Month' ? 'solid' : 'outline'}
+                  onClick={() => setQuickDateRange('thisMonth')}
+                >
+                  This Month
+                </Button>
+                <Button
+                  size="sm"
+                  colorScheme={dateRangeLabel === 'Last 30 Days' ? 'blue' : 'gray'}
+                  variant={dateRangeLabel === 'Last 30 Days' ? 'solid' : 'outline'}
+                  onClick={() => setQuickDateRange('last30days')}
+                >
+                  Last 30 Days
+                </Button>
+              </Flex>
             </Box>
-            <Box>
-              <Text fontSize="sm" fontWeight="semibold" mb={2}>
-                End Date
-              </Text>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                min={startDate}
-                size="md"
-              />
-            </Box>
-          </Flex>
+            <Flex gap={3} flexWrap="wrap" align="center">
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>
+                  Start Date
+                </Text>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setDateRangeLabel('Custom'); }}
+                  max={endDate}
+                  size="md"
+                />
+              </Box>
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>
+                  End Date
+                </Text>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setDateRangeLabel('Custom'); }}
+                  min={startDate}
+                  size="md"
+                />
+              </Box>
+            </Flex>
+          </VStack>
         </CardBody>
       </Card>
 
       {/* Stats Grid */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 5 }} spacing={{ base: 4, md: 6 }}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 6 }} spacing={{ base: 4, md: 6 }}>
         <StatCard
-          label="New Leads"
+          label={getLabel('New Arrival')}
           value={stats.newLeads}
-          helpText="Click to view"
+          helpText="Leads created"
           icon={FiUsers}
           colorScheme="blue"
           onClick={() => handleCardClick('new')}
         />
         <StatCard
-          label="Follow-ups Due"
+          label={getLabel('Follow-up')}
           value={stats.followUpsDue}
-          helpText="Due soon"
+          helpText="Scheduled"
           icon={FiClock}
           colorScheme="orange"
           onClick={() => router.push('/dashboard/followups')}
         />
         <StatCard
-          label="Overdue"
+          label={getLabel('Overdue')}
           value={stats.overdue}
-          helpText="Needs attention"
+          helpText="Leads need attention"
           icon={FiAlertCircle}
           colorScheme="red"
-          onClick={() => router.push('/dashboard/followups?filter=overdue')}
+          onClick={() => router.push('/dashboard/leads?filter=overdue')}
         />
         <StatCard
-          label="Total Leads"
+          label={getLabel('Total')}
           value={stats.totalLeads}
-          helpText="All leads in system"
+          helpText="All activity"
           icon={FiPhone}
           colorScheme="purple"
           onClick={() => router.push('/dashboard/leads')}
         />
         <StatCard
-          label="Won Today"
+          label={getLabel('Won')}
           value={stats.wonLeads}
-          helpText="Deals closed today"
+          helpText="Deals closed"
           icon={FiCheckCircle}
           colorScheme="green"
           onClick={() => handleCardClick('won')}
+        />
+        <StatCard
+          label={getLabel('Conversations')}
+          value={stats.conversations}
+          helpText="Calls made"
+          icon={FiPhone}
+          colorScheme="teal"
+          onClick={() => router.push('/dashboard/calls')}
         />
       </SimpleGrid>
 
@@ -381,7 +491,7 @@ export default function DashboardPage() {
           onClick={() => router.push('/dashboard/reports')}
         >
           <Stat>
-            <StatLabel fontSize="sm">Conversion Rate</StatLabel>
+            <StatLabel fontSize="sm">{getLabel('Conversion Rate')}</StatLabel>
             <StatNumber color="blue.600">{stats.conversionRate}%</StatNumber>
             <StatHelpText fontSize="xs" color="gray.500">Won / Total leads</StatHelpText>
           </Stat>
@@ -398,27 +508,27 @@ export default function DashboardPage() {
           onClick={() => router.push('/dashboard/reports')}
         >
           <Stat>
-            <StatLabel fontSize="sm">Win Rate</StatLabel>
+            <StatLabel fontSize="sm">{getLabel('Win Rate')}</StatLabel>
             <StatNumber fontSize="2xl" color="teal.600">{stats.winRate}%</StatNumber>
             <StatHelpText fontSize="xs" color="gray.500">Won / Closed deals</StatHelpText>
           </Stat>
         </Box>
       </SimpleGrid>
 
-      {/* Today's Follow-ups */}
-      {upcomingFollowUps.length > 0 && (
-        <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
-          <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
-            <Heading size={{ base: 'sm', md: 'md' }}>Upcoming Follow-ups</Heading>
-            <Button 
-              size="sm" 
-              colorScheme="blue" 
-              variant="ghost"
-              onClick={() => router.push('/dashboard/followups')}
-            >
-              View All
-            </Button>
-          </HStack>
+      {/* Upcoming Follow-ups */}
+      <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
+        <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
+          <Heading size={{ base: 'sm', md: 'md' }}>Upcoming Follow-ups</Heading>
+          <Button 
+            size="sm" 
+            colorScheme="blue" 
+            variant="ghost"
+            onClick={() => router.push('/dashboard/followups')}
+          >
+            View All
+          </Button>
+        </HStack>
+        {upcomingFollowUps.length > 0 ? (
           <Box overflowX="auto">
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead>
@@ -437,7 +547,13 @@ export default function DashboardPage() {
                   const isOverdue = isValidDate && scheduledDate < now;
                   
                   return (
-                    <Tr key={followUp.id} bg={isOverdue ? 'red.50' : 'white'}>
+                    <Tr 
+                      key={followUp.id} 
+                      bg={isOverdue ? 'red.50' : 'white'}
+                      cursor="pointer"
+                      _hover={{ bg: isOverdue ? 'red.100' : 'gray.50' }}
+                      onClick={() => router.push(`/dashboard/leads/${followUp.leadId}`)}
+                    >
                       <Td>
                         {isValidDate 
                           ? format(scheduledDate, 'dd/MM/yy hh:mm a')
@@ -445,11 +561,9 @@ export default function DashboardPage() {
                         }
                       </Td>
                       <Td>
-                        <Link href={`/dashboard/leads/${followUp.leadId}`}>
-                          <Text color="brand.500" fontWeight="medium" noOfLines={1}>
-                            {followUp.lead?.name || 'Unknown Lead'}
-                          </Text>
-                        </Link>
+                        <Text color="brand.500" fontWeight="medium" noOfLines={1}>
+                          {followUp.lead?.name || 'Unknown Lead'}
+                        </Text>
                       </Td>
                       <Td display={{ base: 'none', sm: 'table-cell' }}>
                         {isOverdue ? (
@@ -471,8 +585,12 @@ export default function DashboardPage() {
               </Tbody>
             </Table>
           </Box>
-        </Box>
-      )}
+        ) : (
+          <Box textAlign="center" py={8}>
+            <Text color="gray.500" fontSize="sm">No upcoming follow-ups available</Text>
+          </Box>
+        )}
+      </Box>
 
       {/* Recent Leads */}
       <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
@@ -487,40 +605,48 @@ export default function DashboardPage() {
             View All
           </Button>
         </HStack>
-        <Box overflowX="auto">
-          <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
-            <Thead>
-              <Tr>
-                <Th>Name</Th>
-                <Th display={{ base: 'none', md: 'table-cell' }}>Company</Th>
-                <Th>Status</Th>
-                <Th display={{ base: 'none', sm: 'table-cell' }}>Source</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {recentLeads.map((lead: any) => (
-                <Tr key={lead.id}>
-                  <Td>
-                    <Link href={`/dashboard/leads/${lead.id}`}>
-                      <Text color="brand.500" fontWeight="medium" noOfLines={1}>
-                        {lead.name}
-                      </Text>
-                    </Link>
-                  </Td>
-                  <Td display={{ base: 'none', md: 'table-cell' }}>{lead.company}</Td>
-                  <Td>
-                    <Badge colorScheme={getStatusColor(lead.status)}>
-                      {lead.status}
-                    </Badge>
-                  </Td>
-                  <Td display={{ base: 'none', sm: 'table-cell' }}>
-                    <Text fontSize="sm">{lead.source}</Text>
-                  </Td>
+        {recentLeads.length > 0 ? (
+          <Box overflowX="auto">
+            <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+              <Thead>
+                <Tr>
+                  <Th>Name</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }}>Company</Th>
+                  <Th>Status</Th>
+                  <Th display={{ base: 'none', sm: 'table-cell' }}>Source</Th>
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </Box>
+              </Thead>
+              <Tbody>
+                {recentLeads.map((lead: any) => (
+                  <Tr key={lead.id}>
+                    <Td>
+                      <Link href={`/dashboard/leads/${lead.id}`}>
+                        <Text color="brand.500" fontWeight="medium" noOfLines={1}>
+                          {lead.name}
+                        </Text>
+                      </Link>
+                    </Td>
+                    <Td display={{ base: 'none', md: 'table-cell' }}>{lead.company}</Td>
+                    <Td>
+                      <Badge colorScheme={getStatusColor(lead.status)}>
+                        {lead.status}
+                      </Badge>
+                    </Td>
+                    <Td display={{ base: 'none', sm: 'table-cell' }}>
+                      <Text fontSize="sm">{lead.source}</Text>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+        ) : (
+          <Box textAlign="center" py={8}>
+            <Text color="gray.500" fontSize="sm">
+              No data available for {dateRangeLabel === 'Today' ? 'today' : dateRangeLabel.toLowerCase()}
+            </Text>
+          </Box>
+        )}
       </Box>
     </VStack>
   );

@@ -152,7 +152,6 @@ export default function ChangeStatusModal({
           body: JSON.stringify({
             leadId,
             scheduledAt: scheduledDateTime,
-            status: 'pending',
             customerRequirement: followUpNotes?.trim() || 'Follow-up scheduled from status change',
             notes: followUpNotes || 'Follow-up scheduled from status change',
           }),

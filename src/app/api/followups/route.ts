@@ -7,7 +7,6 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const leadId = searchParams.get('leadId');
-    const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
@@ -15,7 +14,6 @@ export async function GET(request: NextRequest) {
     // If requesting follow-ups for a specific lead (e.g., lead detail page), return all
     if (leadId) {
       const where: any = { leadId };
-      if (status) where.status = status;
 
       const [followUps, total] = await Promise.all([
         prisma.followUp.findMany({
@@ -41,10 +39,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // For the follow-up page, fetch only the NEXT pending follow-up per lead
-    // Get all pending follow-ups
+    // For the follow-up page, fetch only the NEXT follow-up per lead
+    // Get all follow-ups
     const allFollowUps = await prisma.followUp.findMany({
-      where: status ? { status } : { status: 'pending' },
       include: {
         lead: { select: { id: true, name: true, phone: true, status: true } },
         createdBy: { select: { id: true, name: true, email: true } },
@@ -73,7 +70,7 @@ export async function GET(request: NextRequest) {
     
     allFollowUpsArray.forEach(followUp => {
       const scheduledDate = new Date(followUp.scheduledAt);
-      if (scheduledDate < now && followUp.status === 'pending') {
+      if (scheduledDate < now) {
         overdue.push(followUp);
       } else {
         upcoming.push(followUp);
@@ -133,25 +130,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark all previous pending follow-ups for this lead as completed
-    // This ensures only the latest scheduled follow-up is active
-    await prisma.followUp.updateMany({
-      where: {
-        leadId: body.leadId,
-        status: 'pending',
-      },
-      data: {
-        status: 'completed',
-      },
-    });
-
     const followUp = await prisma.followUp.create({
       data: {
         leadId: body.leadId,
         scheduledAt: scheduledDateTime,
         customerRequirement: body.customerRequirement || null,
         notes: body.notes || null,
-        status: body.status || 'pending',
         createdById: body.createdById,
       },
       include: {

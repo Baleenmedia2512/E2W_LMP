@@ -513,14 +513,12 @@ export default function CallDialerModal({
 
     try {
       // Create follow-up via API
-      // Note: The API will automatically mark all previous pending follow-ups as completed
       const response = await fetch('/api/followups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leadId,
           scheduledAt: scheduledDateTime,
-          status: 'pending',
           customerRequirement: customerRequirement?.trim() || followUpNotes?.trim() || 'Follow-up from call',
           notes: followUpNotes || 'Follow-up scheduled from call',
           createdById: user?.id || 'unknown-user',

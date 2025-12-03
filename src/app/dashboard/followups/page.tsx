@@ -47,7 +47,6 @@ interface FollowUp {
     status?: string;
   };
   scheduledAt: string;
-  status: 'pending' | 'cancelled';
   customerRequirement: string | null;
   notes: string | null;
   createdAt: string;
@@ -150,7 +149,7 @@ export default function FollowUpsPage() {
 
     filtered.forEach(followup => {
       const scheduledDate = new Date(followup.scheduledAt);
-      if (scheduledDate < now && followup.status === 'pending') {
+      if (scheduledDate < now) {
         overdue.push(followup);
       } else {
         upcoming.push(followup);
@@ -183,7 +182,7 @@ export default function FollowUpsPage() {
 
     filteredFollowUps.forEach(followup => {
       const scheduledDate = new Date(followup.scheduledAt);
-      if (scheduledDate < now && followup.status === 'pending') {
+      if (scheduledDate < now) {
         overdue.push(followup);
       } else {
         upcoming.push(followup);
@@ -202,27 +201,29 @@ export default function FollowUpsPage() {
     }).length;
   }, [followUps]);
 
-  const handleMarkCancelled = async (id: string, leadName: string) => {
+  const handleDelete = async (id: string, leadName: string) => {
+    if (!window.confirm(`Are you sure you want to delete the follow-up for ${leadName}? This cannot be undone.`)) {
+      return;
+    }
+    
     try {
       const response = await fetch(`/api/followups/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        method: 'DELETE',
       });
       if (response.ok) {
         toast({
-          title: 'Follow-up cancelled',
-          description: `Follow-up with ${leadName} has been cancelled`,
-          status: 'info',
+          title: 'Follow-up deleted',
+          description: `Follow-up with ${leadName} has been permanently deleted`,
+          status: 'success',
           duration: 3000,
         });
-        // Refresh the list to show updated latest follow-ups
+        // Refresh the list
         await fetchFollowUps();
       }
     } catch (err) {
       toast({
         title: 'Error',
-        description: 'Failed to update follow-up',
+        description: 'Failed to delete follow-up',
         status: 'error',
         duration: 3000,
       });
@@ -400,10 +401,10 @@ export default function FollowUpsPage() {
                             </MenuItem>
                             <MenuItem
                               icon={<HiX />}
-                              onClick={() => handleMarkCancelled(followup.id, followup.lead.name)}
+                              onClick={() => handleDelete(followup.id, followup.lead.name)}
                               color="red.600"
                             >
-                              Cancel
+                              Delete
                             </MenuItem>
                           </MenuList>
                         </Menu>
@@ -494,10 +495,10 @@ export default function FollowUpsPage() {
                                 </MenuItem>
                                 <MenuItem
                                   icon={<HiX />}
-                                  onClick={() => handleMarkCancelled(followup.id, followup.lead.name)}
+                                  onClick={() => handleDelete(followup.id, followup.lead.name)}
                                   color="red.600"
                                 >
-                                  Cancel
+                                  Delete
                                 </MenuItem>
                               </MenuList>
                             </Menu>

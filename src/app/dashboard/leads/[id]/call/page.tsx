@@ -202,7 +202,6 @@ export default function LogCallPage() {
           body: JSON.stringify({
             leadId: lead.id,
             scheduledAt: followUpDateTime.toISOString(),
-            status: 'pending',
             notes: followUpNotes || 'Follow-up scheduled from call log',
             createdById: user.id,
           }),
