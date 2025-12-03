@@ -104,7 +104,6 @@ export async function GET(request: NextRequest) {
       // 3. Follow-ups in date range
       prisma.followUp.count({
         where: {
-          status: 'pending',
           ...(Object.keys(dateFilter).length > 0 && { scheduledAt: dateFilter }),
           ...(agentId && {
             lead: {
@@ -162,7 +161,6 @@ export async function GET(request: NextRequest) {
       // 9. Overdue follow-ups
       prisma.followUp.count({
         where: {
-          status: 'pending',
           scheduledAt: { lt: now },
           ...(agentId && {
             lead: {

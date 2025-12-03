@@ -63,9 +63,6 @@ export async function GET(request: NextRequest) {
         include: {
           assignedTo: { select: { id: true, name: true, email: true } },
           followUps: {
-            where: {
-              status: 'pending',
-            },
             orderBy: {
               scheduledAt: 'asc',
             },

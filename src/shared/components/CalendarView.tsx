@@ -179,7 +179,7 @@ export default function CalendarView({ followUps, onSelectFollowUp }: CalendarVi
                     {dayFollowUps.slice(0, 3).map(followUp => {
                       const now = new Date();
                       const scheduledDate = new Date(followUp.scheduledAt);
-                      const isOverdue = followUp.status === 'pending' && scheduledDate < now;
+                      const isOverdue = scheduledDate < now;
                       
                       return (
                         <Tooltip
@@ -204,8 +204,6 @@ export default function CalendarView({ followUps, onSelectFollowUp }: CalendarVi
                             bg={
                               isOverdue
                                 ? 'red.100'
-                                : followUp.status === 'cancelled'
-                                ? 'gray.100'
                                 : 'blue.100'
                             }
                             borderRadius="sm"

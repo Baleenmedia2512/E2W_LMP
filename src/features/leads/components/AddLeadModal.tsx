@@ -25,6 +25,7 @@ import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges';
 import { ConfirmDialog, useConfirmDialog } from '@/shared/components/ConfirmDialog';
 import ValidatedInput from '@/shared/components/ValidatedInput';
 import ValidatedTextarea from '@/shared/components/ValidatedTextarea';
+import { normalizePhoneForStorage } from '@/shared/utils/phone';
 
 interface AddLeadModalProps {
   isOpen: boolean;

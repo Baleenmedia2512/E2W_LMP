@@ -52,7 +52,6 @@ export const updateFollowUpSchema = z.object({
   scheduledAt: z.string().datetime().or(z.date()).optional(),
   customerRequirement: z.string().max(500).optional(),
   notes: z.string().max(2000).optional().nullable(),
-  status: z.enum(['pending', 'cancelled']).optional(),
 });
 
 // DSR export validations

@@ -48,12 +48,12 @@ export function categorizeAndSortLeads(
       return;
     }
     
-    // Find the next pending follow-up for this lead
+    // Find the next follow-up for this lead
     const leadFollowUps = followUps.filter(
-      (f) => f.leadId === lead.id && f.status === 'pending'
+      (f) => f.leadId === lead.id
     );
 
-    console.log(`Lead ${lead.name} (${lead.id}): Found ${leadFollowUps.length} pending follow-ups`);
+    console.log(`Lead ${lead.name} (${lead.id}): Found ${leadFollowUps.length} follow-ups`);
 
     if (leadFollowUps.length === 0) {
       // No follow-up history = New lead
@@ -141,7 +141,7 @@ export function formatTimeDifference(date: string | Date): string {
 export function isFollowUpOverdue(followUp: FollowUp): boolean {
   const now = new Date();
   const dueDate = ensureDate(followUp.scheduledAt);
-  return dueDate < now && followUp.status === 'pending';
+  return dueDate < now;
 }
 
 

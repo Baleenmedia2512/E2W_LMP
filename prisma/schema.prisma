@@ -118,7 +118,6 @@ model FollowUp {
   scheduledAt         DateTime
   customerRequirement String?   @db.Text // Customer requirement for context
   notes               String?   @db.Text
-  status              String    @default("pending") // pending, cancelled
   createdById         String
   metadata            Json?
   createdAt           DateTime  @default(now())
@@ -130,7 +129,6 @@ model FollowUp {
   @@index([leadId])
   @@index([createdById])
   @@index([scheduledAt])
-  @@index([status])
 }
 
 // ActivityHistory model

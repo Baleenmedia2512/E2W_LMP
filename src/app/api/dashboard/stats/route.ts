@@ -6,12 +6,21 @@ export const revalidate = 0;
 
 /**
  * GET /api/dashboard/stats
- * Fetch comprehensive dashboard statistics with optional date range filtering
+ * Fetch comprehensive dashboard statistics with date range filtering
  * 
  * Query Parameters:
- * - startDate: ISO date string (optional)
- * - endDate: ISO date string (optional)
+ * - startDate: ISO date string (required for filtering)
+ * - endDate: ISO date string (required for filtering)
  * - userId: Filter by assigned user (optional)
+ * 
+ * When date range is provided (e.g., Today):
+ * - New Arrival: Leads CREATED in date range
+ * - Follow-up Today: Follow-ups SCHEDULED in date range
+ * - Overdue Follow-up: Follow-ups that BECAME overdue in date range
+ * - Total: All leads CREATED or UPDATED in date range
+ * - Won: Leads marked as WON (updatedAt) in date range
+ * - Conversations: Calls made in date range
+ * - Win Rate: Won / (Won + Lost) in date range
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,115 +29,113 @@ export async function GET(request: NextRequest) {
     const endDateParam = searchParams.get('endDate');
     const userId = searchParams.get('userId');
 
-    // Build date filter
+    // Build date filter for the selected range
     const dateFilter: any = {};
-    if (startDateParam) {
+    if (startDateParam && endDateParam) {
       const startDate = new Date(startDateParam);
       startDate.setHours(0, 0, 0, 0);
-      dateFilter.gte = startDate;
-    }
-    if (endDateParam) {
       const endDate = new Date(endDateParam);
       endDate.setHours(23, 59, 59, 999);
+      
+      dateFilter.gte = startDate;
       dateFilter.lte = endDate;
     }
 
-    // Build base where clause for leads (date-filtered)
-    const leadsWhere: any = {};
-    if (Object.keys(dateFilter).length > 0) {
-      leadsWhere.createdAt = dateFilter;
-    }
-    if (userId) {
-      leadsWhere.assignedToId = userId;
+    const hasDateFilter = Object.keys(dateFilter).length > 0;
+
+    // Build user filter
+    const userFilter = userId ? { assignedToId: userId } : {};
+
+    // 1. NEW ARRIVAL - Leads created in date range
+    const newLeadsWhere: any = { ...userFilter };
+    if (hasDateFilter) {
+      newLeadsWhere.createdAt = dateFilter;
     }
 
-    // Build where clause for total leads count (NO date filter, all leads)
-    const totalLeadsWhere: any = {};
+    // 2. FOLLOW-UPS SCHEDULED in date range
+    const followUpsScheduledWhere: any = {};
+    if (hasDateFilter) {
+      followUpsScheduledWhere.scheduledAt = dateFilter;
+    }
     if (userId) {
-      totalLeadsWhere.assignedToId = userId;
+      followUpsScheduledWhere.lead = { assignedToId: userId };
     }
 
-    // Build where clause for follow-ups
-    const followUpsWhere: any = { status: 'pending' };
-    if (Object.keys(dateFilter).length > 0) {
-      followUpsWhere.scheduledAt = dateFilter;
+    // 3. WON LEADS - marked as won (by updatedAt) in date range
+    const wonLeadsWhere: any = { status: 'won', ...userFilter };
+    if (hasDateFilter) {
+      wonLeadsWhere.updatedAt = dateFilter;
+    }
+
+    // 4. LOST LEADS - marked as lost (by updatedAt) in date range
+    const lostLeadsWhere: any = { status: 'lost', ...userFilter };
+    if (hasDateFilter) {
+      lostLeadsWhere.updatedAt = dateFilter;
+    }
+
+    // 5. TOTAL LEADS - created OR updated in date range
+    const totalLeadsWhere: any = { ...userFilter };
+    if (hasDateFilter) {
+      totalLeadsWhere.OR = [
+        { createdAt: dateFilter },
+        { updatedAt: dateFilter },
+      ];
+    }
+
+    // 6. CALLS/CONVERSATIONS - made in date range
+    const callsWhere: any = {};
+    if (hasDateFilter) {
+      callsWhere.createdAt = dateFilter;
     }
     if (userId) {
-      followUpsWhere.lead = {
-        assignedToId: userId,
-      };
+      callsWhere.callerId = userId;
     }
 
     const now = new Date();
 
-    // Build today's date filter for won leads
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(today);
-    todayEnd.setHours(23, 59, 59, 999);
-
-    const wonLeadsWhere: any = { 
-      status: 'won',
-      updatedAt: {
-        gte: today,
-        lte: todayEnd,
-      },
-    };
-    if (userId) {
-      wonLeadsWhere.assignedToId = userId;
-    }
-
     // Fetch all stats in parallel for optimal performance
     const [
-      totalLeads,
-      newLeads,
-      qualifiedLeads,
-      wonLeads,
-      lostLeads,
-      allFollowUps,
+      newLeadsCount,
+      wonLeadsCount,
+      lostLeadsCount,
+      totalLeadsCount,
+      conversationsCount,
+      followUpsScheduled,
+      allPendingFollowUps,
       recentLeads,
       upcomingFollowUps,
     ] = await Promise.all([
-      // Total leads - ALL leads in the system (no date filter)
-      prisma.lead.count({ 
-        where: userId ? { assignedToId: userId } : {} 
-      }),
+      // 1. New leads created in date range
+      prisma.lead.count({ where: newLeadsWhere }),
 
-      // New leads (within date range)
-      prisma.lead.count({
-        where: { ...leadsWhere, status: 'new' },
-      }),
+      // 2. Won leads in date range
+      prisma.lead.count({ where: wonLeadsWhere }),
 
-      // Qualified leads
-      prisma.lead.count({
-        where: { ...leadsWhere, status: 'qualified' },
-      }),
+      // 3. Lost leads in date range
+      prisma.lead.count({ where: lostLeadsWhere }),
 
-      // Won deals TODAY only
-      prisma.lead.count({
-        where: wonLeadsWhere,
-      }),
+      // 4. Total leads (created or updated in date range)
+      prisma.lead.count({ where: totalLeadsWhere }),
 
-      // Lost deals
-      prisma.lead.count({
-        where: { ...leadsWhere, status: 'lost' },
-      }),
+      // 5. Conversations/Calls in date range
+      prisma.callLog.count({ where: callsWhere }),
 
-      // All pending follow-ups (to be filtered for latest per lead)
+      // 6. Follow-ups scheduled in date range
+      prisma.followUp.count({ where: followUpsScheduledWhere }),
+
+      // 7. All pending follow-ups (for overdue calculation)
       prisma.followUp.findMany({
         where: {
-          status: 'pending',
           ...(userId && {
-            lead: {
-              assignedToId: userId,
-            },
+            lead: { assignedToId: userId },
           }),
         },
         orderBy: { scheduledAt: 'desc' },
       }),
 
-      // Recent leads (top 5)
+      // 8. Recent leads (from date range)
       prisma.lead.findMany({
-        where: leadsWhere,
+        where: newLeadsWhere,
         include: {
           assignedTo: { select: { id: true, name: true, email: true } },
           createdBy: { select: { id: true, name: true, email: true } },
@@ -137,14 +144,11 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
 
-      // All pending follow-ups for smart sorting
+      // 9. Upcoming follow-ups for display
       prisma.followUp.findMany({
         where: {
-          status: 'pending',
           ...(userId && {
-            lead: {
-              assignedToId: userId,
-            },
+            lead: { assignedToId: userId },
           }),
         },
         include: {
@@ -155,15 +159,39 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    // Filter to keep only the latest follow-up per lead (matching follow-ups page logic)
+    // Calculate OVERDUE LEADS (count of unique leads that became overdue in the date range)
+    let overdueCount = 0;
+    
+    // Filter to keep only latest follow-up per lead
     const latestFollowUpsMap = new Map<string, any>();
-    for (const followUp of allFollowUps) {
+    for (const followUp of allPendingFollowUps) {
       if (!latestFollowUpsMap.has(followUp.leadId)) {
         latestFollowUpsMap.set(followUp.leadId, followUp);
       }
     }
 
-    // Separate into upcoming and overdue for smart display
+    // Count unique leads that became overdue in the selected date range
+    if (hasDateFilter) {
+      for (const followUp of latestFollowUpsMap.values()) {
+        const scheduledDate = new Date(followUp.scheduledAt);
+        // If scheduled date is before now AND within the date range (became overdue in this period)
+        if (scheduledDate < now && 
+            scheduledDate >= dateFilter.gte && 
+            scheduledDate <= dateFilter.lte) {
+          overdueCount++;
+        }
+      }
+    } else {
+      // If no date filter, count all currently overdue leads
+      for (const followUp of latestFollowUpsMap.values()) {
+        const scheduledDate = new Date(followUp.scheduledAt);
+        if (scheduledDate < now) {
+          overdueCount++;
+        }
+      }
+    }
+
+    // Prepare upcoming follow-ups for display (next 5) - reusing the same map
     const upcomingArray: any[] = [];
     const overdueArray: any[] = [];
     
@@ -176,47 +204,43 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Sort upcoming by scheduled date (next one first)
     upcomingArray.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    
-    // Sort overdue by scheduled date (most overdue first)
     overdueArray.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
     
-    // Combine for display: upcoming first (next 5), then overdue if needed
     const displayFollowUps = [...upcomingArray.slice(0, 5), ...overdueArray.slice(0, Math.max(0, 5 - upcomingArray.length))];
 
-    // Now count pending and overdue from the latest follow-ups only
-    const pendingFollowUps = latestFollowUpsMap.size;
-    const overdueFollowUps = overdueArray.length;
-
-    // Calculate conversion rate
-    const conversionRate = totalLeads > 0 
-      ? Math.round((wonLeads / totalLeads) * 100) 
+    // Calculate win rate (won / (won + lost)) for date range
+    const totalClosed = wonLeadsCount + lostLeadsCount;
+    const winRate = totalClosed > 0 
+      ? Math.round((wonLeadsCount / totalClosed) * 100) 
       : 0;
 
-    // Calculate win rate (won / (won + lost))
-    const totalClosed = wonLeads + lostLeads;
-    const winRate = totalClosed > 0 
-      ? Math.round((wonLeads / totalClosed) * 100) 
+    // Calculate conversion rate (won / total) for date range
+    const conversionRate = totalLeadsCount > 0 
+      ? Math.round((wonLeadsCount / totalLeadsCount) * 100) 
       : 0;
 
     return NextResponse.json({
       success: true,
       data: {
         stats: {
-          totalLeads,
-          newLeads,
-          qualifiedLeads,
-          wonLeads,
-          lostLeads,
-          followUpsDue: pendingFollowUps,
-          overdue: overdueFollowUps,
+          newLeads: newLeadsCount,
+          followUpsDue: followUpsScheduled,
+          overdue: overdueCount,
+          totalLeads: totalLeadsCount,
+          wonLeads: wonLeadsCount,
+          lostLeads: lostLeadsCount,
+          conversations: conversationsCount,
           conversionRate,
           winRate,
         },
         recentLeads,
         upcomingFollowUps: displayFollowUps,
         timestamp: new Date().toISOString(),
+        dateRange: hasDateFilter ? {
+          start: startDateParam,
+          end: endDateParam,
+        } : null,
       },
     });
   } catch (error) {

@@ -52,7 +52,7 @@ export default function ScheduleFollowUpPage() {
       try {
         const [leadRes, followUpRes] = await Promise.all([
           fetch(`/api/leads/${leadId}`),
-          fetch(`/api/followups?leadId=${leadId}&status=pending&limit=1`)
+          fetch(`/api/followups?leadId=${leadId}&limit=1`)
         ]);
         
         if (!leadRes.ok) throw new Error('Lead not found');
@@ -249,7 +249,6 @@ export default function ScheduleFollowUpPage() {
             scheduledAt: scheduledDateTime.toISOString(),
             customerRequirement: formData.customerRequirement,
             notes: formData.notes,
-            status: 'pending',
           }),
         });
         actionDescription = 'followup_rescheduled';
@@ -261,7 +260,6 @@ export default function ScheduleFollowUpPage() {
           body: JSON.stringify({
             leadId: lead.id,
             scheduledAt: scheduledDateTime.toISOString(),
-            status: 'pending',
             customerRequirement: formData.customerRequirement,
             notes: formData.notes,
             createdById: 'current-user-id',

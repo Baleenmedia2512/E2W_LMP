@@ -113,7 +113,7 @@ export default function ReportsPage() {
           const now = new Date();
           const overdueCount = followUps.filter((followUp: any) => {
             const scheduledDate = new Date(followUp.scheduledAt);
-            return followUp.status === 'pending' && scheduledDate < now;
+            return scheduledDate < now;
           }).length;
           
           // Calculate leads by source

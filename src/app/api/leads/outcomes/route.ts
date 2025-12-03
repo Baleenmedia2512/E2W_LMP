@@ -47,14 +47,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (startDate || endDate) {
-      where.createdAt = {};
+      where.updatedAt = {};
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        where.updatedAt.gte = new Date(startDate);
       }
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
+        where.updatedAt.lte = end;
       }
     }
 
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
         include: {
           assignedTo: { select: { id: true, name: true, email: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
         skip,
         take: limit,
       }),

@@ -49,7 +49,7 @@ export function calculateDSRStats(
     const isInDateRange = followUpDate >= start && followUpDate <= end;
     
     const lead = agentLeads.find(l => l.id === followUp.leadId);
-    return isInDateRange && lead && followUp.status === 'pending';
+    return isInDateRange && lead;
   }).length;
 
   // 4. Total Calls Handled Today (within date range)

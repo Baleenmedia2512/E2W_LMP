@@ -88,7 +88,6 @@ export interface FollowUp {
   scheduledAt: Date;
   customerRequirement?: string | null;
   notes?: string | null;
-  status: 'pending' | 'cancelled';
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
