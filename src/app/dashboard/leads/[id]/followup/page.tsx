@@ -276,7 +276,7 @@ export default function ScheduleFollowUpPage() {
         throw new Error(result.error || `Failed to ${existingFollowUp ? 'reschedule' : 'schedule'} follow-up`);
       }
 
-      // Log activity with customer requirement
+      // Log activity with remarks
       try {
         await fetch('/api/activity', {
           method: 'POST',

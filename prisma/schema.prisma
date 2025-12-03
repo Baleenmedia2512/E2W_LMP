@@ -63,7 +63,7 @@ model Lead {
   source              String // Website, Meta, Referral, Direct, WhatsApp, Cold Call
   campaign            String?
   customerRequirement String?
-  status              String    @default("new") // new, followup, contacted, qualified, unreach, unqualified, won, lost
+  status              String    @default("new") // new, followup, qualified, unreach, unqualified, won, lost
   notes               String?   @db.LongText
   callAttempts        Int       @default(0) // Counter for call attempts
   metadata            Json?

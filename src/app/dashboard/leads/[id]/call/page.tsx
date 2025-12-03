@@ -117,8 +117,8 @@ export default function LogCallPage() {
 
     if (!formData.customerRequirement.trim()) {
       toast({
-        title: 'Customer Requirement required',
-        description: 'Please provide call details/customer requirement',
+        title: 'Remarks required',
+        description: 'Please provide call details/remarks',
         status: 'error',
         duration: 3000,
       });
@@ -341,7 +341,7 @@ export default function LogCallPage() {
               </SimpleGrid>
 
               <FormControl isRequired>
-                <FormLabel fontWeight="600">Customer Requirement (Required)</FormLabel>
+                <FormLabel fontWeight="600">Remarks (Required)</FormLabel>
                 <Textarea
                   name="customerRequirement"
                   value={formData.customerRequirement}

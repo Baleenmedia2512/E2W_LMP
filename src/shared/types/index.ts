@@ -34,7 +34,7 @@ export interface Lead {
   source: string;
   campaign: string | null;
   customerRequirement: string | null;
-  status: 'new' | 'followup' | 'unreach' | 'unqualified' | 'contacted' | 'qualified' | 'won' | 'lost';
+  status: 'new' | 'followup' | 'unreach' | 'unqualified' | 'qualified' | 'won' | 'lost';
   callAttempts: number;
   assignedToId: string | null;
   createdById: string | null;
@@ -58,7 +58,7 @@ export interface LeadUpdatePayload {
   source?: string;
   campaign?: string | null;
   customerRequirement?: string | null;
-  status?: 'new' | 'followup' | 'unreach' | 'unqualified' | 'contacted' | 'qualified' | 'won' | 'lost';
+  status?: 'new' | 'followup' | 'unreach' | 'unqualified' | 'qualified' | 'won' | 'lost';
   notes?: string | null;
   assignedToId?: string | null;
   updatedById?: string;
@@ -159,7 +159,6 @@ export interface DSRData {
   date: Date;
   totalCalls: number;
   totalAttempts: number;
-  leadsContacted: number;
   leadsQualified: number;
   leadsConverted: number;
   followUpsScheduled: number;

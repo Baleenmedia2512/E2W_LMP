@@ -36,10 +36,12 @@ import {
   FormControl,
   FormLabel,
   Select,
+  Tooltip,
 } from '@chakra-ui/react';
 import { useRouter, useParams } from 'next/navigation';
 import { HiArrowLeft, HiPencil, HiPhone, HiCalendar, HiRefresh } from 'react-icons/hi';
 import { formatDate, formatDateTime } from '@/shared/lib/date-utils';
+import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useEffect, useState } from 'react';
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
 import ChangeStatusModal from '@/features/leads/components/ChangeStatusModal';
@@ -115,8 +117,10 @@ export default function LeadDetailPage() {
   const { isOpen: isWonOpen, onOpen: onWonOpen, onClose: onWonClose } = useDisclosure();
   const { isOpen: isLostOpen, onOpen: onLostOpen, onClose: onLostClose } = useDisclosure();
   const { isOpen: isCallAttemptsOpen, onOpen: onCallAttemptsOpen, onClose: onCallAttemptsClose } = useDisclosure();
+  const { isOpen: isRemarksOpen, onOpen: onRemarksOpen, onClose: onRemarksClose } = useDisclosure();
 
   const [lead, setLead] = useState<Lead | null>(null);
+  const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [activityHistory, setActivityHistory] = useState<Activity[]>([]);
@@ -124,6 +128,36 @@ export default function LeadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
   const [requalifyLoading, setRequalifyLoading] = useState(false);
+
+  const handleShowRemark = (remark: string | null) => {
+    setSelectedRemark(remark);
+    onRemarksOpen();
+  };
+
+  // US-8: Auto-reopen Call Dialer Modal if there's unsaved call data after page refresh
+  useEffect(() => {
+    const unsavedCallKey = `unsaved_call_${leadId}`;
+    const savedCallData = localStorage.getItem(unsavedCallKey);
+    
+    if (savedCallData && !isCallDialerOpen) {
+      try {
+        const callData = JSON.parse(savedCallData);
+        const savedTime = callData.timestamp || 0;
+        const hourInMs = 60 * 60 * 1000;
+        
+        // Only restore if saved within last hour
+        if (Date.now() - savedTime < hourInMs) {
+          // Open the call dialer modal to restore the call
+          onCallDialerOpen();
+        } else {
+          // Clear stale data
+          localStorage.removeItem(unsavedCallKey);
+        }
+      } catch (error) {
+        console.error('Failed to restore call modal:', error);
+      }
+    }
+  }, [leadId, isCallDialerOpen, onCallDialerOpen]);
 
   // Function to refresh data
   const refreshData = async () => {
@@ -230,7 +264,6 @@ export default function LeadDetailPage() {
     const colors: Record<string, string> = {
       new: 'blue',
       followup: 'orange',
-      contacted: 'purple',
       qualified: 'cyan',
       unreach: 'pink',
       unqualified: 'gray',
@@ -284,7 +317,7 @@ export default function LeadDetailPage() {
               leftIcon={<HiArrowLeft />}
               variant="ghost"
               onClick={() => router.back()}
-              size="sm"
+              size="lg"
             >
               Back
             </Button>
@@ -431,7 +464,7 @@ export default function LeadDetailPage() {
                 {lead.customerRequirement && (
                   <Box>
                     <Text fontWeight="bold" fontSize="sm" color="gray.600">
-                      Customer Requirement
+                      Remarks
                     </Text>
                     <Text>{lead.customerRequirement}</Text>
                   </Box>
@@ -544,7 +577,6 @@ export default function LeadDetailPage() {
                             <Th>Date/Time</Th>
                             <Th>Duration</Th>
                             <Th>Status</Th>
-                            <Th>Customer Requirement</Th>
                             <Th>Agent</Th>
                             <Th>Remarks</Th>
                           </Tr>
@@ -581,19 +613,26 @@ export default function LeadDetailPage() {
                                   <Badge colorScheme={statusDisplay.color}>{statusDisplay.label}</Badge>
                                 </Td>
                                 <Td>
-                                  <Text fontSize="sm" noOfLines={2}>
-                                    {call.customerRequirement || '-'}
-                                  </Text>
-                                </Td>
-                                <Td>
                                   <Text fontSize="sm">
                                     {call.caller?.name || 'N/A'}
                                   </Text>
                                 </Td>
-                                <Td>
-                                  <Text fontSize="sm" noOfLines={2}>
-                                    {call.remarks || '-'}
-                                  </Text>
+                                <Td maxW="300px">
+                                  {call.remarks ? (
+                                    <Tooltip label="Click to view full text" placement="top" hasArrow>
+                                      <Text
+                                        noOfLines={2}
+                                        fontSize="sm"
+                                        cursor="pointer"
+                                        onClick={() => handleShowRemark(call.remarks)}
+                                        _hover={{ color: 'blue.600' }}
+                                      >
+                                        {call.remarks}
+                                      </Text>
+                                    </Tooltip>
+                                  ) : (
+                                    <Text fontSize="sm" color="gray.400">-</Text>
+                                  )}
                                 </Td>
                               </Tr>
                             );
@@ -624,30 +663,12 @@ export default function LeadDetailPage() {
                         <Thead bg="gray.50">
                           <Tr>
                             <Th>Scheduled Date</Th>
-                            <Th>Status</Th>
-                            <Th>Notes</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
                           {followUps.map((followup: any) => (
                             <Tr key={followup.id}>
                               <Td>{formatDateTime(followup.scheduledAt)}</Td>
-                              <Td>
-                                <Badge 
-                                  colorScheme={
-                                    followup.status === 'cancelled'
-                                      ? 'red'
-                                      : 'blue'
-                                  }
-                                >
-                                  {followup.status}
-                                </Badge>
-                              </Td>
-                              <Td>
-                                <Text fontSize="sm" noOfLines={2}>
-                                  {followup.notes || '-'}
-                                </Text>
-                              </Td>
                             </Tr>
                           ))}
                         </Tbody>
@@ -835,6 +856,28 @@ export default function LeadDetailPage() {
           leadName={lead.name}
         />
       )}
+
+      {/* Remarks Modal */}
+      <Modal isOpen={isRemarksOpen} onClose={onRemarksClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Remarks Details</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Box 
+              bg="gray.50" 
+              p={4} 
+              borderRadius="md" 
+              border="1px solid" 
+              borderColor="gray.200"
+            >
+              <Text fontSize="sm" whiteSpace="pre-wrap">
+                {selectedRemark || 'No remarks provided'}
+              </Text>
+            </Box>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

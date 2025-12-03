@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { normalizePhoneForStorage, isValidPhone } from '@/shared/utils/phone';
 import { 
   notifyLeadAssigned, 
   notifyDealWon, 
@@ -56,14 +57,22 @@ export async function PUT(
       );
     }
 
+    // AC-4 & AC-6: Clean and validate phone numbers
+    let cleanedPhone = body.phone;
+    let cleanedAltPhone = body.alternatePhone;
+    
     if (body.phone) {
-      const phoneDigits = body.phone.replace(/\D/g, '');
-      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+      cleanedPhone = normalizePhoneForStorage(body.phone);
+      if (!isValidPhone(cleanedPhone)) {
         return NextResponse.json(
-          { success: false, error: 'Phone number must be 10 digits or include valid country code' },
+          { success: false, error: 'Invalid phone number' },
           { status: 400 }
         );
       }
+    }
+    
+    if (body.alternatePhone) {
+      cleanedAltPhone = normalizePhoneForStorage(body.alternatePhone);
     }
 
     if (body.email && body.email.trim()) {
@@ -82,9 +91,9 @@ export async function PUT(
     // Prepare update data
     const updateData: any = {
       name: body.name || undefined,
-      phone: body.phone || undefined,
+      phone: cleanedPhone || undefined,
       email: body.email !== undefined ? body.email : undefined,
-      alternatePhone: body.alternatePhone !== undefined ? body.alternatePhone : undefined,
+      alternatePhone: cleanedAltPhone !== undefined ? cleanedAltPhone : undefined,
       address: body.address !== undefined ? body.address : undefined,
       city: body.city !== undefined ? body.city : undefined,
       state: body.state !== undefined ? body.state : undefined,

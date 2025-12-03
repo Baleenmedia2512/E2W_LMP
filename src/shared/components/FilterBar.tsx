@@ -119,7 +119,6 @@ export default function FilterBar({
           >
             <option value="">All Statuses</option>
             <option value="new">New</option>
-            <option value="contacted">Contacted</option>
             <option value="qualified">Qualified</option>
             <option value="followup">Follow-up</option>
             <option value="won">Won</option>

@@ -26,6 +26,7 @@ import {
 import { HiPhone, HiPhoneIncoming, HiX, HiArrowLeft } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { formatPhoneForDisplay, formatPhoneForDialer, isValidPhone } from '@/shared/utils/phone';
 import { useFormValidation } from '@/shared/hooks/useFormValidation';
 import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges';
 import { ConfirmDialog, useConfirmDialog } from '@/shared/components/ConfirmDialog';
@@ -93,6 +94,44 @@ export default function CallDialerModal({
   // Auto-start call when modal opens
   useEffect(() => {
     if (isOpen && callPhase === 'dialing') {
+      // US-8 Enhancement: Check for unsaved call data in localStorage
+      const savedCallData = localStorage.getItem(`unsaved_call_${leadId}`);
+      
+      if (savedCallData) {
+        try {
+          const data = JSON.parse(savedCallData);
+          const savedTime = data.timestamp || 0;
+          const hourInMs = 60 * 60 * 1000;
+          
+          // Only restore if saved within last hour (prevent stale data)
+          if (Date.now() - savedTime < hourInMs) {
+            // Restore the call state based on saved phase
+            const savedPhase = data.callPhase || 'ended';
+            setCallPhase(savedPhase);
+            setStartTime(data.startTime ? new Date(data.startTime) : null);
+            setEndTime(data.endTime ? new Date(data.endTime) : null);
+            setDuration(data.duration || 0);
+            setCallStatus(data.callStatus || 'answer');
+            setRemarks(data.remarks || '');
+            setCallDate(data.callDate || '');
+            setCallTime(data.callTime || '');
+            setHasUnsavedChanges(true);
+            
+            // Silently restore - no toast notification needed
+            // The user can see the call is in progress from the UI
+            
+            // Prevent auto-start if we're restoring a call
+            return;
+          } else {
+            // Clear stale data
+            localStorage.removeItem(`unsaved_call_${leadId}`);
+          }
+        } catch (error) {
+          console.error('Failed to restore call data:', error);
+          localStorage.removeItem(`unsaved_call_${leadId}`);
+        }
+      }
+      
       // Automatically start the call after a brief delay (for modal animation)
       const timer = setTimeout(() => {
         handleStartCall();
@@ -100,7 +139,7 @@ export default function CallDialerModal({
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [isOpen]);
+  }, [isOpen, leadId]);
 
   // Timer effect for active call
   useEffect(() => {
@@ -132,9 +171,38 @@ export default function CallDialerModal({
     setCallDate(dateStr);
     setCallTime(timeStr);
     
-    // Simulate opening phone dialer
-    if (typeof window !== 'undefined') {
-      window.open(`tel:${leadPhone}`, '_self');
+    // US-8 Enhancement: Save calling state to localStorage immediately
+    const callData = {
+      leadId,
+      leadName,
+      leadPhone,
+      startTime: now.toISOString(),
+      callStatus: 'answer',
+      callDate: dateStr,
+      callTime: timeStr,
+      callPhase: 'calling',
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`unsaved_call_${leadId}`, JSON.stringify(callData));
+    
+    // AC-2 & AC-5: Dialer receives ONLY last 10 digits (no +91, spaces, or formatting)
+    const dialerPhone = formatPhoneForDialer(leadPhone);
+    
+    // US-8 AC-1 & AC-4: Open dialer without closing the form
+    // Mobile: Opens phone dialer app, browser stays on current page with form open
+    // Desktop: Opens in new tab/window, current tab keeps form open
+    if (dialerPhone && typeof window !== 'undefined') {
+      // Create a temporary link to trigger the dialer
+      const link = document.createElement('a');
+      link.href = `tel:${dialerPhone}`;
+      
+      // On mobile: tel: links open the native dialer without navigation
+      // On desktop: tel: links may open external apps or do nothing
+      // Using click() ensures no navigation/refresh occurs
+      link.click();
+      
+      // Clean up
+      link.remove();
     }
   };
 
@@ -147,6 +215,23 @@ export default function CallDialerModal({
     }
     setCallPhase('ended');
     setHasUnsavedChanges(true);
+    
+    // US-8 Enhancement: Save call data to localStorage to persist across page refresh
+    const callData = {
+      leadId,
+      leadName,
+      leadPhone,
+      startTime: startTime?.toISOString(),
+      endTime: now.toISOString(),
+      duration: startTime ? Math.floor((now.getTime() - startTime.getTime()) / 1000) : 0,
+      callStatus,
+      remarks,
+      callDate: callDate || now.toISOString().split('T')[0],
+      callTime: callTime || now.toTimeString().slice(0, 5),
+      callPhase: 'ended',
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`unsaved_call_${leadId}`, JSON.stringify(callData));
   };
 
   const handleSaveCall = async () => {
@@ -231,6 +316,9 @@ export default function CallDialerModal({
         setCallSaved(true);
         setHasUnsavedChanges(false);
         setCallPhase('next-action');
+        
+        // US-8 Enhancement: Clear saved call data from localStorage
+        localStorage.removeItem(`unsaved_call_${leadId}`);
       } else {
         throw new Error('Failed to save call');
       }
@@ -448,9 +536,9 @@ export default function CallDialerModal({
           isClosable: true,
         });
 
-        // Close modal and navigate to follow-ups page
+        // Close modal and navigate to leads page
         handleClose();
-        window.location.href = '/dashboard/followups';
+        window.location.href = '/dashboard/leads';
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to create follow-up');
@@ -565,6 +653,11 @@ export default function CallDialerModal({
   };
 
   const handleClose = () => {
+    // US-8 Enhancement: Only clear localStorage if call was saved or user confirmed discard
+    if (callSaved || !hasUnsavedChanges) {
+      localStorage.removeItem(`unsaved_call_${leadId}`);
+    }
+    
     // Reset all state
     setCallPhase('dialing');
     setStartTime(null);
@@ -660,7 +753,7 @@ export default function CallDialerModal({
                   {leadName}
                 </Text>
                 <Text fontSize={{ base: 'md', md: 'lg' }} color="gray.600">
-                  {leadPhone}
+                  {formatPhoneForDisplay(leadPhone)}
                 </Text>
               </Box>
 
@@ -690,7 +783,7 @@ export default function CallDialerModal({
                   {leadName}
                 </Text>
                 <Text fontSize="lg" color="gray.600" mb={4}>
-                  {leadPhone}
+                  {formatPhoneForDisplay(leadPhone)}
                 </Text>
                 <Badge colorScheme="green" fontSize="md" px={4} py={2}>
                   Calling...
@@ -1066,16 +1159,6 @@ export default function CallDialerModal({
                   placeholder="09:00"
                   isReadOnly={followUpTimeframe !== 'custom'}
                   bg={followUpTimeframe !== 'custom' ? 'gray.100' : 'white'}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Notes (Optional)</FormLabel>
-                <Textarea
-                  value={followUpNotes}
-                  onChange={(e) => setFollowUpNotes(e.target.value)}
-                  placeholder="Add notes for this follow-up..."
-                  rows={3}
                 />
               </FormControl>
 

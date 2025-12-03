@@ -335,7 +335,7 @@ export default function FollowUpsPage() {
               <Tr>
                 <Th>Lead Name</Th>
                 <Th display={{ base: 'none', sm: 'table-cell' }}>Scheduled At</Th>
-                <Th display={{ base: 'none', lg: 'table-cell' }}>Customer Requirement</Th>
+                <Th display={{ base: 'none', lg: 'table-cell' }}>Remarks</Th>
                 <Th>Actions</Th>
               </Tr>
             </Thead>

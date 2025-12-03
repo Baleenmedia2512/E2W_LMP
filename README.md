@@ -174,7 +174,7 @@ After seeding, you can login with:
 ### Lead Management
 - Create, update, and track leads
 - Multiple lead sources (Website, Meta, Referral, Direct, WhatsApp, Cold Call)
-- Lead status tracking (new, followup, contacted, qualified, won, lost, etc.)
+- Lead status tracking (new, followup, qualified, won, lost, unreach, unqualified)
 - Priority levels (low, medium, high)
 - Auto-assignment with round-robin
 

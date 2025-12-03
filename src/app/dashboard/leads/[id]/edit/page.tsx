@@ -21,6 +21,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { normalizePhoneForStorage } from '@/shared/utils/phone';
 
 interface Lead {
   id: string;
@@ -252,11 +253,15 @@ export default function EditLeadPage() {
     setLoading(true);
 
     try {
+      // AC-4: Clean phone numbers on manual entry (store only last 10 digits)
+      const cleanedPhone = normalizePhoneForStorage(formData.phone);
+      const cleanedAltPhone = formData.alternatePhone ? normalizePhoneForStorage(formData.alternatePhone) : null;
+      
       const updateData: any = {
         name: formData.name,
-        phone: phoneDigits,
+        phone: cleanedPhone,
         email: formData.email || null,
-        alternatePhone: formData.alternatePhone || null,
+        alternatePhone: cleanedAltPhone,
         address: formData.address || null,
         city: formData.city || null,
         state: formData.state || null,
@@ -459,7 +464,7 @@ export default function EditLeadPage() {
               </SimpleGrid>
 
               <FormControl>
-                <FormLabel>Customer Requirement</FormLabel>
+                <FormLabel>Remarks</FormLabel>
                 <Input
                   name="customerRequirement"
                   value={formData.customerRequirement}
@@ -477,7 +482,6 @@ export default function EditLeadPage() {
                     onChange={handleChange}
                   >
                     <option value="new">New</option>
-                    <option value="contacted">Contacted</option>
                     <option value="followup">Follow-up</option>
                     <option value="qualified">Qualified</option>
                     <option value="unreach">Unreachable</option>

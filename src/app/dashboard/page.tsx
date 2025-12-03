@@ -88,7 +88,6 @@ const StatCard = ({
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
     new: 'blue',
-    contacted: 'purple',
     qualified: 'green',
     unqualified: 'yellow',
     unreachable: 'gray',
