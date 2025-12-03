@@ -24,19 +24,44 @@ export const runtime = 'nodejs';
 async function fetchCampaignName(campaignId: string): Promise<string | null> {
   try {
     const accessToken = process.env.META_ACCESS_TOKEN;
-    if (!accessToken || !campaignId) return null;
+    if (!accessToken) {
+      console.error('❌ META_ACCESS_TOKEN not configured for campaign name fetch');
+      return null;
+    }
+    if (!campaignId) {
+      console.error('❌ No campaignId provided to fetchCampaignName');
+      return null;
+    }
 
+    console.log(`🔍 Fetching campaign name for ID: ${campaignId}`);
+    
     const response = await fetch(
       `https://graph.facebook.com/v21.0/${campaignId}?fields=name&access_token=${accessToken}`,
       { method: 'GET' }
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Failed to fetch campaign name for ${campaignId}: ${response.status} - ${errorText}`);
+      return null;
+    }
     
     const data = await response.json();
-    return data.name || null;
+    
+    if (data.error) {
+      console.error(`❌ Meta API error fetching campaign ${campaignId}:`, data.error);
+      return null;
+    }
+    
+    if (data.name) {
+      console.log(`✅ Campaign name fetched: "${data.name}" (ID: ${campaignId})`);
+      return data.name;
+    }
+    
+    console.warn(`⚠️ No name field in response for campaign ${campaignId}`);
+    return null;
   } catch (error) {
-    console.error(`Error fetching campaign name for ${campaignId}:`, error);
+    console.error(`❌ Error fetching campaign name for ${campaignId}:`, error);
     return null;
   }
 }
@@ -232,8 +257,14 @@ export async function GET(request: NextRequest) {
       // Fetch campaign name if available
       let campaignName = lead.campaign;
       if (metadata?.campaignId && (!campaignName || campaignName === metadata.campaignId)) {
+        console.log(`🔍 Attempting to fetch campaign name for placeholder lead ${lead.id}`);
         const fetchedName = await fetchCampaignName(metadata.campaignId);
-        if (fetchedName) campaignName = fetchedName;
+        if (fetchedName) {
+          campaignName = fetchedName;
+          console.log(`✅ Campaign name updated from "${lead.campaign}" to "${campaignName}"`);
+        } else {
+          console.warn(`⚠️ Could not fetch campaign name for ${metadata.campaignId}`);
+        }
       }
 
       // Update the lead
@@ -325,7 +356,13 @@ export async function GET(request: NextRequest) {
               .catch(() => null) : null;
           
           if (leadMetadata?.campaign_id) {
+            console.log(`📊 Campaign ID found: ${leadMetadata.campaign_id}`);
             campaignName = await fetchCampaignName(leadMetadata.campaign_id);
+            if (campaignName) {
+              console.log(`✅ Campaign name resolved: "${campaignName}"`);
+            }
+          } else {
+            console.log('⚠️ No campaign ID found in lead metadata');
           }
 
           // Create new lead

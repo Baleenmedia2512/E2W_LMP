@@ -99,19 +99,44 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
 async function fetchCampaignName(campaignId: string): Promise<string | null> {
   try {
     const accessToken = process.env.META_ACCESS_TOKEN;
-    if (!accessToken || !campaignId) return null;
+    if (!accessToken) {
+      console.error('❌ META_ACCESS_TOKEN not configured for campaign name fetch');
+      return null;
+    }
+    if (!campaignId) {
+      console.error('❌ No campaignId provided to fetchCampaignName');
+      return null;
+    }
 
+    console.log(`🔍 Fetching campaign name for ID: ${campaignId}`);
+    
     const response = await fetch(
       `https://graph.facebook.com/v21.0/${campaignId}?fields=name&access_token=${accessToken}`,
       { method: 'GET' }
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Failed to fetch campaign name for ${campaignId}: ${response.status} - ${errorText}`);
+      return null;
+    }
     
     const data = await response.json();
-    return data.name || null;
+    
+    if (data.error) {
+      console.error(`❌ Meta API error fetching campaign ${campaignId}:`, data.error);
+      return null;
+    }
+    
+    if (data.name) {
+      console.log(`✅ Campaign name fetched: "${data.name}" (ID: ${campaignId})`);
+      return data.name;
+    }
+    
+    console.warn(`⚠️ No name field in response for campaign ${campaignId}`);
+    return null;
   } catch (error) {
-    console.error(`Error fetching campaign name for ${campaignId}:`, error);
+    console.error(`❌ Error fetching campaign name for ${campaignId}:`, error);
     return null;
   }
 }
@@ -319,9 +344,38 @@ export async function POST(request: NextRequest) {
 
               // Fetch campaign name if campaign ID exists
               let campaignName = null;
-              if (campaignId) {
-                campaignName = await fetchCampaignName(campaignId);
-                console.log(`📊 Campaign: ${campaignName || campaignId}`);
+              let finalCampaignId = campaignId;
+              
+              // If campaign ID not in webhook, try to fetch it from ad
+              if (!finalCampaignId && adId) {
+                console.log(`🔍 No campaign ID in webhook, fetching from ad: ${adId}`);
+                try {
+                  const adResponse = await fetch(
+                    `https://graph.facebook.com/v21.0/${adId}?fields=campaign_id&access_token=${accessToken}`,
+                    { method: 'GET' }
+                  );
+                  if (adResponse.ok) {
+                    const adData = await adResponse.json();
+                    finalCampaignId = adData.campaign_id;
+                    console.log(`✅ Campaign ID from ad: ${finalCampaignId}`);
+                  } else {
+                    console.warn(`⚠️ Could not fetch campaign ID from ad ${adId}`);
+                  }
+                } catch (error) {
+                  console.error(`❌ Error fetching campaign from ad:`, error);
+                }
+              }
+              
+              if (finalCampaignId) {
+                console.log(`📊 Campaign ID: ${finalCampaignId}`);
+                campaignName = await fetchCampaignName(finalCampaignId);
+                if (campaignName) {
+                  console.log(`✅ Campaign name resolved: "${campaignName}"`);
+                } else {
+                  console.warn(`⚠️ Could not fetch campaign name, will store ID: ${finalCampaignId}`);
+                }
+              } else {
+                console.log('⚠️ No campaign ID available (not in webhook, no ad ID)');
               }
 
               // Create metadata object
@@ -331,7 +385,7 @@ export async function POST(request: NextRequest) {
                 pageId,
                 adId,
                 adgroupId,
-                campaignId,
+                campaignId: finalCampaignId, // Use the resolved campaign ID
                 ...customFields,
                 submittedAt: new Date(parseInt(createdTime) * 1000).toISOString(),
                 webhookReceived: new Date().toISOString(),
@@ -343,13 +397,14 @@ export async function POST(request: NextRequest) {
               console.log(`👤 Meta lead assigned to Gomathi: ${assignedTo || 'None'}`);
 
               // Create COMPLETE lead with full data
+              const campaignValue = campaignName || finalCampaignId || null;
               const lead = await prisma.lead.create({
                 data: {
                   name: name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
                   phone: phone,
                   email: email,
                   source: 'Meta',
-                  campaign: campaignName || campaignId || null,
+                  campaign: campaignValue,
                   status: 'new',
                   customerRequirement: customFields.message || null,
                   notes: 'Lead received via Meta webhook (real-time)',
@@ -359,6 +414,7 @@ export async function POST(request: NextRequest) {
               });
 
               console.log(`✅ Lead created: ${lead.name} (${lead.phone}) - ID: ${lead.id}`);
+              console.log(`📊 Campaign stored in DB: ${campaignValue ? `"${campaignValue}"` : 'NULL'}`);
 
               // Log activity
               await prisma.activityHistory.create({
