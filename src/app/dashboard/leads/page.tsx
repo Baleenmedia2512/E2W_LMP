@@ -147,11 +147,29 @@ export default function LeadsPage() {
   const searchParams = useSearchParams();
   const toast = useToast();
   
+  // Get filter from URL if present
+  const urlFilter = searchParams.get('filter');
+  
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    // Apply filter from URL (e.g., 'new', 'won', 'overdue', 'today')
+    if (urlFilter) {
+      // Handle both status filters and special filters like 'overdue', 'today'
+      if (['new', 'won', 'qualified', 'unqualified', 'unreachable', 'lost', 'overdue', 'scheduled', 'today'].includes(urlFilter)) {
+        return urlFilter;
+      }
+    }
+    return 'all';
+  });
   const [sourceFilter, setSourceFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>(() => {
+    // If filter is 'new', automatically set to today
+    if (urlFilter === 'new') {
+      return 'today';
+    }
+    return 'all';
+  });
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
@@ -314,9 +332,9 @@ export default function LeadsPage() {
       );
     }
 
-    // Status filter - handled after categorization for overdue/scheduled
+    // Status filter - handled after categorization for overdue/scheduled/today
     // For now, only filter by actual lead status for non-category filters
-    if (statusFilter !== 'all' && statusFilter !== 'overdue' && statusFilter !== 'scheduled') {
+    if (statusFilter !== 'all' && statusFilter !== 'overdue' && statusFilter !== 'scheduled' && statusFilter !== 'today') {
       filtered = filtered.filter(lead => lead.status === statusFilter);
     }
 
@@ -368,11 +386,24 @@ export default function LeadsPage() {
   const categorizedLeads = useMemo(() => {
     const categorized = categorizeAndSortLeads(filteredLeads, followUps);
     
-    // Apply status filter for overdue/scheduled categories
+    // Apply status filter for overdue/scheduled/today categories
     if (statusFilter === 'overdue') {
       return { overdue: categorized.overdue, newLeads: [], future: [] };
     } else if (statusFilter === 'scheduled') {
       return { overdue: [], newLeads: [], future: categorized.future };
+    } else if (statusFilter === 'today') {
+      // Filter future to show only TODAY's follow-ups
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      
+      const todayFollowUps = categorized.future.filter(({ followUp }) => {
+        if (!followUp) return false;
+        const scheduledDate = new Date(followUp.scheduledAt);
+        return scheduledDate >= todayStart && scheduledDate <= todayEnd && scheduledDate >= now;
+      });
+      
+      return { overdue: [], newLeads: [], future: todayFollowUps };
     } else if (statusFilter === 'new') {
       return { overdue: [], newLeads: categorized.newLeads, future: [] };
     }
@@ -465,6 +496,7 @@ export default function LeadsPage() {
             >
               <option value="all">All</option>
               <option value="new">New</option>
+              <option value="today">Follow-up Today</option>
               <option value="overdue">Overdue</option>
               <option value="scheduled">Scheduled Follow-up</option>
             </Select>
@@ -576,10 +608,13 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Source:</Text>
+                              <Text fontSize="sm" color="gray.700">{lead.source || '-'}</Text>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">
-                                {lead.campaign && lead.campaign !== '-' ? lead.campaign : `${lead.source} (Source)`}
-                              </Text>
+                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
@@ -663,7 +698,7 @@ export default function LeadsPage() {
                               <Text fontSize="sm" color="gray.700">{formatDateTime(lead.createdAt)}</Text>
                             </HStack>
                             
-                            {new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
+                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
                               <HStack spacing={2} flexWrap="wrap">
                                 <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Last Edit:</Text>
                                 <Text fontSize="sm" color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
@@ -810,10 +845,13 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Source:</Text>
+                              <Text fontSize="sm" color="gray.700">{lead.source || '-'}</Text>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">
-                                {lead.campaign && lead.campaign !== '-' ? lead.campaign : `${lead.source} (Source)`}
-                              </Text>
+                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
@@ -901,7 +939,7 @@ export default function LeadsPage() {
                               <Text fontSize="sm" color="gray.700">{formatDateTime(lead.createdAt)}</Text>
                             </HStack>
                             
-                            {new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
+                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
                               <HStack spacing={2} flexWrap="wrap">
                                 <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Last Edit:</Text>
                                 <Text fontSize="sm" color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
@@ -1043,10 +1081,13 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Source:</Text>
+                              <Text fontSize="sm" color="gray.700">{lead.source || '-'}</Text>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">
-                                {lead.campaign && lead.campaign !== '-' ? lead.campaign : `${lead.source} (Source)`}
-                              </Text>
+                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
@@ -1130,7 +1171,7 @@ export default function LeadsPage() {
                               <Text fontSize="sm" color="gray.700">{formatDateTime(lead.createdAt)}</Text>
                             </HStack>
                             
-                            {new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
+                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
                               <HStack spacing={2} flexWrap="wrap">
                                 <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Last Edit:</Text>
                                 <Text fontSize="sm" color="gray.700">{formatDateTime(lead.updatedAt)}</Text>

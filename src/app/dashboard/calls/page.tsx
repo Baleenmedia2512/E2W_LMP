@@ -39,7 +39,7 @@ import {
   Button,
 } from '@chakra-ui/react';
 import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
 import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
@@ -76,7 +76,11 @@ interface CallHistoryGroup {
 
 export default function CallsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlDateFilter = searchParams.get('date');
+  
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<string>(urlDateFilter || 'all');
   const [searchQuery, setSearchQuery] = useState('');
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,6 +152,18 @@ export default function CallsPage() {
   const filteredCalls = useMemo(() => {
     let filtered = groupedCalls;
 
+    // Date filter - filter by call date
+    if (dateFilter === 'today') {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      
+      filtered = filtered.filter(g => {
+        const callDate = new Date(g.latestCall.createdAt);
+        return callDate >= todayStart && callDate <= todayEnd;
+      });
+    }
+
     // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(g => g.latestCall.callStatus === statusFilter);
@@ -164,7 +180,7 @@ export default function CallsPage() {
     }
 
     return filtered;
-  }, [groupedCalls, statusFilter, searchQuery]);
+  }, [groupedCalls, statusFilter, searchQuery, dateFilter]);
 
   const getCallStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -268,6 +284,17 @@ export default function CallsPage() {
             </InputGroup>
 
             <Select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              maxW={{ base: 'full', sm: '150px' }}
+              flex={{ base: '1 1 48%', md: '0 1 auto' }}
+              size="sm"
+            >
+              <option value="all">All Dates</option>
+              <option value="today">Today</option>
+            </Select>
+
+            <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               maxW={{ base: 'full', sm: '200px' }}
@@ -282,7 +309,7 @@ export default function CallsPage() {
             </Select>
           </HStack>
 
-          {(searchQuery || statusFilter !== 'all') && (
+          {(searchQuery || statusFilter !== 'all' || dateFilter !== 'all') && (
             <HStack>
               <Text fontSize="sm" color="gray.600">
                 Showing {filteredCalls.length} of {groupedCalls.length} leads

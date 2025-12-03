@@ -46,19 +46,24 @@ export async function GET(request: NextRequest) {
     // Build user filter
     const userFilter = userId ? { assignedToId: userId } : {};
 
-    // 1. NEW ARRIVAL - Leads created in date range
-    const newLeadsWhere: any = { ...userFilter };
+    // 1. NEW ARRIVAL - Leads with status "new" created in date range
+    const newLeadsWhere: any = { status: 'new', ...userFilter };
     if (hasDateFilter) {
       newLeadsWhere.createdAt = dateFilter;
     }
 
-    // 2. FOLLOW-UPS SCHEDULED in date range
-    const followUpsScheduledWhere: any = {};
+    // 2. FOLLOW-UPS SCHEDULED in date range - count unique leads
+    // CRITICAL: Only count follow-ups for leads with ACTIVE statuses to match lead categorization
+    const followUpsScheduledWhere: any = {
+      lead: {
+        status: {
+          in: ['new', 'followup', 'qualified']
+        },
+        ...(userId && { assignedToId: userId }),
+      },
+    };
     if (hasDateFilter) {
       followUpsScheduledWhere.scheduledAt = dateFilter;
-    }
-    if (userId) {
-      followUpsScheduledWhere.lead = { assignedToId: userId };
     }
 
     // 3. WON LEADS - marked as won (by updatedAt) in date range
@@ -73,13 +78,10 @@ export async function GET(request: NextRequest) {
       lostLeadsWhere.updatedAt = dateFilter;
     }
 
-    // 5. TOTAL LEADS - created OR updated in date range
+    // 5. TOTAL LEADS - updated (last edited) in date range
     const totalLeadsWhere: any = { ...userFilter };
     if (hasDateFilter) {
-      totalLeadsWhere.OR = [
-        { createdAt: dateFilter },
-        { updatedAt: dateFilter },
-      ];
+      totalLeadsWhere.updatedAt = dateFilter;
     }
 
     // 6. CALLS/CONVERSATIONS - made in date range
@@ -120,15 +122,22 @@ export async function GET(request: NextRequest) {
       // 5. Conversations/Calls in date range
       prisma.callLog.count({ where: callsWhere }),
 
-      // 6. Follow-ups scheduled in date range
-      prisma.followUp.count({ where: followUpsScheduledWhere }),
+      // 6. Follow-ups scheduled in date range - get all to count unique leads
+      prisma.followUp.findMany({ 
+        where: followUpsScheduledWhere,
+        select: { leadId: true, scheduledAt: true }
+      }),
 
-      // 7. All pending follow-ups (for overdue calculation)
+      // 7. All pending follow-ups (for overdue calculation) - CRITICAL: only for ACTIVE leads
+      // This matches the lead categorization logic which filters by active statuses
       prisma.followUp.findMany({
         where: {
-          ...(userId && {
-            lead: { assignedToId: userId },
-          }),
+          lead: {
+            status: {
+              in: ['new', 'followup', 'qualified']
+            },
+            ...(userId && { assignedToId: userId }),
+          },
         },
         orderBy: { scheduledAt: 'desc' },
       }),
@@ -144,12 +153,15 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
 
-      // 9. Upcoming follow-ups for display
+      // 9. Upcoming follow-ups for display - CRITICAL: only for ACTIVE leads
       prisma.followUp.findMany({
         where: {
-          ...(userId && {
-            lead: { assignedToId: userId },
-          }),
+          lead: {
+            status: {
+              in: ['new', 'followup', 'qualified']
+            },
+            ...(userId && { assignedToId: userId }),
+          },
         },
         include: {
           lead: { select: { id: true, name: true, phone: true, status: true } },
@@ -159,54 +171,85 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    // Calculate OVERDUE LEADS (count of unique leads that became overdue in the date range)
+    // Calculate unique leads with NEXT follow-up scheduled for TODAY
+    // CRITICAL: This MUST match the logic in lead-categorization.ts exactly
+    // We find the EARLIEST follow-up per lead to determine the "next" follow-up
+    const leadFollowUpMap = new Map<string, any>();
+    
+    // Define today's date range
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    
+    // Group follow-ups by lead and find the earliest (next) one
+    for (const followUp of followUpsScheduled) {
+      const existing = leadFollowUpMap.get(followUp.leadId);
+      if (!existing || new Date(followUp.scheduledAt) < new Date(existing.scheduledAt)) {
+        leadFollowUpMap.set(followUp.leadId, followUp);
+      }
+    }
+    
+    // Count only leads whose NEXT follow-up is scheduled for TODAY (not overdue, not future)
+    let followUpsDueCount = 0;
+    for (const followUp of leadFollowUpMap.values()) {
+      const scheduledDate = new Date(followUp.scheduledAt);
+      if (scheduledDate >= todayStart && scheduledDate <= todayEnd && scheduledDate >= now) {
+        followUpsDueCount++;
+      }
+    }
+
+    // Calculate OVERDUE LEADS (count unique leads with overdue follow-ups)
+    // CRITICAL: Must match lead-categorization.ts logic - find EARLIEST follow-up per lead
+    // Count ALL overdue follow-ups (scheduledAt < now), regardless of date filter
     let overdueCount = 0;
     
-    // Filter to keep only latest follow-up per lead
-    const latestFollowUpsMap = new Map<string, any>();
+    // Step 1: Group by leadId and find the EARLIEST (next) follow-up for each lead
+    const leadNextFollowUpMap = new Map<string, any>();
     for (const followUp of allPendingFollowUps) {
-      if (!latestFollowUpsMap.has(followUp.leadId)) {
-        latestFollowUpsMap.set(followUp.leadId, followUp);
+      const existing = leadNextFollowUpMap.get(followUp.leadId);
+      const followUpDate = new Date(followUp.scheduledAt);
+      
+      if (!existing || followUpDate < new Date(existing.scheduledAt)) {
+        leadNextFollowUpMap.set(followUp.leadId, followUp);
       }
     }
-
-    // Count unique leads that became overdue in the selected date range
-    if (hasDateFilter) {
-      for (const followUp of latestFollowUpsMap.values()) {
-        const scheduledDate = new Date(followUp.scheduledAt);
-        // If scheduled date is before now AND within the date range (became overdue in this period)
-        if (scheduledDate < now && 
-            scheduledDate >= dateFilter.gte && 
-            scheduledDate <= dateFilter.lte) {
-          overdueCount++;
-        }
-      }
-    } else {
-      // If no date filter, count all currently overdue leads
-      for (const followUp of latestFollowUpsMap.values()) {
-        const scheduledDate = new Date(followUp.scheduledAt);
-        if (scheduledDate < now) {
-          overdueCount++;
-        }
+    
+    // Step 2: Count ALL leads whose NEXT follow-up is currently overdue (< now)
+    const overdueLeadsSet = new Set<string>();
+    for (const followUp of leadNextFollowUpMap.values()) {
+      const scheduledDate = new Date(followUp.scheduledAt);
+      if (scheduledDate < now) {
+        overdueLeadsSet.add(followUp.leadId);
       }
     }
+    overdueCount = overdueLeadsSet.size;
 
-    // Prepare upcoming follow-ups for display (next 5) - reusing the same map
+    // Prepare upcoming follow-ups for display (next 5 upcoming + fill with overdue if needed)
+    // Use upcomingFollowUps data which includes lead information
     const upcomingArray: any[] = [];
     const overdueArray: any[] = [];
     
-    for (const followUp of latestFollowUpsMap.values()) {
+    // Create a map to track which leads we've already added (show only next follow-up per lead)
+    const processedLeads = new Set<string>();
+    
+    // Sort all follow-ups by scheduled date
+    const sortedFollowUps = [...upcomingFollowUps].sort((a, b) => 
+      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+    );
+    
+    // Filter to keep only the earliest follow-up per lead and categorize
+    for (const followUp of sortedFollowUps) {
+      if (processedLeads.has(followUp.leadId)) continue;
+      
       const scheduledDate = new Date(followUp.scheduledAt);
       if (scheduledDate < now) {
         overdueArray.push(followUp);
       } else {
         upcomingArray.push(followUp);
       }
+      processedLeads.add(followUp.leadId);
     }
     
-    upcomingArray.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    overdueArray.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    
+    // Take first 5 upcoming, or fill remaining slots with overdue
     const displayFollowUps = [...upcomingArray.slice(0, 5), ...overdueArray.slice(0, Math.max(0, 5 - upcomingArray.length))];
 
     // Calculate win rate (won / (won + lost)) for date range
@@ -225,7 +268,7 @@ export async function GET(request: NextRequest) {
       data: {
         stats: {
           newLeads: newLeadsCount,
-          followUpsDue: followUpsScheduled,
+          followUpsDue: followUpsDueCount,
           overdue: overdueCount,
           totalLeads: totalLeadsCount,
           wonLeads: wonLeadsCount,
