@@ -46,7 +46,7 @@ export default function NextActionModal({
     // Navigate based on action
     switch (action) {
       case 'followup':
-        router.push('/dashboard/followups');
+        router.push('/dashboard/leads');
         break;
       case 'unqualified':
         router.push('/dashboard/leads/unqualified');

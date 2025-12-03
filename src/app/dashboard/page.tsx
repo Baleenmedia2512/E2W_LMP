@@ -30,7 +30,7 @@ import {
   FormLabel,
   useToast,
 } from '@chakra-ui/react';
-import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle } from 'react-icons/fi';
+import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle, FiXCircle } from 'react-icons/fi';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -112,10 +112,13 @@ export default function DashboardPage() {
     return new Date().toISOString().split('T')[0] || '';
   });
   const [dateRangeLabel, setDateRangeLabel] = useState<string>('Today');
+  const [hasDateFilter, setHasDateFilter] = useState<boolean>(true);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  // Build API URL with date filters
-  const statsUrl = `/api/dashboard/stats?startDate=${startDate}&endDate=${endDate}`;
+  // Build API URL with date filters (only include dates if filter is active)
+  const statsUrl = hasDateFilter && startDate && endDate
+    ? `/api/dashboard/stats?startDate=${startDate}&endDate=${endDate}`
+    : '/api/dashboard/stats';
 
   // Use SWR for real-time data fetching with auto-refresh
   const { data, error, isLoading, mutate } = useSWR(
@@ -214,6 +217,7 @@ export default function DashboardPage() {
   const setQuickDateRange = (range: 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last30days') => {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
+    setHasDateFilter(true);
     
     switch (range) {
       case 'today':
@@ -252,6 +256,13 @@ export default function DashboardPage() {
     }
   };
 
+  const clearDateFilter = () => {
+    setStartDate('');
+    setEndDate('');
+    setDateRangeLabel('All Time');
+    setHasDateFilter(false);
+  };
+
   const handleCardClick = (filter: string) => {
     router.push(`/dashboard/leads?filter=${filter}`);
   };
@@ -274,7 +285,9 @@ export default function DashboardPage() {
 
   // Dynamic label helper
   const getLabel = (baseLabel: string) => {
-    if (dateRangeLabel === 'Today') {
+    if (!hasDateFilter || dateRangeLabel === 'All Time') {
+      return `Total ${baseLabel}`;
+    } else if (dateRangeLabel === 'Today') {
       return `${baseLabel} Today`;
     } else if (dateRangeLabel === 'Yesterday') {
       return `${baseLabel} Yesterday`;
@@ -350,9 +363,18 @@ export default function DashboardPage() {
           <VStack align="stretch" spacing={3}>
             <Box>
               <Text fontSize="sm" fontWeight="semibold" mb={2}>
-                Quick Date Range: <Badge colorScheme="blue" ml={2}>{dateRangeLabel}</Badge>
+                Quick Date Range: <Badge colorScheme={hasDateFilter ? 'blue' : 'green'} ml={2}>{dateRangeLabel}</Badge>
               </Text>
               <Flex gap={2} flexWrap="wrap">
+                <Button
+                  size="sm"
+                  colorScheme={dateRangeLabel === 'All Time' ? 'green' : 'gray'}
+                  variant={dateRangeLabel === 'All Time' ? 'solid' : 'outline'}
+                  onClick={clearDateFilter}
+                  fontWeight="bold"
+                >
+                  All Time
+                </Button>
                 <Button
                   size="sm"
                   colorScheme={dateRangeLabel === 'Today' ? 'blue' : 'gray'}
@@ -403,7 +425,7 @@ export default function DashboardPage() {
                 <Input
                   type="date"
                   value={startDate}
-                  onChange={(e) => { setStartDate(e.target.value); setDateRangeLabel('Custom'); }}
+                  onChange={(e) => { setStartDate(e.target.value); setDateRangeLabel('Custom'); setHasDateFilter(true); }}
                   max={endDate}
                   size="md"
                 />
@@ -415,7 +437,7 @@ export default function DashboardPage() {
                 <Input
                   type="date"
                   value={endDate}
-                  onChange={(e) => { setEndDate(e.target.value); setDateRangeLabel('Custom'); }}
+                  onChange={(e) => { setEndDate(e.target.value); setDateRangeLabel('Custom'); setHasDateFilter(true); }}
                   min={startDate}
                   size="md"
                 />
@@ -425,8 +447,20 @@ export default function DashboardPage() {
         </CardBody>
       </Card>
 
+      {/* Info Banner for All Time View */}
+      {!hasDateFilter && (
+        <Box bg="green.50" p={3} borderRadius="md" borderWidth="1px" borderColor="green.200">
+          <HStack spacing={2}>
+            <Icon as={FiCheckCircle} color="green.600" />
+            <Text fontSize="sm" color="green.800" fontWeight="medium">
+              Showing total counts across all time. These numbers match your complete leads database.
+            </Text>
+          </HStack>
+        </Box>
+      )}
+
       {/* Stats Grid */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 6 }} spacing={{ base: 4, md: 6 }}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 5 }} spacing={{ base: 4, md: 6 }}>
         <StatCard
           label={getLabel('New Arrival')}
           value={stats.newLeads}
@@ -438,10 +472,10 @@ export default function DashboardPage() {
         <StatCard
           label={getLabel('Follow-up')}
           value={stats.followUpsDue}
-          helpText="Scheduled"
+          helpText="Due Today"
           icon={FiClock}
           colorScheme="orange"
-          onClick={() => router.push('/dashboard/followups')}
+          onClick={() => router.push('/dashboard/leads?filter=today')}
         />
         <StatCard
           label={getLabel('Overdue')}
@@ -450,14 +484,6 @@ export default function DashboardPage() {
           icon={FiAlertCircle}
           colorScheme="red"
           onClick={() => router.push('/dashboard/leads?filter=overdue')}
-        />
-        <StatCard
-          label={getLabel('Total')}
-          value={stats.totalLeads}
-          helpText="All activity"
-          icon={FiPhone}
-          colorScheme="purple"
-          onClick={() => router.push('/dashboard/leads')}
         />
         <StatCard
           label={getLabel('Won')}
@@ -517,17 +543,7 @@ export default function DashboardPage() {
 
       {/* Upcoming Follow-ups */}
       <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
-        <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
-          <Heading size={{ base: 'sm', md: 'md' }}>Upcoming Follow-ups</Heading>
-          <Button 
-            size="sm" 
-            colorScheme="blue" 
-            variant="ghost"
-            onClick={() => router.push('/dashboard/followups')}
-          >
-            View All
-          </Button>
-        </HStack>
+        <Heading size={{ base: 'sm', md: 'md' }} mb={4}>Upcoming Follow-ups</Heading>
         {upcomingFollowUps.length > 0 ? (
           <Box overflowX="auto">
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
@@ -643,7 +659,9 @@ export default function DashboardPage() {
         ) : (
           <Box textAlign="center" py={8}>
             <Text color="gray.500" fontSize="sm">
-              No data available for {dateRangeLabel === 'Today' ? 'today' : dateRangeLabel.toLowerCase()}
+              {hasDateFilter 
+                ? `No data available for ${dateRangeLabel === 'Today' ? 'today' : dateRangeLabel.toLowerCase()}` 
+                : 'No leads found in the system'}
             </Text>
           </Box>
         )}
