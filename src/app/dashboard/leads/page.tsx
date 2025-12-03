@@ -259,8 +259,9 @@ export default function LeadsPage() {
       );
     }
 
-    // Status filter
-    if (statusFilter !== 'all') {
+    // Status filter - handled after categorization for overdue/scheduled
+    // For now, only filter by actual lead status for non-category filters
+    if (statusFilter !== 'all' && statusFilter !== 'overdue' && statusFilter !== 'scheduled') {
       filtered = filtered.filter(lead => lead.status === statusFilter);
     }
 
@@ -310,8 +311,19 @@ export default function LeadsPage() {
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
-    return categorizeAndSortLeads(filteredLeads, followUps);
-  }, [filteredLeads, followUps, currentTime]); // Re-calculate when time updates
+    const categorized = categorizeAndSortLeads(filteredLeads, followUps);
+    
+    // Apply status filter for overdue/scheduled categories
+    if (statusFilter === 'overdue') {
+      return { overdue: categorized.overdue, newLeads: [], future: [] };
+    } else if (statusFilter === 'scheduled') {
+      return { overdue: [], newLeads: [], future: categorized.future };
+    } else if (statusFilter === 'new') {
+      return { overdue: [], newLeads: categorized.newLeads, future: [] };
+    }
+    
+    return categorized;
+  }, [filteredLeads, followUps, currentTime, statusFilter]); // Re-calculate when time updates
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -395,16 +407,13 @@ export default function LeadsPage() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '180px' }}
+              maxW={{ base: 'full', sm: '220px' }}
               flex={{ base: '1 1 100%', sm: '0 1 auto' }}
             >
-              <option value="all">All Status</option>
+              <option value="all">All</option>
               <option value="new">New</option>
-              <option value="followup">Follow-up</option>
-              <option value="won">Won</option>
-              <option value="lost">Lost</option>
-              <option value="unreach">Unreachable</option>
-              <option value="unqualified">Unqualified</option>
+              <option value="overdue">Overdue</option>
+              <option value="scheduled">Scheduled Follow-up</option>
             </Select>
 
             <Select

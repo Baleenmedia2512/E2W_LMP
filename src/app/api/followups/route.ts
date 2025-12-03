@@ -133,6 +133,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Mark all previous pending follow-ups for this lead as completed
+    // This ensures only the latest scheduled follow-up is active
+    await prisma.followUp.updateMany({
+      where: {
+        leadId: body.leadId,
+        status: 'pending',
+      },
+      data: {
+        status: 'completed',
+      },
+    });
+
     const followUp = await prisma.followUp.create({
       data: {
         leadId: body.leadId,
