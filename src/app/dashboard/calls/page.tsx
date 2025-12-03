@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import {
   Box,
@@ -42,6 +42,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
 import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
+import { formatPhoneForDisplay } from '@/shared/utils/phone';
 
 interface CallLog {
   id: string;
@@ -308,7 +309,6 @@ export default function CallsPage() {
                   <Th>Attempts</Th>
                   <Th>Duration (min)</Th>
                   <Th>Status</Th>
-                  <Th>Customer Requirement</Th>
                   <Th>Agent Name</Th>
                   <Th>Actions</Th>
                 </Tr>
@@ -341,23 +341,6 @@ export default function CallsPage() {
                         <Badge colorScheme={getCallStatusColor(group.latestCall.callStatus)}>
                           {getCallStatusLabel(group.latestCall.callStatus)}
                         </Badge>
-                      </Td>
-                      <Td maxW="250px">
-                        {group.latestCall.customerRequirement ? (
-                          <Tooltip label="Click to view full text" placement="top" hasArrow>
-                            <Text
-                              noOfLines={2}
-                              fontSize="sm"
-                              cursor="pointer"
-                              onClick={() => handleShowRemark(group.latestCall.customerRequirement)}
-                              _hover={{ color: 'blue.600' }}
-                            >
-                              {group.latestCall.customerRequirement}
-                            </Text>
-                          </Tooltip>
-                        ) : (
-                          <Text fontSize="sm" color="gray.400">-</Text>
-                        )}
                       </Td>
                       <Td>{group.latestCall.caller.name || 'N/A'}</Td>
                       <Td>
@@ -441,7 +424,7 @@ export default function CallsPage() {
                           {group.leadName}
                         </Text>
                         <Text fontSize="sm" color="gray.600">
-                          {group.leadPhone}
+                          {group.formatPhoneForDisplay(leadPhone)}
                         </Text>
                       </Box>
                       <Menu>
@@ -523,11 +506,11 @@ export default function CallsPage() {
                       </Text>
                     </Box>
 
-                    {/* Customer Requirement */}
+                    {/* Remarks */}
                     {group.latestCall.customerRequirement && (
                       <Box>
                         <Text fontSize="xs" color="gray.500" mb={1}>
-                          Customer Requirement
+                          Remarks
                         </Text>
                         <Text
                           fontSize="sm"
@@ -573,11 +556,11 @@ export default function CallsPage() {
         </Box>
       )}
 
-      {/* Customer Requirement Modal */}
+      {/* Remarks Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Customer Requirement Details</ModalHeader>
+          <ModalHeader>Remarks Details</ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             <Box 
@@ -588,7 +571,7 @@ export default function CallsPage() {
               borderColor="gray.200"
             >
               <Text whiteSpace="pre-wrap" fontSize="md">
-                {selectedRemark || 'No customer requirement provided'}
+                {selectedRemark || 'No remarks provided'}
               </Text>
             </Box>
           </ModalBody>
@@ -612,7 +595,6 @@ export default function CallsPage() {
                     <Th>Date/Time</Th>
                     <Th>Duration (min)</Th>
                     <Th>Status</Th>
-                    <Th>Customer Requirement</Th>
                     <Th>Agent Name</Th>
                   </Tr>
                 </Thead>
@@ -630,23 +612,6 @@ export default function CallsPage() {
                         <Badge colorScheme={getCallStatusColor(call.callStatus)}>
                           {getCallStatusLabel(call.callStatus)}
                         </Badge>
-                      </Td>
-                      <Td maxW="300px">
-                        {call.customerRequirement ? (
-                          <Tooltip label="Click to view full text" placement="top" hasArrow>
-                            <Text
-                              noOfLines={2}
-                              fontSize="sm"
-                              cursor="pointer"
-                              onClick={() => handleShowRemark(call.customerRequirement)}
-                              _hover={{ color: 'blue.600' }}
-                            >
-                              {call.customerRequirement}
-                            </Text>
-                          </Tooltip>
-                        ) : (
-                          <Text fontSize="sm" color="gray.400">-</Text>
-                        )}
                       </Td>
                       <Td>{call.caller.name || 'N/A'}</Td>
                     </Tr>

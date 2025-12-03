@@ -185,15 +185,18 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
     setLoading(true);
 
     try {
-      const phoneDigits = formData.phone.replace(/\D/g, '');
+      // AC-4: Clean phone number on manual entry (store only last 10 digits)
+      const cleanedPhone = normalizePhoneForStorage(formData.phone);
+      const cleanedAltPhone = formData.alternatePhone ? normalizePhoneForStorage(formData.alternatePhone) : null;
+      
       const response = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
-          phone: phoneDigits,
+          phone: cleanedPhone,
           email: formData.email || null,
-          alternatePhone: formData.alternatePhone || null,
+          alternatePhone: cleanedAltPhone,
           address: formData.address || null,
           city: formData.city || null,
           state: formData.state || null,
@@ -514,7 +517,7 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                 </SimpleGrid>
 
                 <ValidatedTextarea
-                  label="Customer Requirement"
+                  label="Remarks"
                   name="customerRequirement"
                   value={formData.customerRequirement}
                   onChange={handleChange}

@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!body.customerRequirement || !body.customerRequirement.trim()) {
       return NextResponse.json(
-        { success: false, error: 'Customer requirement is required' },
+        { success: false, error: 'Remarks is required' },
         { status: 400 }
       );
     }

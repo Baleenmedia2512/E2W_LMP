@@ -92,12 +92,9 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // If lead status is 'new', change it to 'contacted' after first call
-    if (currentLead?.status === 'new') {
-      updateData.status = 'contacted';
-    }
+    // Status is managed separately through lead updates
 
-    // Update customer requirement if provided
+    // Update remarks if provided
     if (body.customerRequirement) {
       updateData.customerRequirement = body.customerRequirement;
     }

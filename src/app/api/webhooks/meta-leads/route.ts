@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import prisma from '@/shared/lib/db/prisma';
+import { normalizePhoneForStorage } from '@/shared/utils/phone';
 
 // Make this route dynamic and disable static optimization
 export const dynamic = 'force-dynamic';
@@ -115,7 +116,36 @@ async function fetchCampaignName(campaignId: string): Promise<string | null> {
   }
 }
 
-// Round-robin assignment helper
+// Get Gomathi's user ID for Meta lead assignment (US-5)
+async function getGomathiUserId(): Promise<string | null> {
+  try {
+    const gomathi = await prisma.user.findUnique({
+      where: { email: 'gomathi@baleenmedia.com' },
+      select: { id: true, isActive: true },
+    });
+
+    if (gomathi && gomathi.isActive) {
+      return gomathi.id;
+    }
+
+    // Fallback: if Gomathi is not found or inactive, get first active agent
+    console.warn('⚠️ Gomathi not found or inactive, falling back to first active agent');
+    const fallbackAgent = await prisma.user.findFirst({
+      where: {
+        isActive: true,
+        role: { name: { in: ['Agent', 'SuperAgent'] } },
+      },
+      select: { id: true },
+    });
+
+    return fallbackAgent?.id || null;
+  } catch (error) {
+    console.error('Error getting Gomathi user ID:', error);
+    return null;
+  }
+}
+
+// Round-robin assignment helper (kept for non-Meta leads)
 async function getNextAgentForRoundRobin(): Promise<string | null> {
   try {
     const agents = await prisma.user.findMany({
@@ -264,7 +294,8 @@ export async function POST(request: NextRequest) {
                 if (fieldName.includes('name') || fieldName === 'full_name') {
                   name = fieldValue;
                 } else if (fieldName.includes('phone') || fieldName === 'phone_number') {
-                  phone = fieldValue;
+                  // AC-3: Clean phone number for auto-imported leads from Meta
+                  phone = normalizePhoneForStorage(fieldValue);
                 } else if (fieldName.includes('email')) {
                   email = fieldValue;
                 } else {
@@ -307,9 +338,9 @@ export async function POST(request: NextRequest) {
                 dataFetchedAt: new Date().toISOString(),
               };
 
-              // Get agent assignment
-              const assignedTo = await getNextAgentForRoundRobin();
-              console.log(`👤 Agent assignment: ${assignedTo || 'None'}`);
+              // Get Gomathi's ID for Meta lead assignment (US-5: Auto-assign to Gomathi)
+              const assignedTo = await getGomathiUserId();
+              console.log(`👤 Meta lead assigned to Gomathi: ${assignedTo || 'None'}`);
 
               // Create COMPLETE lead with full data
               const lead = await prisma.lead.create({

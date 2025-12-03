@@ -29,6 +29,7 @@ import {
 } from '@chakra-ui/react';
 import { HiFilter, HiPhone, HiUserAdd, HiClipboardList, HiBan, HiExclamation, HiCheckCircle, HiXCircle, HiClock } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
+import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import DSRCard from '@/features/dsr/components/DSRCard';
 import { useResponsive } from '@/shared/hooks/useResponsive';
 
@@ -648,7 +649,7 @@ export default function DSRPage() {
                       <Td fontWeight="medium" color={THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
                         {lead.name}
                       </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">{lead.phone}</Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">{formatPhoneForDisplay(lead.phone)}</Td>
                       <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', md: 'table-cell' }}>{lead.email || '-'}</Td>
                       <Td>
                         <Badge

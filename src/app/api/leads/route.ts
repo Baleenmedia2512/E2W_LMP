@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { notifyLeadAssigned } from '@/shared/lib/utils/notification-service';
+import { normalizePhoneForStorage, isValidPhone, getPhoneValidationError } from '@/shared/utils/phone';
 
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
@@ -119,6 +120,19 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // AC-4 & AC-6: Clean and validate phone numbers
+    const cleanedPhone = normalizePhoneForStorage(body.phone);
+    const cleanedAltPhone = body.alternatePhone ? normalizePhoneForStorage(body.alternatePhone) : null;
+    
+    // Validate main phone
+    if (!isValidPhone(cleanedPhone)) {
+      const error = getPhoneValidationError(body.phone);
+      return NextResponse.json(
+        { success: false, error: error || 'Invalid phone number' },
+        { status: 400 }
+      );
+    }
+
     // Determine assignedToId: use provided value or auto-assign via round-robin
     let assignedToId = body.assignedToId || null;
     
@@ -130,9 +144,9 @@ export async function POST(request: NextRequest) {
     const lead = await prisma.lead.create({
       data: {
         name: body.name,
-        phone: body.phone,
+        phone: cleanedPhone,
         email: body.email || null,
-        alternatePhone: body.alternatePhone || null,
+        alternatePhone: cleanedAltPhone,
         address: body.address || null,
         city: body.city || null,
         state: body.state || null,

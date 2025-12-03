@@ -32,7 +32,6 @@ import { useState, useEffect } from 'react';
 interface ReportsData {
   totalLeads: number;
   newLeads: number;
-  contactedLeads: number;
   qualifiedLeads: number;
   wonDeals: number;
   lostDeals: number;
@@ -161,7 +160,6 @@ export default function ReportsPage() {
           const stats = {
             totalLeads: leads.length,
             newLeads: leads.filter((l: any) => l.status === 'new').length,
-            contactedLeads: leads.filter((l: any) => l.status === 'contacted').length,
             qualifiedLeads: leads.filter((l: any) => l.status === 'qualified').length,
             wonDeals: leads.filter((l: any) => l.status === 'won').length,
             lostDeals: leads.filter((l: any) => l.status === 'lost').length,

@@ -56,7 +56,7 @@ export const validateLeadEmail = (email: string, required = false): ValidationRe
 };
 
 export const validateLeadStatus = (status: string): ValidationResult => {
-  const validStatuses = ['new', 'followup', 'contacted', 'qualified', 'unreach', 'unqualified', 'won', 'lost'];
+  const validStatuses = ['new', 'followup', 'qualified', 'unreach', 'unqualified', 'won', 'lost'];
   
   if (!validStatuses.includes(status)) {
     return { isValid: false, error: 'Invalid status value' };

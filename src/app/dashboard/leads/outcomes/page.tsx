@@ -40,6 +40,7 @@ import {
 } from '@chakra-ui/react';
 import { HiEye, HiSearch, HiRefresh, HiPhone } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
+import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface Lead {
@@ -609,7 +610,7 @@ export default function LeadOutcomesPage() {
                         onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                       >
                         <Td fontWeight="medium">{lead.name}</Td>
-                        <Td>{lead.phone}</Td>
+                        <Td>{formatPhoneForDisplay(lead.phone)}</Td>
                         <Td>
                           <Badge colorScheme={section.colorScheme}>
                             {section.title}
@@ -744,17 +745,6 @@ export default function LeadOutcomesPage() {
                   value={followUpTime}
                   onChange={(e) => setFollowUpTime(e.target.value)}
                   placeholder="--:-- --"
-                  size="lg"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontWeight="semibold">Notes (Optional)</FormLabel>
-                <Textarea
-                  placeholder="Add notes for this follow-up..."
-                  value={followUpNotes}
-                  onChange={(e) => setFollowUpNotes(e.target.value)}
-                  rows={4}
                   size="lg"
                 />
               </FormControl>

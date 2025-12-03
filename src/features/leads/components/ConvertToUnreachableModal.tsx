@@ -118,7 +118,7 @@ export default function ConvertToUnreachableModal({
         <ModalBody>
           <VStack spacing={4} align="stretch">
             <FormControl isRequired>
-              <FormLabel fontWeight="600">Customer Requirement / Reason (Required)</FormLabel>
+              <FormLabel fontWeight="600">Remarks / Reason (Required)</FormLabel>
               <Textarea
                 placeholder="Why is this lead unreachable? (e.g., Phone not answering, Invalid number, Customer requested not to call, etc.)"
                 value={reason}

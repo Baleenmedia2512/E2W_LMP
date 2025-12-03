@@ -44,7 +44,7 @@ export const createCallLogSchema = z.object({
 export const createFollowUpSchema = z.object({
   leadId: z.string().cuid(),
   scheduledAt: z.string().datetime().or(z.date()),
-  customerRequirement: z.string().min(1, 'Customer requirement is required').max(500, 'Customer requirement must be less than 500 characters'),
+  customerRequirement: z.string().min(1, 'Remarks is required').max(500, 'Remarks must be less than 500 characters'),
   notes: z.string().max(2000).optional().nullable(),
 });
 

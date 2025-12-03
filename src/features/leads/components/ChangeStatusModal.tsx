@@ -63,6 +63,11 @@ export default function ChangeStatusModal({
   const [reason, setReason] = useState('');
   const [dealValue, setDealValue] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // Follow-up specific fields
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpTime, setFollowUpTime] = useState('09:00');
+  const [followUpNotes, setFollowUpNotes] = useState('');
 
   useEffect(() => {
     setNewStatus(currentStatus);
@@ -93,10 +98,93 @@ export default function ChangeStatusModal({
       return;
     }
 
+    // Follow-up specific validation
+    if (newStatus === 'followup') {
+      if (!followUpDate) {
+        toast({
+          title: 'Date Required',
+          description: 'Please select a follow-up date',
+          status: 'warning',
+          duration: 3000,
+        });
+        return;
+      }
+
+      const scheduledDateTime = new Date(`${followUpDate}T${followUpTime}`);
+      const now = new Date();
+      
+      if (scheduledDateTime <= now) {
+        toast({
+          title: 'Invalid Date/Time',
+          description: 'Follow-up date and time must be in the future',
+          status: 'error',
+          duration: 5000,
+        });
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
-      // Prepare update payload
+      // Handle follow-up status separately
+      if (newStatus === 'followup') {
+        const scheduledDateTime = new Date(`${followUpDate}T${followUpTime}`);
+        
+        // Update lead status to followup
+        const leadResponse = await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'followup',
+            notes: followUpNotes || 'Status changed to Follow-up',
+          }),
+        });
+
+        if (!leadResponse.ok) {
+          throw new Error('Failed to update lead status');
+        }
+
+        // Create follow-up
+        const followUpResponse = await fetch('/api/followups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId,
+            scheduledAt: scheduledDateTime,
+            status: 'pending',
+            customerRequirement: followUpNotes?.trim() || 'Follow-up scheduled from status change',
+            notes: followUpNotes || 'Follow-up scheduled from status change',
+          }),
+        });
+
+        if (!followUpResponse.ok) {
+          throw new Error('Failed to create follow-up');
+        }
+
+        toast({
+          title: 'Success!',
+          description: `Status updated to Follow-up and scheduled for ${scheduledDateTime.toLocaleDateString()}`,
+          status: 'success',
+          duration: 3000,
+        });
+
+        // Reset form
+        setReason('');
+        setDealValue('');
+        setNotes('');
+        setFollowUpDate('');
+        setFollowUpTime('09:00');
+        setFollowUpNotes('');
+        onClose();
+        
+        if (onSuccess) {
+          onSuccess();
+        }
+        return;
+      }
+
+      // Prepare update payload for other statuses
       const updatePayload: any = {
         status: newStatus,
       };
@@ -148,6 +236,9 @@ export default function ChangeStatusModal({
         setReason('');
         setDealValue('');
         setNotes('');
+        setFollowUpDate('');
+        setFollowUpTime('09:00');
+        setFollowUpNotes('');
         onClose();
         
         if (onSuccess) {
@@ -159,7 +250,7 @@ export default function ChangeStatusModal({
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to update lead status',
+        description: error instanceof Error ? error.message : 'Failed to update lead status',
         status: 'error',
         duration: 3000,
       });
@@ -225,6 +316,29 @@ export default function ChangeStatusModal({
               </>
             )}
 
+            {/* Follow-up specific fields */}
+            {newStatus === 'followup' && (
+              <>
+                <FormControl isRequired>
+                  <FormLabel fontWeight="600">Follow-up Date (Required)</FormLabel>
+                  <Input
+                    type="date"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel fontWeight="600">Follow-up Time (Required)</FormLabel>
+                  <Input
+                    type="time"
+                    value={followUpTime}
+                    onChange={(e) => setFollowUpTime(e.target.value)}
+                  />
+                </FormControl>
+              </>
+            )}
+
             {/* Lost-specific fields */}
             {newStatus === 'lost' && (
               <>
@@ -269,30 +383,19 @@ export default function ChangeStatusModal({
 
             {/* Unqualified-specific fields */}
             {newStatus === 'unqualified' && (
-              <>
-                <FormControl isRequired>
-                  <FormLabel fontWeight="600">Reason (Required)</FormLabel>
-                  <Textarea
-                    placeholder="Why is this lead unqualified? (e.g., Budget constraints, Not interested, etc.)"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={4}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel fontWeight="600">Additional Notes (Optional)</FormLabel>
-                  <Textarea
-                    placeholder="Competitor info, future opportunities, etc."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                  />
-                </FormControl>
-              </>
+              <FormControl isRequired>
+                <FormLabel fontWeight="600">Reason (Required)</FormLabel>
+                <Textarea
+                  placeholder="Why is this lead unqualified? (e.g., Budget constraints, Not interested, etc.)"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={4}
+                />
+              </FormControl>
             )}
 
             {/* Generic notes for other statuses */}
-            {!requiresReason && newStatus !== 'won' && (
+            {!requiresReason && newStatus !== 'won' && newStatus !== 'followup' && (
               <FormControl>
                 <FormLabel fontWeight="600">Notes (Optional)</FormLabel>
                 <Textarea

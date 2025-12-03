@@ -40,7 +40,7 @@ export function categorizeAndSortLeads(
   const categorized: CategorizedLead[] = [];
   
   // Filter out leads with terminal statuses (unqualified, unreachable, won, lost)
-  const activeStatuses = ['new', 'contacted', 'followup', 'qualified'];
+  const activeStatuses = ['new', 'followup', 'qualified'];
 
   leads.forEach((lead) => {
     // Skip leads with terminal statuses

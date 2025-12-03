@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import {
@@ -31,6 +31,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiPhone, HiSearch, HiRefresh, HiClipboardList } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
+import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import CallAttemptsModal from '@/shared/components/CallAttemptsModal';
 
 interface Lead {
@@ -285,7 +286,7 @@ export default function UnreachableLeadsPage() {
               {unreachableLeads.map((lead) => (
                 <Tr key={lead.id} _hover={{ bg: 'gray.50' }}>
                   <Td fontWeight="medium">{lead.name}</Td>
-                  <Td>{lead.phone}</Td>
+                  <Td>{formatPhoneForDisplay(lead.phone)}</Td>
                   <Td>{lead.email || '-'}</Td>
                   <Td>
                     <Badge colorScheme="orange">{lead.callAttempts || 0}</Badge>

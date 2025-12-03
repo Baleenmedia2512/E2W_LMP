@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { findDuplicateLead, updateLeadWithMetaData } from '@/shared/lib/meta/deduplication';
+import { normalizePhoneForStorage } from '@/shared/utils/phone';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,36 @@ async function fetchCampaignName(campaignId: string): Promise<string | null> {
   }
 }
 
-// Round-robin assignment helper
+// Get Gomathi's user ID for Meta lead assignment (US-5)
+async function getGomathiUserId(): Promise<string | null> {
+  try {
+    const gomathi = await prisma.user.findUnique({
+      where: { email: 'gomathi@baleenmedia.com' },
+      select: { id: true, isActive: true },
+    });
+
+    if (gomathi && gomathi.isActive) {
+      return gomathi.id;
+    }
+
+    // Fallback: if Gomathi is not found or inactive, get first active agent
+    console.warn('⚠️ Gomathi not found or inactive, falling back to first active agent');
+    const fallbackAgent = await prisma.user.findFirst({
+      where: {
+        isActive: true,
+        role: { name: { in: ['Agent', 'SuperAgent'] } },
+      },
+      select: { id: true },
+    });
+
+    return fallbackAgent?.id || null;
+  } catch (error) {
+    console.error('Error getting Gomathi user ID:', error);
+    return null;
+  }
+}
+
+// Round-robin assignment helper (kept for non-Meta leads)
 async function getNextAgentForRoundRobin(): Promise<string | null> {
   try {
     const agents = await prisma.user.findMany({
@@ -121,7 +151,8 @@ function parseMetaLeadFields(fieldData: any[]): {
     if (fieldName.includes('name') || fieldName === 'full_name') {
       result.name = fieldValue;
     } else if (fieldName.includes('phone') || fieldName === 'phone_number') {
-      result.phone = fieldValue;
+      // AC-3: Clean phone number for auto-imported leads from Meta
+      result.phone = normalizePhoneForStorage(fieldValue);
     } else if (fieldName.includes('email')) {
       result.email = fieldValue;
     } else {
@@ -220,6 +251,15 @@ export async function GET(request: NextRequest) {
         },
       });
 
+      // Also update assignedToId to Gomathi if not already assigned (US-5)
+      const gomathiId = await getGomathiUserId();
+      if (gomathiId && !lead.assignedToId) {
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: { assignedToId: gomathiId },
+        });
+      }
+
       updatedCount++;
     }
 
@@ -307,7 +347,7 @@ export async function GET(request: NextRequest) {
                 submittedAt: metaLead.created_time,
                 pollingFetched: new Date().toISOString(),
               } as any,
-              assignedToId: await getNextAgentForRoundRobin(),
+              assignedToId: await getGomathiUserId(), // US-5: Auto-assign Meta leads to Gomathi
             },
           });
 

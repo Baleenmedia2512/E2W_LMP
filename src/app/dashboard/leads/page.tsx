@@ -27,6 +27,8 @@ import {
   Stack,
   Icon,
   SimpleGrid,
+  useToast,
+  Tooltip,
 } from '@chakra-ui/react';
 import {
   HiPlus,
@@ -41,6 +43,7 @@ import {
   HiViewBoards,
   HiExclamation,
 } from 'react-icons/hi';
+import { FaWhatsapp } from 'react-icons/fa';
 import AddLeadModal from '@/features/leads/components/AddLeadModal';
 import AssignLeadModal from '@/features/leads/components/AssignLeadModal';
 import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnreachableModal';
@@ -50,6 +53,8 @@ import { formatDate } from '@/shared/lib/date-utils';
 import { formatDateTime } from '@/shared/lib/date-utils';
 import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils/lead-categorization';
 import type { CallLog } from '@/shared/types';
+import { openWhatsApp, isValidWhatsAppPhone } from '@/shared/utils/whatsapp';
+import { formatPhoneForDisplay } from '@/shared/utils/phone';
 
 
 
@@ -96,8 +101,6 @@ const LeadAge = ({ createdAt }: { createdAt: string | Date }) => {
 const getStatusBadgeColor = (status: string): string => {
   switch (status) {
     case 'new':
-      return 'green';
-    case 'contacted':
       return 'blue';
     case 'followup':
       return 'orange';
@@ -121,8 +124,6 @@ const getStatusLabel = (status: string): string => {
   switch (status) {
     case 'new':
       return 'New';
-    case 'contacted':
-      return 'Contacted';
     case 'followup':
       return 'Follow-up';
     case 'qualified':
@@ -144,6 +145,7 @@ const getStatusLabel = (status: string): string => {
 export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
   
   // State
   const [searchQuery, setSearchQuery] = useState('');
@@ -223,6 +225,59 @@ export default function LeadsPage() {
   const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
   const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
   const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
+
+  // US-8: Auto-reopen Call Dialer Modal if there's unsaved call data after page refresh
+  useEffect(() => {
+    // Check all localStorage keys for unsaved call data
+    const keys = Object.keys(localStorage);
+    const unsavedCallKeys = keys.filter(key => key.startsWith('unsaved_call_'));
+    
+    if (unsavedCallKeys.length > 0 && !isCallDialerOpen) {
+      // Get the most recent unsaved call
+      const mostRecentKey = unsavedCallKeys[0];
+      
+      if (mostRecentKey) {
+        try {
+          const callData = JSON.parse(localStorage.getItem(mostRecentKey) || '{}');
+          const savedTime = callData.timestamp || 0;
+          const hourInMs = 60 * 60 * 1000;
+          
+          // Only restore if saved within last hour
+          if (Date.now() - savedTime < hourInMs && callData.leadId) {
+            // Set lead data and open modal
+            setLeadToCall({
+              id: callData.leadId,
+              name: callData.leadName || 'Unknown Lead',
+              phone: callData.leadPhone || ''
+            });
+            onCallDialerOpen();
+          } else {
+            // Clear stale data
+            localStorage.removeItem(mostRecentKey);
+          }
+        } catch (error) {
+          console.error('Failed to restore call modal:', error);
+        }
+      }
+    }
+  }, []); // Run only once on mount
+
+  // WhatsApp handler
+  const handleWhatsAppClick = (phone: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    const success = openWhatsApp(phone);
+    
+    if (!success) {
+      toast({
+        title: 'Invalid phone number',
+        description: 'The phone number must be at least 10 digits.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
 
   // Helper functions to get call and follow-up data for table views
   const getLastCallForLead = (leadId: string): CallLog | null => {
@@ -331,8 +386,6 @@ export default function LeadsPage() {
         return 'blue';
       case 'followup':
         return 'orange'; // Amber
-      case 'contacted':
-        return 'purple';
       case 'qualified':
         return 'cyan';
       case 'unreach':
@@ -519,12 +572,14 @@ export default function LeadsPage() {
                             
                             <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Phone:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.phone}</Text>
+                              <Text fontSize="sm" color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
+                              <Text fontSize="sm" color="gray.700">
+                                {lead.campaign && lead.campaign !== '-' ? lead.campaign : `${lead.source} (Source)`}
+                              </Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
@@ -629,6 +684,22 @@ export default function LeadsPage() {
                           >
                             Call Now
                           </Button>
+                          <Tooltip 
+                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
+                            placement="top"
+                          >
+                            <IconButton
+                              aria-label="Send WhatsApp"
+                              icon={<FaWhatsapp />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="whatsapp"
+                              variant="outline"
+                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
+                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                              _hover={{ transform: 'scale(1.05)' }}
+                              transition="all 0.2s"
+                            />
+                          </Tooltip>
                           <IconButton
                             aria-label="Assign lead"
                             icon={<HiUserAdd />}
@@ -644,14 +715,6 @@ export default function LeadsPage() {
                               });
                               onAssignOpen();
                             }}
-                          />
-                          <IconButton
-                            aria-label="Edit lead"
-                            icon={<HiPencil />}
-                            size="sm"
-                            colorScheme="green"
-                            variant="outline"
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}/edit`)}
                           />
                           <IconButton
                             aria-label="View details"
@@ -737,12 +800,14 @@ export default function LeadsPage() {
                             
                             <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Phone:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.phone}</Text>
+                              <Text fontSize="sm" color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
+                              <Text fontSize="sm" color="gray.700">
+                                {lead.campaign && lead.campaign !== '-' ? lead.campaign : `${lead.source} (Source)`}
+                              </Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
@@ -847,6 +912,22 @@ export default function LeadsPage() {
                           >
                             Call
                           </Button>
+                          <Tooltip 
+                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
+                            placement="top"
+                          >
+                            <IconButton
+                              aria-label="Send WhatsApp"
+                              icon={<FaWhatsapp />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="whatsapp"
+                              variant="outline"
+                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
+                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                              _hover={{ transform: 'scale(1.05)' }}
+                              transition="all 0.2s"
+                            />
+                          </Tooltip>
                           <IconButton
                             aria-label="Assign lead"
                             icon={<HiUserAdd />}
@@ -862,14 +943,6 @@ export default function LeadsPage() {
                               });
                               onAssignOpen();
                             }}
-                          />
-                          <IconButton
-                            aria-label="Edit lead"
-                            icon={<HiPencil />}
-                            size="sm"
-                            colorScheme="green"
-                            variant="outline"
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}/edit`)}
                           />
                           <IconButton
                             aria-label="View details"
@@ -961,12 +1034,14 @@ export default function LeadsPage() {
                             
                             <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Phone:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.phone}</Text>
+                              <Text fontSize="sm" color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
                               <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
+                              <Text fontSize="sm" color="gray.700">
+                                {lead.campaign && lead.campaign !== '-' ? lead.campaign : `${lead.source} (Source)`}
+                              </Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
@@ -1076,6 +1151,22 @@ export default function LeadsPage() {
                           >
                             Call
                           </Button>
+                          <Tooltip 
+                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
+                            placement="top"
+                          >
+                            <IconButton
+                              aria-label="Send WhatsApp"
+                              icon={<FaWhatsapp />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="whatsapp"
+                              variant="outline"
+                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
+                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                              _hover={{ transform: 'scale(1.05)' }}
+                              transition="all 0.2s"
+                            />
+                          </Tooltip>
                           <IconButton
                             aria-label="Assign lead"
                             icon={<HiUserAdd />}
@@ -1091,14 +1182,6 @@ export default function LeadsPage() {
                               });
                               onAssignOpen();
                             }}
-                          />
-                          <IconButton
-                            aria-label="Edit lead"
-                            icon={<HiPencil />}
-                            size="sm"
-                            colorScheme="green"
-                            variant="outline"
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}/edit`)}
                           />
                           <IconButton
                             aria-label="View details"
