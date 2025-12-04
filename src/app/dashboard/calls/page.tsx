@@ -451,7 +451,7 @@ export default function CallsPage() {
                           {group.leadName}
                         </Text>
                         <Text fontSize="sm" color="gray.600">
-                          {group.formatPhoneForDisplay(leadPhone)}
+                          {formatPhoneForDisplay(group.leadPhone)}
                         </Text>
                       </Box>
                       <Menu>
