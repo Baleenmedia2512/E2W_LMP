@@ -173,48 +173,98 @@ export async function GET(request: NextRequest) {
 
     // Calculate unique leads with NEXT follow-up scheduled for TODAY
     // CRITICAL: This MUST match the logic in lead-categorization.ts exactly
-    // We find the EARLIEST follow-up per lead to determine the "next" follow-up
+    // Prefer FUTURE follow-ups over past ones when determining the "next" follow-up
     const leadFollowUpMap = new Map<string, any>();
     
     // Define today's date range
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     
-    // Group follow-ups by lead and find the earliest (next) one
+    // Group all follow-ups by lead
+    const followUpsByLeadForToday = new Map<string, any[]>();
     for (const followUp of followUpsScheduled) {
-      const existing = leadFollowUpMap.get(followUp.leadId);
-      if (!existing || new Date(followUp.scheduledAt) < new Date(existing.scheduledAt)) {
-        leadFollowUpMap.set(followUp.leadId, followUp);
+      if (!followUpsByLeadForToday.has(followUp.leadId)) {
+        followUpsByLeadForToday.set(followUp.leadId, []);
+      }
+      followUpsByLeadForToday.get(followUp.leadId)!.push(followUp);
+    }
+    
+    // Find the NEXT follow-up per lead (prefer earliest future, else most recent past)
+    for (const [leadId, followUps] of followUpsByLeadForToday.entries()) {
+      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      
+      let nextFollowUp;
+      
+      if (futureFollowUps.length > 0) {
+        // Prefer earliest future follow-up
+        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+          return new Date(current.scheduledAt) < new Date(earliest.scheduledAt) ? current : earliest;
+        });
+      } else if (pastFollowUps.length > 0) {
+        // If no future, use most recent past
+        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+          return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
+        });
+      }
+      
+      if (nextFollowUp) {
+        leadFollowUpMap.set(leadId, nextFollowUp);
       }
     }
     
-    // Count only leads whose NEXT follow-up is scheduled for TODAY (including past times today)
+    // Count only leads whose NEXT follow-up is scheduled for TODAY with FUTURE time
     let followUpsDueCount = 0;
     for (const followUp of leadFollowUpMap.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
-      // Count all follow-ups scheduled for today, regardless of whether time has passed
-      if (scheduledDate >= todayStart && scheduledDate <= todayEnd) {
+      // Count only TODAY's follow-ups that are in the FUTURE (time not passed yet)
+      if (scheduledDate >= now && scheduledDate >= todayStart && scheduledDate <= todayEnd) {
         followUpsDueCount++;
       }
     }
 
     // Calculate OVERDUE LEADS (count unique leads with overdue follow-ups)
-    // CRITICAL: Must match lead-categorization.ts logic - find EARLIEST follow-up per lead
-    // Count ALL overdue follow-ups (scheduledAt < now), regardless of date filter
+    // CRITICAL: Must match lead-categorization.ts logic exactly
+    // Prefer FUTURE follow-ups over past ones when determining NEXT follow-up
     let overdueCount = 0;
     
-    // Step 1: Group by leadId and find the EARLIEST (next) follow-up for each lead
+    // Step 1: Group by leadId and find the NEXT follow-up (prefer future over past)
     const leadNextFollowUpMap = new Map<string, any>();
+    
+    // First, group all follow-ups by leadId
+    const followUpsByLead = new Map<string, any[]>();
     for (const followUp of allPendingFollowUps) {
-      const existing = leadNextFollowUpMap.get(followUp.leadId);
-      const followUpDate = new Date(followUp.scheduledAt);
+      if (!followUpsByLead.has(followUp.leadId)) {
+        followUpsByLead.set(followUp.leadId, []);
+      }
+      followUpsByLead.get(followUp.leadId)!.push(followUp);
+    }
+    
+    // Then, find NEXT follow-up per lead (prefer earliest future, else most recent past)
+    for (const [leadId, followUps] of followUpsByLead.entries()) {
+      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
       
-      if (!existing || followUpDate < new Date(existing.scheduledAt)) {
-        leadNextFollowUpMap.set(followUp.leadId, followUp);
+      let nextFollowUp;
+      
+      if (futureFollowUps.length > 0) {
+        // Prefer earliest future follow-up
+        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+          return new Date(current.scheduledAt) < new Date(earliest.scheduledAt) ? current : earliest;
+        });
+      } else if (pastFollowUps.length > 0) {
+        // If no future, use most recent past
+        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+          return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
+        });
+      }
+      
+      if (nextFollowUp) {
+        leadNextFollowUpMap.set(leadId, nextFollowUp);
       }
     }
     
-    // Step 2: Count ALL leads whose NEXT follow-up is currently overdue (< now)
+    // Step 2: Count leads whose NEXT follow-up is currently overdue (< now)
     const overdueLeadsSet = new Set<string>();
     for (const followUp of leadNextFollowUpMap.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
@@ -224,34 +274,55 @@ export async function GET(request: NextRequest) {
     }
     overdueCount = overdueLeadsSet.size;
 
-    // Prepare upcoming follow-ups for display (next 5 upcoming + fill with overdue if needed)
-    // Use upcomingFollowUps data which includes lead information
-    const upcomingArray: any[] = [];
-    const overdueArray: any[] = [];
+    // Prepare upcoming follow-ups for display
+    // CRITICAL: Find the NEXT follow-up per lead (prefer future over past)
+    const leadNextFollowUpForDisplay = new Map<string, any>();
     
-    // Create a map to track which leads we've already added (show only next follow-up per lead)
-    const processedLeads = new Set<string>();
-    
-    // Sort all follow-ups by scheduled date
-    const sortedFollowUps = [...upcomingFollowUps].sort((a, b) => 
-      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-    );
-    
-    // Filter to keep only the earliest follow-up per lead and categorize
-    for (const followUp of sortedFollowUps) {
-      if (processedLeads.has(followUp.leadId)) continue;
-      
-      const scheduledDate = new Date(followUp.scheduledAt);
-      if (scheduledDate < now) {
-        overdueArray.push(followUp);
-      } else {
-        upcomingArray.push(followUp);
+    // Group all follow-ups by leadId
+    const followUpsByLeadForDisplay = new Map<string, any[]>();
+    for (const followUp of upcomingFollowUps) {
+      if (!followUpsByLeadForDisplay.has(followUp.leadId)) {
+        followUpsByLeadForDisplay.set(followUp.leadId, []);
       }
-      processedLeads.add(followUp.leadId);
+      followUpsByLeadForDisplay.get(followUp.leadId)!.push(followUp);
     }
     
-    // Take first 5 upcoming, or fill remaining slots with overdue
-    const displayFollowUps = [...upcomingArray.slice(0, 5), ...overdueArray.slice(0, Math.max(0, 5 - upcomingArray.length))];
+    // Find the NEXT follow-up per lead (prefer earliest future, else most recent past)
+    for (const [leadId, followUps] of followUpsByLeadForDisplay.entries()) {
+      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      
+      let nextFollowUp;
+      
+      if (futureFollowUps.length > 0) {
+        // Prefer earliest future follow-up
+        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+          return new Date(current.scheduledAt) < new Date(earliest.scheduledAt) ? current : earliest;
+        });
+      } else if (pastFollowUps.length > 0) {
+        // If no future, use most recent past
+        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+          return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
+        });
+      }
+      
+      if (nextFollowUp) {
+        leadNextFollowUpForDisplay.set(leadId, nextFollowUp);
+      }
+    }
+    
+    // Filter only FUTURE follow-ups for display
+    const upcomingArray: any[] = [];
+    for (const followUp of leadNextFollowUpForDisplay.values()) {
+      const scheduledDate = new Date(followUp.scheduledAt);
+      if (scheduledDate >= now) {
+        upcomingArray.push(followUp);
+      }
+    }
+    
+    // Sort by scheduled date and take top 5
+    upcomingArray.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    const displayFollowUps = upcomingArray.slice(0, 5);
 
     // Calculate win rate (won / (won + lost)) for date range
     const totalClosed = wonLeadsCount + lostLeadsCount;
@@ -264,6 +335,9 @@ export async function GET(request: NextRequest) {
       ? Math.round((wonLeadsCount / totalLeadsCount) * 100) 
       : 0;
 
+    // Calculate Total Leads for dashboard (New + Overdue + Today Follow-ups + Won)
+    const totalLeadsForDashboard = newLeadsCount + overdueCount + followUpsDueCount + wonLeadsCount;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -272,6 +346,7 @@ export async function GET(request: NextRequest) {
           followUpsDue: followUpsDueCount,
           overdue: overdueCount,
           totalLeads: totalLeadsCount,
+          totalLeadsForDashboard, // New + Overdue + Today Follow-ups
           wonLeads: wonLeadsCount,
           lostLeads: lostLeadsCount,
           conversations: conversationsCount,

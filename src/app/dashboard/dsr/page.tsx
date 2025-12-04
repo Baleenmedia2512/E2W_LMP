@@ -94,8 +94,8 @@ export default function DSRPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   
   // Filter state
-  const [startDate, setStartDate] = useState(todayString);
-  const [endDate, setEndDate] = useState(todayString);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState('all');
   const [isFiltered, setIsFiltered] = useState(false);
   const [activeCard, setActiveCard] = useState<string | null>(null);
@@ -103,8 +103,8 @@ export default function DSRPage() {
   const [dateRangePreset, setDateRangePreset] = useState('all_time');
 
   // Temporary state for filters before applying
-  const [tempStartDate, setTempStartDate] = useState(todayString);
-  const [tempEndDate, setTempEndDate] = useState(todayString);
+  const [tempStartDate, setTempStartDate] = useState('');
+  const [tempEndDate, setTempEndDate] = useState('');
   const [tempSelectedAgentId, setTempSelectedAgentId] = useState('all');
   const [tempDateRangePreset, setTempDateRangePreset] = useState('all_time');
 
@@ -115,8 +115,9 @@ export default function DSRPage() {
       setError(null);
       
       const params = new URLSearchParams();
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      // Only send date params when not empty and not all_time
+      if (startDate && dateRangePreset !== 'all_time') params.append('startDate', startDate);
+      if (endDate && dateRangePreset !== 'all_time') params.append('endDate', endDate);
       if (selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
       
       const response = await fetch(`/api/dsr/stats?${params.toString()}`);
@@ -176,11 +177,9 @@ export default function DSRPage() {
       setTempStartDate(lastMonth.toISOString().split('T')[0]);
       setTempEndDate(todayStr);
     } else if (preset === 'all_time') {
-      // For all time, use a very old date to current date
-      const oldDate = new Date(now);
-      oldDate.setFullYear(now.getFullYear() - 5);
-      setTempStartDate(oldDate.toISOString().split('T')[0]);
-      setTempEndDate(todayStr);
+      // For all time, clear the dates (will show today's data by default)
+      setTempStartDate('');
+      setTempEndDate('');
     }
     // For 'custom', don't change dates - user will set them manually
   };
@@ -205,12 +204,12 @@ export default function DSRPage() {
 
   // Reset filters
   const handleResetFilters = () => {
-    setTempStartDate(todayString);
-    setTempEndDate(todayString);
+    setTempStartDate('');
+    setTempEndDate('');
     setTempSelectedAgentId('all');
     setTempDateRangePreset('all_time');
-    setStartDate(todayString);
-    setEndDate(todayString);
+    setStartDate('');
+    setEndDate('');
     setSelectedAgentId('all');
     setDateRangePreset('all_time');
     setIsFiltered(false);
@@ -447,12 +446,18 @@ export default function DSRPage() {
             )}
 
             {/* Active Filters Info */}
-            {(isFiltered || searchQuery) && startDate && endDate && (
+            {(isFiltered || searchQuery) && (
               <Box>
                 <Divider my={2} borderColor={THEME_COLORS.light} />
                 <Text fontSize={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.medium}>
-                  Showing results from <strong>{formatDate(new Date(startDate))}</strong> to{' '}
-                  <strong>{formatDate(new Date(endDate))}</strong>
+                  {startDate && endDate ? (
+                    <>
+                      Showing results from <strong>{formatDate(new Date(startDate))}</strong> to{' '}
+                      <strong>{formatDate(new Date(endDate))}</strong>
+                    </>
+                  ) : (
+                    <>Showing <strong>today's</strong> results</>
+                  )}
                   {selectedAgentId !== 'all' && agents.find(a => a.id === selectedAgentId) && (
                     <> for agent <strong>{agents.find(a => a.id === selectedAgentId)?.name}</strong></>
                   )}
@@ -474,7 +479,7 @@ export default function DSRPage() {
             label="New Leads Handled"
             value={stats.newLeadsHandledToday}
             total={stats.totalNewLeads}
-            helpText="Within selected date range"
+            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Today / Total NEW' : 'In range / Total NEW'}
             icon={HiUserAdd}
             colorScheme="primary"
             type="newLeads"
@@ -487,7 +492,7 @@ export default function DSRPage() {
             label="Follow-ups Handled"
             value={stats.followUpsHandledToday}
             total={stats.totalFollowUps}
-            helpText="Pending follow-ups in range"
+            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Today / Pending' : 'In range / Pending'}
             icon={HiClipboardList}
             colorScheme="medium"
             type="followUps"
@@ -499,7 +504,7 @@ export default function DSRPage() {
           <DSRCard
             label="Total Calls"
             value={stats.totalCalls}
-            helpText="All calls in date range"
+            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Calls made today' : 'Calls in range'}
             icon={HiPhone}
             colorScheme="accent"
             type="totalCalls"
@@ -507,24 +512,11 @@ export default function DSRPage() {
             isActive={activeCard === 'totalCalls'}
           />
 
-          {/* Completed Calls Card */}
-          <DSRCard
-            label="Completed Calls"
-            value={stats.completedCalls}
-            total={stats.totalCalls}
-            helpText="Successfully completed"
-            icon={HiCheckCircle}
-            colorScheme="primary"
-            type="completedCalls"
-            onClick={handleCardClick}
-            isActive={activeCard === 'completedCalls'}
-          />
-
           {/* Overdue Follow-ups Card */}
           <DSRCard
             label="Overdue Follow-ups"
             value={stats.overdueFollowUps || 0}
-            helpText="Needs attention"
+            helpText="Needs immediate attention"
             icon={HiClock}
             colorScheme="dark"
             type="overdue"
@@ -534,9 +526,10 @@ export default function DSRPage() {
 
           {/* Unqualified Card */}
           <DSRCard
-            label="Unqualified Today"
+            label="Unqualified"
             value={stats.unqualifiedToday}
-            helpText="Leads marked unqualified"
+            total={stats.totalUnqualified}
+            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Changed today / Total' : 'In range / Total'}
             icon={HiBan}
             colorScheme="accent"
             type="unqualified"
@@ -546,9 +539,10 @@ export default function DSRPage() {
 
           {/* Unreachable Card */}
           <DSRCard
-            label="Unreachable Today"
+            label="Unreachable"
             value={stats.unreachableToday}
-            helpText="Leads marked unreachable"
+            total={stats.totalUnreachable}
+            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Changed today / Total' : 'In range / Total'}
             icon={HiExclamation}
             colorScheme="dark"
             type="unreachable"
@@ -558,9 +552,10 @@ export default function DSRPage() {
 
           {/* Won Deals Card */}
           <DSRCard
-            label="Won Deals Today"
+            label="Won Deals"
             value={stats.wonToday}
-            helpText="Successfully closed deals"
+            total={stats.totalWon}
+            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Closed today / Total' : 'In range / Total'}
             icon={HiCheckCircle}
             colorScheme="primary"
             type="win"
@@ -570,9 +565,10 @@ export default function DSRPage() {
 
           {/* Lost Deals Card */}
           <DSRCard
-            label="Lost Deals Today"
+            label="Lost Deals"
             value={stats.lostToday}
-            helpText="Deals marked as lost"
+            total={stats.totalLost}
+            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Lost today / Total' : 'In range / Total'}
             icon={HiXCircle}
             colorScheme="medium"
             type="lose"

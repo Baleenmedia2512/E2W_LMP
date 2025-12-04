@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/shared/lib/db/prisma';
+import { calculateDSRMetrics } from '@/shared/lib/utils/dsr-metrics';
 
 export const dynamic = 'force-dynamic';
-import prisma from '@/shared/lib/db/prisma';
+export const runtime = 'nodejs';
+export const revalidate = 0;
 
 /**
  * GET /api/dsr/stats
@@ -19,17 +22,27 @@ export async function GET(request: NextRequest) {
     const endDateParam = searchParams.get('endDate');
     const agentId = searchParams.get('agentId');
 
+    console.log('[DSR Stats API] Request params:', { startDateParam, endDateParam, agentId });
+
     // Build date filter
     const dateFilter: any = {};
     if (startDateParam) {
-      const startDate = new Date(startDateParam);
-      startDate.setHours(0, 0, 0, 0);
-      dateFilter.gte = startDate;
+      try {
+        const startDate = new Date(startDateParam);
+        startDate.setHours(0, 0, 0, 0);
+        dateFilter.gte = startDate;
+      } catch (e) {
+        console.error('[DSR Stats API] Invalid start date:', e);
+      }
     }
     if (endDateParam) {
-      const endDate = new Date(endDateParam);
-      endDate.setHours(23, 59, 59, 999);
-      dateFilter.lte = endDate;
+      try {
+        const endDate = new Date(endDateParam);
+        endDate.setHours(23, 59, 59, 999);
+        dateFilter.lte = endDate;
+      } catch (e) {
+        console.error('[DSR Stats API] Invalid end date:', e);
+      }
     }
 
     // Build base where clause for leads
@@ -52,137 +65,71 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
 
-    // Fetch all DSR stats in parallel
-    const [
-      // New Leads Handled Today (in date range)
-      newLeadsHandledToday,
-      
-      // Total New Leads (all time for selected agent)
-      totalNewLeads,
-      
-      // Follow-ups Handled Today (in date range)
-      followUpsHandledToday,
-      
-      // Total Follow-ups
-      totalFollowUps,
-      
-      // Unqualified Today
-      unqualifiedToday,
-      
-      // Unreachable Today
-      unreachableToday,
-      
-      // Won Deals Today
-      wonToday,
-      
-      // Lost Deals Today
-      lostToday,
-      
-      // Overdue Follow-ups
-      overdueFollowUps,
-      
-      // Total Calls in date range
-      totalCalls,
-      
-      // Completed Calls
-      completedCalls,
-      
-      // Get all leads in date range for table
-      filteredLeads,
-      
-      // Get agent performance data
-      agents,
-    ] = await Promise.all([
-      // 1. New leads in date range
-      prisma.lead.count({ where: leadsWhere }),
-      
-      // 2. Total new leads (all time for agent)
-      prisma.lead.count({
+    console.log('[DSR Stats API] Fetching data from database...');
+
+    // Fetch all data needed for DSR calculations with try-catch for each query
+    let allLeads, allFollowups, allCalls, filteredLeads, agents;
+    
+    try {
+      // 1. Fetch all leads with relevant fields
+      allLeads = await prisma.lead.findMany({
         where: agentId ? { assignedToId: agentId } : {},
-      }),
-      
-      // 3. Follow-ups in date range
-      prisma.followUp.count({
-        where: {
-          ...(Object.keys(dateFilter).length > 0 && { scheduledAt: dateFilter }),
-          ...(agentId && {
-            lead: {
-              assignedToId: agentId,
-            },
-          }),
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          assignedToId: true,
         },
-      }),
-      
-      // 4. Total follow-ups
-      prisma.followUp.count({
+      });
+      console.log('[DSR Stats API] Fetched leads:', allLeads.length);
+    } catch (error) {
+      console.error('[DSR Stats API] Error fetching leads:', error);
+      throw new Error('Failed to fetch leads');
+    }
+
+    try {
+      // 2. Fetch all followups
+      allFollowups = await prisma.followUp.findMany({
         where: agentId ? {
           lead: {
             assignedToId: agentId,
           },
         } : {},
-      }),
-      
-      // 5. Unqualified in date range
-      prisma.lead.count({
-        where: {
-          ...leadsWhere,
-          status: 'unqualified',
-          ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
+        select: {
+          id: true,
+          leadId: true,
+          scheduledAt: true,
+          createdAt: true,
         },
-      }),
-      
-      // 6. Unreachable in date range
-      prisma.lead.count({
-        where: {
-          ...leadsWhere,
-          status: 'unreach',
-          ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
+      });
+      console.log('[DSR Stats API] Fetched followups:', allFollowups.length);
+    } catch (error) {
+      console.error('[DSR Stats API] Error fetching followups:', error);
+      throw new Error('Failed to fetch followups');
+    }
+
+    try {
+      // 3. Fetch all calls
+      allCalls = await prisma.callLog.findMany({
+        where: agentId ? {
+          callerId: agentId,
+        } : {},
+        select: {
+          id: true,
+          leadId: true,
+          createdAt: true,
         },
-      }),
-      
-      // 7. Won deals in date range
-      prisma.lead.count({
-        where: {
-          ...leadsWhere,
-          status: 'won',
-          ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
-        },
-      }),
-      
-      // 8. Lost deals in date range
-      prisma.lead.count({
-        where: {
-          ...leadsWhere,
-          status: 'lost',
-          ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
-        },
-      }),
-      
-      // 9. Overdue follow-ups
-      prisma.followUp.count({
-        where: {
-          scheduledAt: { lt: now },
-          ...(agentId && {
-            lead: {
-              assignedToId: agentId,
-            },
-          }),
-        },
-      }),
-      
-      // 10. Total calls in date range
-      prisma.callLog.count({ where: callsWhere }),
-      
-      // 12. Completed calls
-      prisma.callLog.count({
-        where: {
-          ...callsWhere,
-          callStatus: 'completed',
-        },
-      }),
-      
-      // 13. Get filtered leads for table
-      prisma.lead.findMany({
+      });
+      console.log('[DSR Stats API] Fetched calls:', allCalls.length);
+    } catch (error) {
+      console.error('[DSR Stats API] Error fetching calls:', error);
+      throw new Error('Failed to fetch calls');
+    }
+
+    try {
+      // 4. Get filtered leads for table display (limited to date range if specified)
+      filteredLeads = await prisma.lead.findMany({
         where: leadsWhere,
         include: {
           assignedTo: {
@@ -202,10 +149,16 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { createdAt: 'desc' },
         take: 100, // Limit to 100 leads for performance
-      }),
-      
-      // 14. Get all active agents
-      prisma.user.findMany({
+      });
+      console.log('[DSR Stats API] Fetched filtered leads:', filteredLeads.length);
+    } catch (error) {
+      console.error('[DSR Stats API] Error fetching filtered leads:', error);
+      throw new Error('Failed to fetch filtered leads');
+    }
+
+    try {
+      // 5. Get all active agents
+      agents = await prisma.user.findMany({
         where: {
           isActive: true,
         },
@@ -215,10 +168,38 @@ export async function GET(request: NextRequest) {
           email: true,
         },
         orderBy: { name: 'asc' },
-      }),
-    ]);
+      });
+      console.log('[DSR Stats API] Fetched agents:', agents.length);
+    } catch (error) {
+      console.error('[DSR Stats API] Error fetching agents:', error);
+      throw new Error('Failed to fetch agents');
+    }
+
+    console.log('[DSR Stats API] Database queries complete. Data counts:', {
+      allLeads: allLeads.length,
+      allFollowups: allFollowups.length,
+      allCalls: allCalls.length,
+      filteredLeads: filteredLeads.length,
+      agents: agents.length
+    });
+
+    // Calculate DSR metrics using the new service
+    console.log('[DSR Stats API] Calculating metrics...');
+    const metrics = calculateDSRMetrics({
+      leads: allLeads,
+      followups: allFollowups,
+      calls: allCalls,
+      agentId: agentId || null,
+      dateRange: (startDateParam || endDateParam) ? {
+        startDate: startDateParam || undefined,
+        endDate: endDateParam || undefined,
+      } : undefined,
+    });
+
+    console.log('[DSR Stats API] Metrics calculated successfully');
 
     // Calculate agent performance data
+    console.log('[DSR Stats API] Calculating agent performance...');
     const agentPerformanceData = await Promise.all(
       (agentId ? agents.filter(a => a.id === agentId) : agents).map(async (agent) => {
         const [callsMade, leadsGenerated, conversions] = await Promise.all([
@@ -230,7 +211,7 @@ export async function GET(request: NextRequest) {
             },
           }),
           
-          // Leads generated by agent in date range
+          // Leads created/assigned to agent in date range
           prisma.lead.count({
             where: {
               assignedToId: agent.id,
@@ -238,7 +219,7 @@ export async function GET(request: NextRequest) {
             },
           }),
           
-          // Conversions (won leads) by agent in date range
+          // Conversions (won leads) by agent in date range (when status changed to won)
           prisma.lead.count({
             where: {
               assignedToId: agent.id,
@@ -252,9 +233,9 @@ export async function GET(request: NextRequest) {
         let status = 'Active';
         if (callsMade === 0 && leadsGenerated === 0) {
           status = 'Inactive';
-        } else if (conversions > 2) {
+        } else if (conversions >= 2) {
           status = 'Excellent';
-        } else if (conversions > 0) {
+        } else if (conversions > 0 || (callsMade > 5 && leadsGenerated > 0)) {
           status = 'Good';
         }
 
@@ -262,7 +243,7 @@ export async function GET(request: NextRequest) {
           agentId: agent.id,
           agentName: agent.name || 'Unknown',
           agentEmail: agent.email,
-          date: startDateParam ? new Date(startDateParam) : new Date(),
+          date: endDateParam ? new Date(endDateParam) : new Date(),
           callsMade,
           leadsGenerated,
           conversions,
@@ -271,21 +252,44 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    console.log('[DSR Stats API] Agent performance calculated. Preparing response...');
+
     return NextResponse.json({
       success: true,
       data: {
         stats: {
-          newLeadsHandledToday,
-          totalNewLeads,
-          followUpsHandledToday,
-          totalFollowUps,
-          unqualifiedToday,
-          unreachableToday,
-          wonToday,
-          lostToday,
-          overdueFollowUps,
-          totalCalls,
-          completedCalls,
+          // New Leads Handled (today/total)
+          newLeadsHandledToday: metrics.newLeads.today,
+          totalNewLeads: metrics.newLeads.total,
+          
+          // Follow-ups Handled (today/total)
+          followUpsHandledToday: metrics.followups.today,
+          totalFollowUps: metrics.followups.total,
+          
+          // Total Calls (today only)
+          totalCalls: metrics.calls.today,
+          
+          // Overdue Follow-ups (total only)
+          overdueFollowUps: metrics.overdueFollowups.total,
+          
+          // Unqualified (today/total)
+          unqualifiedToday: metrics.unqualified.today,
+          totalUnqualified: metrics.unqualified.total,
+          
+          // Unreachable (today/total)
+          unreachableToday: metrics.unreachable.today,
+          totalUnreachable: metrics.unreachable.total,
+          
+          // Won Deals (today/total)
+          wonToday: metrics.won.today,
+          totalWon: metrics.won.total,
+          
+          // Lost Deals (today/total)
+          lostToday: metrics.lost.today,
+          totalLost: metrics.lost.total,
+          
+          // Legacy fields for backward compatibility
+          completedCalls: 0, // Deprecated - keeping for backward compatibility
         },
         filteredLeads,
         agentPerformanceData,
@@ -294,9 +298,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error fetching DSR stats:', error);
+    console.error('[DSR Stats API] Error:', error);
+    console.error('[DSR Stats API] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch DSR statistics' },
+      { 
+        success: false, 
+        error: 'Failed to fetch DSR statistics',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

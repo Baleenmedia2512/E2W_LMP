@@ -257,6 +257,7 @@ export default function DashboardPage() {
   // Extract data from SWR response
   const stats = data?.data?.stats || {
     totalLeads: 0,
+    totalLeadsForDashboard: 0,
     newLeads: 0,
     wonLeads: 0,
     lostLeads: 0,
@@ -447,7 +448,14 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 5 }} spacing={{ base: 4, md: 6 }}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 6 }} spacing={{ base: 4, md: 6 }}>
+        <StatCard
+          label="Total Leads"
+          value={stats.totalLeadsForDashboard}
+          helpText="New + Overdue + Today + Won"
+          icon={FiUsers}
+          colorScheme="purple"
+        />
         <StatCard
           label={getLabel('New Arrival')}
           value={stats.newLeads}
