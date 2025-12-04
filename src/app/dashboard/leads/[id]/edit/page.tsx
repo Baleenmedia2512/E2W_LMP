@@ -473,40 +473,21 @@ export default function EditLeadPage() {
                 />
               </FormControl>
 
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Status</FormLabel>
-                  <Select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                  >
-                    <option value="new">New</option>
-                    <option value="followup">Follow-up</option>
-                    <option value="qualified">Qualified</option>
-                    <option value="unreach">Unreachable</option>
-                    <option value="unqualified">Unqualified</option>
-                    <option value="won">Won</option>
-                    <option value="lost">Lost</option>
-                  </Select>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Assign To</FormLabel>
-                  <Select
-                    name="assignedToId"
-                    value={formData.assignedToId}
-                    onChange={handleChange}
-                    placeholder="Select agent (optional)"
-                  >
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} ({agent.email})
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-              </SimpleGrid>
+              <FormControl>
+                <FormLabel>Assign To</FormLabel>
+                <Select
+                  name="assignedToId"
+                  value={formData.assignedToId}
+                  onChange={handleChange}
+                  placeholder="Select agent (optional)"
+                >
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} ({agent.email})
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
 
               <FormControl>
                 <FormLabel>Notes</FormLabel>
