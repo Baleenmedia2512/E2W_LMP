@@ -183,6 +183,15 @@ export async function GET(request: NextRequest) {
       agents: agents.length
     });
 
+    // Transform filteredLeads to match frontend expectations
+    const transformedFilteredLeads = filteredLeads.map(lead => ({
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      createdBy: lead.User_Lead_createdByIdToUser,
+      User_Lead_assignedToIdToUser: undefined,
+      User_Lead_createdByIdToUser: undefined,
+    }));
+
     // Calculate DSR metrics using the new service
     console.log('[DSR Stats API] Calculating metrics...');
     const metrics = calculateDSRMetrics({
@@ -291,7 +300,7 @@ export async function GET(request: NextRequest) {
           // Legacy fields for backward compatibility
           completedCalls: 0, // Deprecated - keeping for backward compatibility
         },
-        filteredLeads,
+        filteredLeads: transformedFilteredLeads,
         agentPerformanceData,
         agents,
         timestamp: new Date().toISOString(),

@@ -32,7 +32,18 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, data: lead });
+    // Transform the response to match frontend expectations
+    const transformedLead = {
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      createdBy: lead.User_Lead_createdByIdToUser,
+    };
+
+    // Remove the Prisma-generated field names
+    delete (transformedLead as any).User_Lead_assignedToIdToUser;
+    delete (transformedLead as any).User_Lead_createdByIdToUser;
+
+    return NextResponse.json({ success: true, data: transformedLead });
   } catch (error) {
     console.error('Error fetching lead:', error);
     return NextResponse.json(
@@ -243,7 +254,18 @@ export async function PUT(
       }
     }
 
-    return NextResponse.json({ success: true, data: lead });
+    // Transform the response to match frontend expectations
+    const transformedLead = {
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      createdBy: lead.User_Lead_createdByIdToUser,
+    };
+
+    // Remove the Prisma-generated field names
+    delete (transformedLead as any).User_Lead_assignedToIdToUser;
+    delete (transformedLead as any).User_Lead_createdByIdToUser;
+
+    return NextResponse.json({ success: true, data: transformedLead });
   } catch (error) {
     console.error('Error updating lead:', error);
     return NextResponse.json(

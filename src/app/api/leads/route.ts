@@ -44,9 +44,18 @@ export async function GET(request: NextRequest) {
       prisma.lead.count({ where }),
     ]);
 
+    // Transform the response to match frontend expectations
+    const transformedLeads = leads.map(lead => ({
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      createdBy: lead.User_Lead_createdByIdToUser,
+      User_Lead_assignedToIdToUser: undefined,
+      User_Lead_createdByIdToUser: undefined,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: leads,
+      data: transformedLeads,
       total,
       page,
       pageSize: limit,
@@ -190,8 +199,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Transform the response to match frontend expectations
+    const transformedLead = {
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      createdBy: lead.User_Lead_createdByIdToUser,
+      User_Lead_assignedToIdToUser: undefined,
+      User_Lead_createdByIdToUser: undefined,
+    };
+
     return NextResponse.json(
-      { success: true, data: lead },
+      { success: true, data: transformedLead },
       { status: 201 }
     );
   } catch (error) {
