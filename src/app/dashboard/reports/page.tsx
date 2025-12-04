@@ -40,7 +40,6 @@ interface ReportsData {
   totalCallAttempts: number;
   avgCallDuration: number;
   totalCallDuration: number;
-  overdueFollowUps: number;
   leadsBySource: Record<string, number>;
   leadsByAgent: Array<{ agent: string; count: number; percentage: number }>;
   leadsByStatus: Record<string, number>;
@@ -51,8 +50,13 @@ export default function ReportsPage() {
   const [data, setData] = useState<ReportsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
+  const [startDate, setStartDate] = useState<string>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30); // 30 days ago
+    return date.toISOString().split('T')[0] || '';
+  });
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
+  const [dateFilterType, setDateFilterType] = useState<'created' | 'updated'>('created');
   const toast = useToast();
 
   const handleExport = () => {
@@ -91,9 +95,12 @@ export default function ReportsPage() {
           const end = new Date(endDate);
           end.setHours(23, 59, 59, 999);
           
+          // Filter leads by selected date type (created or updated)
           leads = leads.filter((lead: any) => {
-            const createdDate = new Date(lead.createdAt);
-            return createdDate >= start && createdDate <= end;
+            const dateToCheck = dateFilterType === 'created' 
+              ? new Date(lead.createdAt) 
+              : new Date(lead.updatedAt);
+            return dateToCheck >= start && dateToCheck <= end;
           });
 
           // Filter calls by date range
@@ -108,13 +115,6 @@ export default function ReportsPage() {
           const avgCallDuration = callsWithDuration.length > 0 
             ? Math.round(totalCallDuration / callsWithDuration.length) 
             : 0;
-
-          // Calculate overdue follow-ups
-          const now = new Date();
-          const overdueCount = followUps.filter((followUp: any) => {
-            const scheduledDate = new Date(followUp.scheduledAt);
-            return scheduledDate < now;
-          }).length;
           
           // Calculate leads by source
           const sourceMap: Record<string, number> = {};
@@ -157,18 +157,21 @@ export default function ReportsPage() {
             else attemptRanges['7+'] = (attemptRanges['7+'] || 0) + 1;
           });
           
+          const wonCount = leads.filter((l: any) => l.status === 'won').length;
+          const lostCount = leads.filter((l: any) => l.status === 'lost').length;
+          const totalClosed = wonCount + lostCount;
+          
           const stats = {
             totalLeads: leads.length,
             newLeads: leads.filter((l: any) => l.status === 'new').length,
             qualifiedLeads: leads.filter((l: any) => l.status === 'qualified').length,
-            wonDeals: leads.filter((l: any) => l.status === 'won').length,
-            lostDeals: leads.filter((l: any) => l.status === 'lost').length,
-            conversionRate: leads.length > 0 ? Math.round((leads.filter((l: any) => l.status === 'won').length / leads.length) * 100 * 100) / 100 : 0,
+            wonDeals: wonCount,
+            lostDeals: lostCount,
+            conversionRate: totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0,
             avgCallAttempts,
             totalCallAttempts,
             avgCallDuration,
             totalCallDuration,
-            overdueFollowUps: overdueCount,
             leadsBySource: sourceMap,
             leadsByAgent,
             leadsByStatus: statusMap,
@@ -186,7 +189,7 @@ export default function ReportsPage() {
       }
     };
     fetchReports();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, dateFilterType]);
 
   if (loading) {
     return (
@@ -227,38 +230,61 @@ export default function ReportsPage() {
       {/* Date Range Filter */}
       <Card mb={6}>
         <CardBody>
-          <HStack spacing={4} flexWrap="wrap">
+          <VStack spacing={4} align="stretch">
+            <HStack spacing={4} flexWrap="wrap">
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>Start Date</Text>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  max={endDate}
+                  size="md"
+                />
+              </Box>
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>End Date</Text>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate}
+                  size="md"
+                />
+              </Box>
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>Filter By</Text>
+                <HStack spacing={2}>
+                  <Button
+                    size="md"
+                    colorScheme={dateFilterType === 'created' ? 'blue' : 'gray'}
+                    variant={dateFilterType === 'created' ? 'solid' : 'outline'}
+                    onClick={() => setDateFilterType('created')}
+                  >
+                    Created Date
+                  </Button>
+                  <Button
+                    size="md"
+                    colorScheme={dateFilterType === 'updated' ? 'blue' : 'gray'}
+                    variant={dateFilterType === 'updated' ? 'solid' : 'outline'}
+                    onClick={() => setDateFilterType('updated')}
+                  >
+                    Updated Date
+                  </Button>
+                </HStack>
+              </Box>
+            </HStack>
             <Box>
-              <Text fontSize="sm" fontWeight="semibold" mb={2}>Start Date</Text>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                max={endDate}
-                size="md"
-              />
-            </Box>
-            <Box>
-              <Text fontSize="sm" fontWeight="semibold" mb={2}>End Date</Text>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                min={startDate}
-                size="md"
-              />
-            </Box>
-            <Box pt={7}>
               <Text fontSize="sm" color="gray.600">
-                Showing data from {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                Showing leads {dateFilterType === 'created' ? 'created' : 'updated'} from {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
               </Text>
             </Box>
-          </HStack>
+          </VStack>
         </CardBody>
       </Card>
 
       {/* Key Metrics */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 5 }} spacing={4} mb={6}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={4} mb={6}>
         <Card bg="blue.50" borderWidth="2px" borderColor="blue.200">
           <CardBody>
             <Stat>
@@ -269,13 +295,13 @@ export default function ReportsPage() {
           </CardBody>
         </Card>
 
-        <Card bg={data.conversionRate >= 20 ? 'green.50' : 'red.50'} borderWidth="2px" borderColor={data.conversionRate >= 20 ? 'green.200' : 'red.200'}>
+        <Card bg={data.conversionRate >= 50 ? 'green.50' : 'red.50'} borderWidth="2px" borderColor={data.conversionRate >= 50 ? 'green.200' : 'red.200'}>
           <CardBody>
             <Stat>
-              <StatLabel color={data.conversionRate >= 20 ? 'green.800' : 'red.800'}>Conversion Rate</StatLabel>
-              <StatNumber color={data.conversionRate >= 20 ? 'green.900' : 'red.900'}>{data.conversionRate}%</StatNumber>
-              <StatHelpText color={data.conversionRate >= 20 ? 'green.700' : 'red.700'}>
-                {data.conversionRate >= 20 ? 'Excellent!' : 'Needs improvement'}
+              <StatLabel color={data.conversionRate >= 50 ? 'green.800' : 'red.800'}>Conversion Rate</StatLabel>
+              <StatNumber color={data.conversionRate >= 50 ? 'green.900' : 'red.900'}>{data.conversionRate}%</StatNumber>
+              <StatHelpText color={data.conversionRate >= 50 ? 'green.700' : 'red.700'}>
+                Won / Closed deals
               </StatHelpText>
             </Stat>
           </CardBody>
@@ -300,18 +326,6 @@ export default function ReportsPage() {
               </StatNumber>
               <StatHelpText color="purple.700">
                 {data.avgCallDuration > 0 ? 'minutes:seconds' : 'No data'}
-              </StatHelpText>
-            </Stat>
-          </CardBody>
-        </Card>
-
-        <Card bg={data.overdueFollowUps > 0 ? 'red.50' : 'green.50'} borderWidth="2px" borderColor={data.overdueFollowUps > 0 ? 'red.200' : 'green.200'}>
-          <CardBody>
-            <Stat>
-              <StatLabel color={data.overdueFollowUps > 0 ? 'red.800' : 'green.800'}>Overdue Follow-ups</StatLabel>
-              <StatNumber color={data.overdueFollowUps > 0 ? 'red.900' : 'green.900'}>{data.overdueFollowUps}</StatNumber>
-              <StatHelpText color={data.overdueFollowUps > 0 ? 'red.700' : 'green.700'}>
-                {data.overdueFollowUps > 0 ? 'Needs attention' : 'All caught up'}
               </StatHelpText>
             </Stat>
           </CardBody>
