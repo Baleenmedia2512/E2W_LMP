@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
 
     // 2. FOLLOW-UPS SCHEDULED in date range - count unique leads
     // CRITICAL: Only count follow-ups for leads with ACTIVE statuses to match lead categorization
+    // NOTE: For "Follow-ups Today" count, we need ALL follow-ups to find the NEXT one per lead
     const followUpsScheduledWhere: any = {
       lead: {
         status: {
@@ -62,9 +63,8 @@ export async function GET(request: NextRequest) {
         ...(userId && { assignedToId: userId }),
       },
     };
-    if (hasDateFilter) {
-      followUpsScheduledWhere.scheduledAt = dateFilter;
-    }
+    // DON'T apply date filter here - we need all follow-ups to determine which is NEXT
+    // The counting logic below will filter by today's date
 
     // 3. WON LEADS - marked as won (by updatedAt) in date range
     const wonLeadsWhere: any = { status: 'won', ...userFilter };
@@ -188,11 +188,12 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Count only leads whose NEXT follow-up is scheduled for TODAY (not overdue, not future)
+    // Count only leads whose NEXT follow-up is scheduled for TODAY (including past times today)
     let followUpsDueCount = 0;
     for (const followUp of leadFollowUpMap.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
-      if (scheduledDate >= todayStart && scheduledDate <= todayEnd && scheduledDate >= now) {
+      // Count all follow-ups scheduled for today, regardless of whether time has passed
+      if (scheduledDate >= todayStart && scheduledDate <= todayEnd) {
         followUpsDueCount++;
       }
     }
