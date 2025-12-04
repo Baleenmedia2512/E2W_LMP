@@ -76,9 +76,11 @@ export async function GET(request: NextRequest) {
       prisma.lead.count({ where: leadWhere }),
     ]);
 
-    // Process leads and sort by follow-up date
+    // Process leads and sort by follow-up date, transform field names
     const leadsWithFollowUps = leads.map(lead => ({
       ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      User_Lead_assignedToIdToUser: undefined,
       nextFollowUp: lead.FollowUp[0] || null,
     }));
 

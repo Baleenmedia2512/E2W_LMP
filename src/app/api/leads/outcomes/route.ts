@@ -72,17 +72,24 @@ export async function GET(request: NextRequest) {
       prisma.lead.count({ where }),
     ]);
 
+    // Transform leads to match frontend expectations
+    const transformedLeads = leads.map(lead => ({
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      User_Lead_assignedToIdToUser: undefined,
+    }));
+
     // Group by status for quick access
     const grouped = {
-      unqualified: leads.filter(l => l.status === 'unqualified'),
-      unreach: leads.filter(l => l.status === 'unreach'),
-      won: leads.filter(l => l.status === 'won'),
-      lost: leads.filter(l => l.status === 'lost'),
+      unqualified: transformedLeads.filter(l => l.status === 'unqualified'),
+      unreach: transformedLeads.filter(l => l.status === 'unreach'),
+      won: transformedLeads.filter(l => l.status === 'won'),
+      lost: transformedLeads.filter(l => l.status === 'lost'),
     };
 
     return NextResponse.json({
       success: true,
-      data: leads,
+      data: transformedLeads,
       grouped,
       total,
       page,

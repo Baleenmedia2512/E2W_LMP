@@ -77,8 +77,8 @@ export default function ChangeStatusModal({
   const requiresReason = selectedOption?.requiresReason || false;
 
   const handleSubmit = async () => {
-    // Validation
-    if (newStatus === currentStatus) {
+    // Validation - Allow same status if it's 'followup' (for rescheduling)
+    if (newStatus === currentStatus && newStatus !== 'followup') {
       toast({
         title: 'No Change',
         description: 'Please select a different status',
@@ -137,7 +137,6 @@ export default function ChangeStatusModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             status: 'followup',
-            notes: followUpNotes || 'Status changed to Follow-up',
           }),
         });
 
@@ -151,9 +150,7 @@ export default function ChangeStatusModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             leadId,
-            scheduledAt: scheduledDateTime,
-            customerRequirement: followUpNotes?.trim() || 'Follow-up scheduled from status change',
-            notes: followUpNotes || 'Follow-up scheduled from status change',
+            scheduledAt: scheduledDateTime.toISOString(),
           }),
         });
 
@@ -177,9 +174,8 @@ export default function ChangeStatusModal({
         setFollowUpNotes('');
         onClose();
         
-        if (onSuccess) {
-          onSuccess();
-        }
+        // Force page reload to show updated data
+        window.location.reload();
         return;
       }
 
@@ -319,7 +315,7 @@ export default function ChangeStatusModal({
             {newStatus === 'followup' && (
               <>
                 <FormControl isRequired>
-                  <FormLabel fontWeight="600">Follow-up Date (Required)</FormLabel>
+                  <FormLabel fontWeight="600">Follow-up Date</FormLabel>
                   <Input
                     type="date"
                     value={followUpDate}
@@ -328,7 +324,7 @@ export default function ChangeStatusModal({
                   />
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel fontWeight="600">Follow-up Time (Required)</FormLabel>
+                  <FormLabel fontWeight="600">Follow-up Time</FormLabel>
                   <Input
                     type="time"
                     value={followUpTime}
