@@ -2,6 +2,7 @@
 import prisma from '@/shared/lib/db/prisma';
 import { notifyLeadAssigned } from '@/shared/lib/utils/notification-service';
 import { normalizePhoneForStorage, isValidPhone, getPhoneValidationError } from '@/shared/utils/phone';
+import { randomUUID } from 'crypto';
 
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
@@ -33,8 +34,8 @@ export async function GET(request: NextRequest) {
       prisma.lead.findMany({
         where,
         include: {
-          assignedTo: { select: { id: true, name: true, email: true } },
-          createdBy: { select: { id: true, name: true, email: true } },
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -67,7 +68,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
-        role: {
+        Role: {
           name: {
             in: ['sales_agent', 'team_lead'],
           },
@@ -143,6 +144,7 @@ export async function POST(request: NextRequest) {
 
     const lead = await prisma.lead.create({
       data: {
+        id: randomUUID(),
         name: body.name,
         phone: cleanedPhone,
         email: body.email || null,
@@ -158,10 +160,11 @@ export async function POST(request: NextRequest) {
         notes: body.notes || null,
         assignedToId: assignedToId,
         createdById: body.createdById || null,
+        updatedAt: new Date(),
       },
       include: {
-        assignedTo: { select: { id: true, name: true, email: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+        User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -169,6 +172,7 @@ export async function POST(request: NextRequest) {
     if (lead.id) {
       await prisma.activityHistory.create({
         data: {
+          id: randomUUID(),
           leadId: lead.id,
           userId: body.createdById || 'system',
           action: 'created',

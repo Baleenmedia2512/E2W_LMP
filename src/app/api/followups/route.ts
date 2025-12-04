@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { notifyFollowUpDue } from '@/shared/lib/utils/notification-service';
+import { randomUUID } from 'crypto';
 
 // GET follow-ups with optional filters
 export async function GET(request: NextRequest) {
@@ -19,8 +20,8 @@ export async function GET(request: NextRequest) {
         prisma.followUp.findMany({
           where,
           include: {
-            lead: { select: { id: true, name: true, phone: true, status: true } },
-            createdBy: { select: { id: true, name: true, email: true } },
+            Lead: { select: { id: true, name: true, phone: true, status: true } },
+            User: { select: { id: true, name: true, email: true } },
           },
           orderBy: { scheduledAt: 'desc' },
           skip,
@@ -43,8 +44,8 @@ export async function GET(request: NextRequest) {
     // The client-side logic will determine which is the "next" follow-up
     const allFollowUps = await prisma.followUp.findMany({
       include: {
-        lead: { select: { id: true, name: true, phone: true, status: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        Lead: { select: { id: true, name: true, phone: true, status: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
       orderBy: { scheduledAt: 'asc' }, // Order by earliest first
       take: limit * 10, // Get more records since we're not filtering per lead
@@ -92,15 +93,17 @@ export async function POST(request: NextRequest) {
 
     const followUp = await prisma.followUp.create({
       data: {
+        id: randomUUID(),
         leadId: body.leadId,
         scheduledAt: scheduledDateTime,
         customerRequirement: body.customerRequirement || null,
         notes: body.notes || null,
         createdById: body.createdById,
+        updatedAt: new Date(),
       },
       include: {
-        lead: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        Lead: { select: { id: true, name: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await prisma.activityHistory.create({
       data: {
+        id: randomUUID(),
         leadId: body.leadId,
         userId: body.createdById,
         action: 'followup_scheduled',
@@ -130,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     // Send notification if follow-up is due within 24 hours
     const hoursUntilDue = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (hoursUntilDue <= 24 && followUp.lead) {
+    if (hoursUntilDue <= 24 && followUp.Lead) {
       const leadData = await prisma.lead.findUnique({
         where: { id: body.leadId },
         select: { assignedToId: true, name: true },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { randomUUID } from 'crypto';
 
 // GET all notifications for current user
 export async function GET(request: NextRequest) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       prisma.notification.findMany({
         where,
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          User: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -50,13 +51,14 @@ export async function POST(request: NextRequest) {
 
     const notification = await prisma.notification.create({
       data: {
+        id: randomUUID(),
         userId: body.userId,
         type: body.type || 'info',
         title: body.title,
         message: body.message,
       },
       include: {
-        user: { select: { id: true, name: true, email: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
     });
 

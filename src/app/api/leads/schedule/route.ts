@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
       prisma.lead.findMany({
         where: leadWhere,
         include: {
-          assignedTo: { select: { id: true, name: true, email: true } },
-          followUps: {
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          FollowUp: {
             orderBy: {
               scheduledAt: 'asc',
             },
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     // Process leads and sort by follow-up date
     const leadsWithFollowUps = leads.map(lead => ({
       ...lead,
-      nextFollowUp: lead.followUps[0] || null,
+      nextFollowUp: lead.FollowUp[0] || null,
     }));
 
     // Sort by nearest follow-up date (overdue first, then by date)

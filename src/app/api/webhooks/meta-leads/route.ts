@@ -184,7 +184,7 @@ async function getGomathiUserId(): Promise<string | null> {
     const fallbackAgent = await prisma.user.findFirst({
       where: {
         isActive: true,
-        role: { name: { in: ['Agent', 'SuperAgent'] } },
+        Role: { name: { in: ['Agent', 'SuperAgent'] } },
       },
       select: { id: true },
     });
@@ -202,7 +202,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
-        role: {
+        Role: {
           name: {
             in: ['Agent', 'SuperAgent'],
           },
@@ -248,12 +248,12 @@ export async function POST(request: NextRequest) {
     // Log request headers for debugging
     const contentType = request.headers.get('content-type');
     const userAgent = request.headers.get('user-agent');
-    const signature = request.headers.get('x-hub-signature-256');
+    const hubSignature = request.headers.get('x-hub-signature-256');
     
     console.log('📋 Request Details:');
     console.log('  Content-Type:', contentType);
     console.log('  User-Agent:', userAgent);
-    console.log('  Has Signature:', signature ? 'YES' : 'NO');
+    console.log('  Has Signature:', hubSignature ? 'YES' : 'NO');
     console.log('  Origin:', request.headers.get('origin') || 'N/A');
     console.log('  Referer:', request.headers.get('referer') || 'N/A');
 
@@ -294,9 +294,9 @@ export async function POST(request: NextRequest) {
     console.log('Parsed body:', JSON.stringify(body, null, 2));
 
     // Verify signature (optional, only if signature is present)
-    const signature = requestClone.headers.get('x-hub-signature-256');
-    if (signature) {
-      const signatureHash = signature.split('=')[1];
+    const webhookSignature = requestClone.headers.get('x-hub-signature-256');
+    if (webhookSignature) {
+      const signatureHash = webhookSignature.split('=')[1];
       if (signatureHash && !verifySignature(rawBody, signatureHash)) {
         console.error('❌ Invalid webhook signature');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
@@ -443,6 +443,7 @@ export async function POST(request: NextRequest) {
               const campaignValue = campaignName || finalCampaignId || null;
               const lead = await prisma.lead.create({
                 data: {
+                  id: crypto.randomUUID(),
                   name: name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
                   phone: phone,
                   email: email,
@@ -451,8 +452,9 @@ export async function POST(request: NextRequest) {
                   status: 'new',
                   customerRequirement: customFields.message || null,
                   notes: 'Lead received via Meta webhook (real-time)',
-                  metadata: metadata as any,
+                  metadata: JSON.stringify(metadata),
                   assignedToId: assignedTo,
+                  updatedAt: new Date(),
                 },
               });
 
@@ -462,6 +464,7 @@ export async function POST(request: NextRequest) {
               // Log activity
               await prisma.activityHistory.create({
                 data: {
+                  id: crypto.randomUUID(),
                   leadId: lead.id,
                   userId: 'system',
                   action: 'created',

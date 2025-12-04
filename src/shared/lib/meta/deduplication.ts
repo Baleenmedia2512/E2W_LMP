@@ -1,4 +1,5 @@
 import prisma from '@/shared/lib/db/prisma';
+import crypto from 'crypto';
 
 /**
  * Check if a lead already exists in the database
@@ -78,6 +79,7 @@ export async function updateLeadWithMetaData(
     // Log activity
     await prisma.activityHistory.create({
       data: {
+        id: crypto.randomUUID(),
         leadId: leadId,
         userId: 'system',
         action: 'updated',

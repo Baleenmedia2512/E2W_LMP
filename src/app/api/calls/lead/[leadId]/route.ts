@@ -31,11 +31,11 @@ export async function GET(
     const attempts = await prisma.callLog.findMany({
       where: { leadId },
       include: {
-        caller: {
+        User: {
           select: {
             name: true,
             email: true,
-            role: {
+            Role: {
               select: {
                 name: true,
               },

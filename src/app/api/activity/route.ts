@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { randomUUID } from 'crypto';
 
 // GET activity history with optional filters
 export async function GET(request: NextRequest) {
@@ -19,8 +20,8 @@ export async function GET(request: NextRequest) {
       prisma.activityHistory.findMany({
         where,
         include: {
-          lead: { select: { id: true, name: true } },
-          user: { select: { id: true, name: true, email: true } },
+          Lead: { select: { id: true, name: true } },
+          User: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
 
     const activity = await prisma.activityHistory.create({
       data: {
+        id: randomUUID(),
         leadId: body.leadId,
         userId: body.userId || body.updatedById || 'system',
         action: body.action,
@@ -63,8 +65,8 @@ export async function POST(request: NextRequest) {
         metadata: body.metadata || null,
       },
       include: {
-        lead: { select: { id: true, name: true } },
-        user: { select: { id: true, name: true, email: true } },
+        Lead: { select: { id: true, name: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
     });
 

@@ -87,12 +87,12 @@ export async function hasPermission(
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true },
+      include: { Role: true },
     });
 
-    if (!user || !user.role.permissions) return false;
+    if (!user || !user.Role.permissions) return false;
 
-    const permissions = user.role.permissions as Record<string, boolean>;
+    const permissions = JSON.parse(user.Role.permissions) as Record<string, boolean>;
     return permissions[permissionKey] === true;
   } catch (error) {
     console.error('Error checking permission:', error);
@@ -106,6 +106,6 @@ export async function hasPermission(
 export async function getUserWithRole(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
-    include: { role: true },
+    include: { Role: true },
   });
 }

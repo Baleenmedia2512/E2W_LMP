@@ -161,7 +161,7 @@ export default function DSRPage() {
   const handleDateRangePresetChange = (preset: string) => {
     setTempDateRangePreset(preset);
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = now.toISOString().split('T')[0] ?? '';
     
     if (preset === 'today') {
       setTempStartDate(todayStr);
@@ -169,12 +169,12 @@ export default function DSRPage() {
     } else if (preset === 'last_week') {
       const lastWeek = new Date(now);
       lastWeek.setDate(now.getDate() - 7);
-      setTempStartDate(lastWeek.toISOString().split('T')[0]);
+      setTempStartDate(lastWeek.toISOString().split('T')[0] ?? '');
       setTempEndDate(todayStr);
     } else if (preset === 'last_month') {
       const lastMonth = new Date(now);
       lastMonth.setMonth(now.getMonth() - 1);
-      setTempStartDate(lastMonth.toISOString().split('T')[0]);
+      setTempStartDate(lastMonth.toISOString().split('T')[0] ?? '');
       setTempEndDate(todayStr);
     } else if (preset === 'all_time') {
       // For all time, clear the dates (will show today's data by default)

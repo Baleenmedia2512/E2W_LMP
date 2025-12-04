@@ -17,8 +17,8 @@ export async function PUT(
         notes: body.notes !== undefined ? body.notes : undefined,
       },
       include: {
-        lead: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        Lead: { select: { id: true, name: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
     });
 
