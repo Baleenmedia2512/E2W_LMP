@@ -7,6 +7,7 @@ import {
   notifyLeadUnreachable, 
   notifyLeadUnqualified 
 } from '@/shared/lib/utils/notification-service';
+import { randomUUID } from 'crypto';
 
 // GET single lead by ID
 export async function GET(
@@ -17,10 +18,10 @@ export async function GET(
     const lead = await prisma.lead.findUnique({
       where: { id: params.id },
       include: {
-        assignedTo: { select: { id: true, name: true, email: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
-        callLogs: { orderBy: { createdAt: 'desc' }, take: 10 },
-        followUps: { orderBy: { scheduledAt: 'desc' }, take: 10 },
+        User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+        User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
+        CallLog: { orderBy: { createdAt: 'desc' }, take: 10 },
+        FollowUp: { orderBy: { scheduledAt: 'desc' }, take: 10 },
       },
     });
 
@@ -115,8 +116,8 @@ export async function PUT(
       where: { id: params.id },
       data: updateData,
       include: {
-        assignedTo: { select: { id: true, name: true, email: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+        User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -129,6 +130,7 @@ export async function PUT(
         activityPromises.push(
           prisma.activityHistory.create({
             data: {
+              id: randomUUID(),
               leadId: params.id,
               userId: body.updatedById,
               action: 'status_changed',
@@ -168,6 +170,7 @@ export async function PUT(
         activityPromises.push(
           prisma.activityHistory.create({
             data: {
+              id: randomUUID(),
               leadId: params.id,
               userId: body.updatedById,
               action: 'assigned',
@@ -175,11 +178,11 @@ export async function PUT(
               oldValue: previousAssignee || 'Unassigned',
               newValue: newAssignee || 'Unassigned',
               description: `Lead ${oldLead.assignedToId ? 'reassigned' : 'assigned'} from ${previousAssignee} to ${newAssignee}`,
-              metadata: {
+              metadata: JSON.stringify({
                 assignmentType: body.assignmentType || 'MANUAL',
                 reason: body.assignmentReason || body.notes || null,
                 timestamp: new Date().toISOString(),
-              },
+              }),
             },
           })
         );
@@ -197,6 +200,7 @@ export async function PUT(
         activityPromises.push(
           prisma.activityHistory.create({
             data: {
+              id: randomUUID(),
               leadId: params.id,
               userId: body.updatedById,
               action: 'updated',
@@ -213,6 +217,7 @@ export async function PUT(
         activityPromises.push(
           prisma.activityHistory.create({
             data: {
+              id: randomUUID(),
               leadId: params.id,
               userId: body.updatedById,
               action: 'updated',

@@ -106,6 +106,11 @@ export function categorizeAndSortLeads(
         nextFollowUp = leadFollowUps[0];
       }
 
+      if (!nextFollowUp) {
+        console.warn(`Lead ${lead.name}: No valid followup found, skipping`);
+        return;
+      }
+
       const dueDate = ensureDate(nextFollowUp.scheduledAt);
       
       console.log(`Lead ${lead.name}: Selected followup = ${nextFollowUp.scheduledAt}, isOverdue = ${dueDate < now}`);

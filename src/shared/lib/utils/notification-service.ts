@@ -4,6 +4,7 @@
  */
 
 import prisma from '@/shared/lib/db/prisma';
+import crypto from 'crypto';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error';
 
@@ -23,12 +24,13 @@ export async function createNotification(params: CreateNotificationParams) {
   try {
     return await prisma.notification.create({
       data: {
+        id: crypto.randomUUID(),
         userId: params.userId,
         type: params.type,
         title: params.title,
         message: params.message,
         relatedLeadId: params.relatedLeadId,
-        metadata: params.metadata,
+        metadata: params.metadata ? JSON.stringify(params.metadata) : null,
       },
     });
   } catch (error) {

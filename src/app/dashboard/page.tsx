@@ -573,7 +573,7 @@ export default function DashboardPage() {
                       </Td>
                       <Td>
                         <Text color="brand.500" fontWeight="medium" noOfLines={1}>
-                          {followUp.lead?.name || 'Unknown Lead'}
+                          {followUp.Lead?.name || 'Unknown Lead'}
                         </Text>
                       </Td>
                       <Td display={{ base: 'none', sm: 'table-cell' }}>

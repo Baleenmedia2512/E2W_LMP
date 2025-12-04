@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 import prisma from '@/shared/lib/db/prisma';
+import { randomUUID } from 'crypto';
 
 /**
  * Cron job to check for overdue follow-ups and create notifications
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        lead: {
+        Lead: {
           select: {
             id: true,
             name: true,
@@ -56,14 +57,14 @@ export async function GET(request: NextRequest) {
     const notifications = await Promise.all(
       overdueFollowUps.map(async (followUp) => {
         // Only create notification if lead is assigned to someone
-        if (!followUp.lead.assignedToId) {
+        if (!followUp.Lead.assignedToId) {
           return null;
         }
 
         // Check if notification already exists for this follow-up
         const existingNotification = await prisma.notification.findFirst({
           where: {
-            userId: followUp.lead.assignedToId,
+            userId: followUp.Lead.assignedToId,
             type: 'FOLLOWUP_OVERDUE',
             relatedLeadId: followUp.leadId,
           },
@@ -81,17 +82,18 @@ export async function GET(request: NextRequest) {
         // Create notification
         return prisma.notification.create({
           data: {
-            userId: followUp.lead.assignedToId,
+            id: randomUUID(),
+            userId: followUp.Lead.assignedToId,
             type: 'FOLLOWUP_OVERDUE',
             title: '⚠️ Follow-up Overdue',
-            message: `Follow-up with ${followUp.lead.name} is ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue. Please take action immediately.`,
+            message: `Follow-up with ${followUp.Lead.name} is ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue. Please take action immediately.`,
             relatedLeadId: followUp.leadId,
-            metadata: {
+            metadata: JSON.stringify({
               followUpId: followUp.id,
               daysOverdue,
-              leadName: followUp.lead.name,
-              leadPhone: followUp.lead.phone,
-            },
+              leadName: followUp.Lead.name,
+              leadPhone: followUp.Lead.phone,
+            }),
           },
         });
       })

@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { randomUUID } from 'crypto';
 
 // GET call logs with optional filters
 export async function GET(request: NextRequest) {
@@ -21,8 +22,8 @@ export async function GET(request: NextRequest) {
       prisma.callLog.findMany({
         where,
         include: {
-          lead: { select: { id: true, name: true, phone: true } },
-          caller: { select: { id: true, name: true, email: true } },
+          Lead: { select: { id: true, name: true, phone: true } },
+          User: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
 
     const callLog = await prisma.callLog.create({
       data: {
+        id: randomUUID(),
         leadId: body.leadId,
         callerId: body.callerId,
         startedAt: body.startedAt ? new Date(body.startedAt) : new Date(),
@@ -74,8 +76,8 @@ export async function POST(request: NextRequest) {
         customerRequirement: body.customerRequirement || null,
       },
       include: {
-        lead: { select: { id: true, name: true } },
-        caller: { select: { id: true, name: true, email: true } },
+        Lead: { select: { id: true, name: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -107,6 +109,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await prisma.activityHistory.create({
       data: {
+        id: randomUUID(),
         leadId: body.leadId,
         userId: body.callerId,
         action: 'call_logged',

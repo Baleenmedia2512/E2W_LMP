@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       prisma.lead.findMany({
         where,
         include: {
-          assignedTo: { select: { id: true, name: true, email: true } },
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
         },
         orderBy: { updatedAt: 'desc' },
         skip,

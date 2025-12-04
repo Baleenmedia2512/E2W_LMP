@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       // 2. Fetch all followups
       allFollowups = await prisma.followUp.findMany({
         where: agentId ? {
-          lead: {
+          Lead: {
             assignedToId: agentId,
           },
         } : {},
@@ -132,14 +132,14 @@ export async function GET(request: NextRequest) {
       filteredLeads = await prisma.lead.findMany({
         where: leadsWhere,
         include: {
-          assignedTo: {
+          User_Lead_assignedToIdToUser: {
             select: {
               id: true,
               name: true,
               email: true,
             },
           },
-          createdBy: {
+          User_Lead_createdByIdToUser: {
             select: {
               id: true,
               name: true,

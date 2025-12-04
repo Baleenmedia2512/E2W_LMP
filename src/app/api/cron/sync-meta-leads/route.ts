@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { findDuplicateLead, updateLeadWithMetaData } from '@/shared/lib/meta/deduplication';
 import { normalizePhoneForStorage } from '@/shared/utils/phone';
+import { randomUUID } from 'crypto';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -83,7 +84,7 @@ async function getGomathiUserId(): Promise<string | null> {
     const fallbackAgent = await prisma.user.findFirst({
       where: {
         isActive: true,
-        role: { name: { in: ['Agent', 'SuperAgent'] } },
+        Role: { name: { in: ['Agent', 'SuperAgent'] } },
       },
       select: { id: true },
     });
@@ -101,7 +102,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
-        role: {
+        Role: {
           name: {
             in: ['Agent', 'SuperAgent'],
           },
@@ -368,6 +369,7 @@ export async function GET(request: NextRequest) {
           // Create new lead
           const lead = await prisma.lead.create({
             data: {
+              id: randomUUID(),
               name: parsed.name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
               phone: parsed.phone,
               email: parsed.email,
@@ -376,21 +378,23 @@ export async function GET(request: NextRequest) {
               status: 'new',
               customerRequirement: parsed.customFields.message || null,
               notes: 'Lead fetched via Meta Graph API polling',
-              metadata: {
+              metadata: JSON.stringify({
                 metaLeadId,
                 formId: form.id,
                 campaignId: leadMetadata?.campaign_id || null,
                 ...parsed.customFields,
                 submittedAt: metaLead.created_time,
                 pollingFetched: new Date().toISOString(),
-              } as any,
+              }),
               assignedToId: await getGomathiUserId(), // US-5: Auto-assign Meta leads to Gomathi
+              updatedAt: new Date(),
             },
           });
 
           // Log activity
           await prisma.activityHistory.create({
             data: {
+              id: randomUUID(),
               leadId: lead.id,
               userId: 'system',
               action: 'created',

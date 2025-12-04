@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     // CRITICAL: Only count follow-ups for leads with ACTIVE statuses to match lead categorization
     // NOTE: For "Follow-ups Today" count, we need ALL follow-ups to find the NEXT one per lead
     const followUpsScheduledWhere: any = {
-      lead: {
+      Lead: {
         status: {
           in: ['new', 'followup', 'qualified']
         },
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
       // This matches the lead categorization logic which filters by active statuses
       prisma.followUp.findMany({
         where: {
-          lead: {
+          Lead: {
             status: {
               in: ['new', 'followup', 'qualified']
             },
@@ -146,8 +146,8 @@ export async function GET(request: NextRequest) {
       prisma.lead.findMany({
         where: newLeadsWhere,
         include: {
-          assignedTo: { select: { id: true, name: true, email: true } },
-          createdBy: { select: { id: true, name: true, email: true } },
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: 5,
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
       // 9. Upcoming follow-ups for display - CRITICAL: only for ACTIVE leads
       prisma.followUp.findMany({
         where: {
-          lead: {
+          Lead: {
             status: {
               in: ['new', 'followup', 'qualified']
             },
@@ -164,8 +164,8 @@ export async function GET(request: NextRequest) {
           },
         },
         include: {
-          lead: { select: { id: true, name: true, phone: true, status: true } },
-          createdBy: { select: { id: true, name: true, email: true } },
+          Lead: { select: { id: true, name: true, phone: true, status: true } },
+          User: { select: { id: true, name: true, email: true } },
         },
         orderBy: { scheduledAt: 'asc' },
       }),

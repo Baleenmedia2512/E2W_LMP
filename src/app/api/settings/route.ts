@@ -128,7 +128,7 @@ export async function PUT(request: NextRequest) {
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        settings: {
+        settings: JSON.stringify({
           companyName,
           emailNotifications,
           smsNotifications,
@@ -137,7 +137,7 @@ export async function PUT(request: NextRequest) {
           workingHoursStart,
           workingHoursEnd,
           timezone,
-        },
+        }),
       },
       select: {
         settings: true,
