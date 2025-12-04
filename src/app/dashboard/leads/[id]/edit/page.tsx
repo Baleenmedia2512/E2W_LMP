@@ -63,7 +63,6 @@ export default function EditLeadPage() {
     city: '',
     state: '',
     pincode: '',
-    source: '',
     campaign: '',
     customerRequirement: '',
     status: 'new' as any,
@@ -119,7 +118,6 @@ export default function EditLeadPage() {
           city: data.city || '',
           state: data.state || '',
           pincode: data.pincode || '',
-          source: data.source || '',
           campaign: data.campaign || '',
           customerRequirement: data.customerRequirement || '',
           status: data.status,
@@ -186,10 +184,10 @@ export default function EditLeadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.phone || !formData.source) {
+    if (!formData.name || !formData.phone) {
       toast({
         title: 'Missing required fields',
-        description: 'Please fill in Name, Phone, and Source',
+        description: 'Please fill in Name and Phone',
         status: 'error',
         duration: 3000,
       });
@@ -266,7 +264,6 @@ export default function EditLeadPage() {
         city: formData.city || null,
         state: formData.state || null,
         pincode: formData.pincode || null,
-        source: formData.source,
         campaign: formData.campaign || null,
         customerRequirement: formData.customerRequirement || null,
         status: formData.status,
@@ -436,20 +433,15 @@ export default function EditLeadPage() {
               </SimpleGrid>
 
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Source</FormLabel>
-                  <Select
-                    name="source"
-                    value={formData.source}
-                    onChange={handleChange}
-                  >
-                    <option value="Website">Website</option>
-                    <option value="Meta">Meta</option>
-                    <option value="Referral">Referral</option>
-                    <option value="Cold Call">Cold Call</option>
-                    <option value="WhatsApp">WhatsApp</option>
-                    <option value="Direct">Direct</option>
-                  </Select>
+                <FormControl>
+                  <FormLabel>Source (Cannot be changed)</FormLabel>
+                  <Input
+                    value={lead.source}
+                    isReadOnly
+                    bg="gray.100"
+                    cursor="not-allowed"
+                    _hover={{ bg: "gray.100" }}
+                  />
                 </FormControl>
 
                 <FormControl>

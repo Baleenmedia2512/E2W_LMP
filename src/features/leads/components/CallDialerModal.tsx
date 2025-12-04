@@ -351,20 +351,24 @@ export default function CallDialerModal({
       setNextAction(action);
       setCallPhase('ended');
     } else if (action === 'unqualified') {
-      // Open unqualified modal and close call dialer
+      // Open unqualified modal - let parent handle closing
       if (onOpenUnqualified) {
-        handleClose(); // Close the call dialer modal first
-        onOpenUnqualified(); // Then open the unqualified modal
+        // Clear localStorage since call is saved
+        localStorage.removeItem(`unsaved_call_${leadId}`);
+        // Just call the parent callback - parent will handle modal transitions
+        onOpenUnqualified();
       } else {
         // Fallback: show form in same modal if no callback provided
         setNextAction(action);
         setCallPhase('ended');
       }
     } else if (action === 'unreachable') {
-      // Open unreachable modal and close call dialer
+      // Open unreachable modal - let parent handle closing
       if (onOpenUnreachable) {
-        handleClose(); // Close the call dialer modal first
-        onOpenUnreachable(); // Then open the unreachable modal
+        // Clear localStorage since call is saved
+        localStorage.removeItem(`unsaved_call_${leadId}`);
+        // Just call the parent callback - parent will handle modal transitions
+        onOpenUnreachable();
       } else {
         // Fallback: show form in same modal if no callback provided
         setNextAction(action);

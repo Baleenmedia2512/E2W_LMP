@@ -305,7 +305,6 @@ export default function CallsPage() {
               <option value="answer">Answer</option>
               <option value="busy">Busy</option>
               <option value="wrong_number">Wrong Number</option>
-              <option value="ring_not_response">Ring Not Response</option>
             </Select>
           </HStack>
 
@@ -451,7 +450,7 @@ export default function CallsPage() {
                           {group.leadName}
                         </Text>
                         <Text fontSize="sm" color="gray.600">
-                          {group.formatPhoneForDisplay(leadPhone)}
+                          {formatPhoneForDisplay(group.leadPhone)}
                         </Text>
                       </Box>
                       <Menu>

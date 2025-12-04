@@ -39,64 +39,24 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // For the follow-up page, fetch only the NEXT follow-up per lead
-    // Get all follow-ups
+    // For the follow-up page or leads list, fetch all follow-ups
+    // The client-side logic will determine which is the "next" follow-up
     const allFollowUps = await prisma.followUp.findMany({
       include: {
         lead: { select: { id: true, name: true, phone: true, status: true } },
         createdBy: { select: { id: true, name: true, email: true } },
       },
       orderBy: { scheduledAt: 'asc' }, // Order by earliest first
+      take: limit * 10, // Get more records since we're not filtering per lead
     });
-
-    // Filter to keep only the NEXT (earliest pending) follow-up per lead
-    const now = new Date();
-    const nextFollowUpsMap = new Map<string, any>();
-    
-    for (const followUp of allFollowUps) {
-      if (!nextFollowUpsMap.has(followUp.leadId)) {
-        // For each lead, take the first follow-up we encounter (which is the earliest due to orderBy)
-        nextFollowUpsMap.set(followUp.leadId, followUp);
-      }
-    }
-
-    // Convert map to array and apply smart sorting:
-    // 1. Upcoming follow-ups first (soonest/next one at the top)
-    // 2. Overdue follow-ups last (most overdue first)
-    const allFollowUpsArray = Array.from(nextFollowUpsMap.values());
-    
-    const overdue: any[] = [];
-    const upcoming: any[] = [];
-    
-    allFollowUpsArray.forEach(followUp => {
-      const scheduledDate = new Date(followUp.scheduledAt);
-      if (scheduledDate < now) {
-        overdue.push(followUp);
-      } else {
-        upcoming.push(followUp);
-      }
-    });
-    
-    // Sort upcoming by scheduled date (earliest/next one first)
-    upcoming.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    
-    // Sort overdue by scheduled date (most overdue first)
-    overdue.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    
-    // Combine: upcoming first, then overdue
-    const latestFollowUps = [...upcoming, ...overdue];
-
-    // Apply pagination
-    const total = latestFollowUps.length;
-    const paginatedFollowUps = latestFollowUps.slice(skip, skip + limit);
 
     return NextResponse.json({
       success: true,
-      data: paginatedFollowUps,
-      total,
+      data: allFollowUps,
+      total: allFollowUps.length,
       page,
       pageSize: limit,
-      hasMore: skip + limit < total,
+      hasMore: false,
     });
   } catch (error) {
     console.error('Error fetching follow-ups:', error);

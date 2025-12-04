@@ -98,7 +98,7 @@ export async function PUT(
       city: body.city !== undefined ? body.city : undefined,
       state: body.state !== undefined ? body.state : undefined,
       pincode: body.pincode !== undefined ? body.pincode : undefined,
-      source: body.source || undefined,
+      // source field is intentionally excluded - it must remain unchanged for reporting purposes
       campaign: body.campaign !== undefined ? body.campaign : undefined,
       customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
       status: body.status || undefined,

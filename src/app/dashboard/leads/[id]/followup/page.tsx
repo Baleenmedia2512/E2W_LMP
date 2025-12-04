@@ -296,13 +296,14 @@ export default function ScheduleFollowUpPage() {
         duration: 5000,
       });
 
-      // Navigate back with forced refresh
-      const backUrl = `/dashboard/leads/${leadId}`;
+      // Navigate back to leads list page with forced refresh
+      const backUrl = `/dashboard/leads?t=${Date.now()}`;
       router.push(backUrl);
+      router.refresh();
       
       // Use window.location for hard refresh to clear all caches
       setTimeout(() => {
-        window.location.href = backUrl;
+        window.location.href = '/dashboard/leads';
       }, 100);
     } catch (error) {
       toast({

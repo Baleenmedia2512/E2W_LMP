@@ -308,6 +308,54 @@ export default function LeadDetailPage() {
 
   const callAttempts = lead?.callAttempts || 0;
 
+  // Get next followup - prioritize upcoming future followups
+  const nextFollowUp = followUps && followUps.length > 0 
+    ? (() => {
+        const now = new Date();
+        
+        // Separate future and past followups
+        const futureFollowUps = followUps.filter((fu: any) => new Date(fu.scheduledAt) >= now);
+        const pastFollowUps = followUps.filter((fu: any) => new Date(fu.scheduledAt) < now);
+        
+        // Prefer earliest future followup
+        if (futureFollowUps.length > 0) {
+          return futureFollowUps.reduce((earliest: any, current: any) => {
+            const earliestDate = new Date(earliest.scheduledAt);
+            const currentDate = new Date(current.scheduledAt);
+            return currentDate < earliestDate ? current : earliest;
+          });
+        }
+        
+        // If no future followups, return most recent overdue one
+        if (pastFollowUps.length > 0) {
+          return pastFollowUps.reduce((latest: any, current: any) => {
+            const latestDate = new Date(latest.scheduledAt);
+            const currentDate = new Date(current.scheduledAt);
+            return currentDate > latestDate ? current : latest;
+          });
+        }
+        
+        return null;
+      })()
+    : null;
+
+  // Calculate if followup is overdue
+  const isOverdue = nextFollowUp ? new Date(nextFollowUp.scheduledAt) < new Date() : false;
+  
+  // Format time difference
+  const formatTimeDiff = (date: string) => {
+    const now = new Date();
+    const scheduled = new Date(date);
+    const diff = Math.abs(now.getTime() - scheduled.getTime());
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      return `${days} day${days !== 1 ? 's' : ''}`;
+    }
+    return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  };
+
   return (
     <Box p={8}>
       <HStack justify="space-between" mb={6} align="flex-start">
@@ -325,7 +373,7 @@ export default function LeadDetailPage() {
           <Heading size="lg">{lead.name}</Heading>
           <HStack spacing={4} flexWrap="wrap">
             <Badge colorScheme={getStatusColor(lead.status)} fontSize="md" px={3} py={1}>
-              {lead.status.toUpperCase()}
+              {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status.toUpperCase()}
             </Badge>
             <Box bg="blue.50" px={3} py={1} borderRadius="md" display="flex" alignItems="center">
               <Text fontSize="sm" fontWeight="bold" color="blue.700">
@@ -333,6 +381,37 @@ export default function LeadDetailPage() {
               </Text>
             </Box>
           </HStack>
+          {nextFollowUp && !['unqualified', 'unreach', 'won', 'lost'].includes(lead.status) && (
+            <Box 
+              bg={isOverdue ? "red.50" : "orange.50"} 
+              px={3} 
+              py={2} 
+              borderRadius="md" 
+              borderWidth="1px"
+              borderColor={isOverdue ? "red.200" : "orange.200"}
+            >
+              <VStack align="start" spacing={1}>
+                <HStack spacing={2}>
+                  <Text fontSize="xs" fontWeight="bold" color={isOverdue ? "red.700" : "orange.700"}>
+                    Next Followup:
+                  </Text>
+                  {isOverdue && (
+                    <Badge colorScheme="red" fontSize="xs">
+                      Overdue by {formatTimeDiff(nextFollowUp.scheduledAt)}
+                    </Badge>
+                  )}
+                </HStack>
+                <Text fontSize="sm" fontWeight="medium" color={isOverdue ? "red.800" : "orange.800"}>
+                  {formatDateTime(nextFollowUp.scheduledAt)}
+                </Text>
+                {nextFollowUp.notes && (
+                  <Text fontSize="xs" color="gray.600" noOfLines={1}>
+                    Note: {nextFollowUp.notes}
+                  </Text>
+                )}
+              </VStack>
+            </Box>
+          )}
         </VStack>
       </HStack>
 
@@ -411,7 +490,7 @@ export default function LeadDetailPage() {
                 <Heading size="md">{lead.name}</Heading>
                 <HStack spacing={2}>
                   <Badge colorScheme={getStatusColor(lead.status)}>
-                    {lead.status.toUpperCase()}
+                    {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status.toUpperCase()}
                   </Badge>
                   <Badge colorScheme={getAttemptBadgeColor(lead.callAttempts)} fontSize="sm">
                     {lead.callAttempts || 0} Attempts
@@ -537,6 +616,42 @@ export default function LeadDetailPage() {
                   <Text>{formatDateTime(lead.updatedAt)}</Text>
                 </Box>
               </SimpleGrid>
+
+              {nextFollowUp && !['unqualified', 'unreach', 'won', 'lost'].includes(lead.status) && (
+                <Box 
+                  bg={isOverdue ? "red.50" : "orange.50"} 
+                  p={3} 
+                  borderRadius="md"
+                  borderWidth="1px"
+                  borderColor={isOverdue ? "red.200" : "orange.200"}
+                >
+                  <VStack align="stretch" spacing={2}>
+                    <HStack spacing={2}>
+                      <Text fontWeight="bold" fontSize="sm" color={isOverdue ? "red.700" : "orange.700"}>
+                        Next Followup:
+                      </Text>
+                      {isOverdue && (
+                        <Badge colorScheme="red" fontSize="xs">
+                          Overdue by {formatTimeDiff(nextFollowUp.scheduledAt)}
+                        </Badge>
+                      )}
+                    </HStack>
+                    <Text fontSize="sm" fontWeight="medium" color={isOverdue ? "red.800" : "orange.800"}>
+                      {formatDateTime(nextFollowUp.scheduledAt)}
+                    </Text>
+                    {nextFollowUp.notes && (
+                      <Box>
+                        <Text fontSize="xs" fontWeight="bold" color="gray.600">
+                          Note:
+                        </Text>
+                        <Text fontSize="sm" color="gray.700">
+                          {nextFollowUp.notes}
+                        </Text>
+                      </Box>
+                    )}
+                  </VStack>
+                </Box>
+              )}
             </VStack>
           </CardBody>
         </Card>

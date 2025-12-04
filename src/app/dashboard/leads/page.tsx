@@ -195,8 +195,8 @@ export default function LeadsPage() {
     try {
       setLoading(true);
       const [leadsRes, followUpsRes] = await Promise.all([
-        fetch('/api/leads?limit=100'),
-        fetch('/api/followups?limit=100'),
+        fetch('/api/leads?limit=100', { cache: 'no-store' }),
+        fetch('/api/followups?limit=100', { cache: 'no-store' }),
       ]);
       
       const leadsData = await leadsRes.json();
@@ -221,6 +221,29 @@ export default function LeadsPage() {
   
   useEffect(() => {
     fetchData();
+  }, []);
+  
+  // Refresh data when URL params change (e.g., after redirect with timestamp)
+  useEffect(() => {
+    const timestamp = searchParams.get('t');
+    if (timestamp) {
+      fetchData();
+    }
+  }, [searchParams]);
+  
+  // Refresh data when returning to this page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchData();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
   
   // Handler to refresh data after status changes
@@ -311,10 +334,27 @@ export default function LeadsPage() {
     );
     if (leadFollowUps.length === 0) return null;
     
-    // Sort by scheduled date and return the earliest one
-    return leadFollowUps.sort((a: any, b: any) => 
-      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-    )[0];
+    const now = new Date();
+    
+    // Separate future and past followups
+    const futureFollowUps = leadFollowUps.filter((fu: any) => new Date(fu.scheduledAt) >= now);
+    const pastFollowUps = leadFollowUps.filter((fu: any) => new Date(fu.scheduledAt) < now);
+    
+    // Prefer earliest future followup
+    if (futureFollowUps.length > 0) {
+      return futureFollowUps.sort((a: any, b: any) => 
+        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+      )[0];
+    }
+    
+    // If no future followups, return most recent overdue one
+    if (pastFollowUps.length > 0) {
+      return pastFollowUps.sort((a: any, b: any) => 
+        new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
+      )[0];
+    }
+    
+    return null;
   };
 
   // Filter leads based on all filters
@@ -1245,23 +1285,35 @@ export default function LeadsPage() {
         </VStack>
 
       {/* Conversion Modals */}
-      {selectedLead && leadToCall && (
+      {selectedLead && (
         <>
           <ConvertToUnreachableModal
             isOpen={isUnreachableOpen}
-            onClose={onUnreachableClose}
+            onClose={() => {
+              onUnreachableClose();
+              setSelectedLead(null);
+            }}
             leadId={selectedLead.id}
             leadName={selectedLead.name}
             onSuccess={handleRefreshLeads}
-            onBack={onUnreachableClose}
+            onBack={() => {
+              onUnreachableClose();
+              setSelectedLead(null);
+            }}
           />
           <ConvertToUnqualifiedModal
             isOpen={isUnqualifiedOpen}
-            onClose={onUnqualifiedClose}
+            onClose={() => {
+              onUnqualifiedClose();
+              setSelectedLead(null);
+            }}
             leadId={selectedLead.id}
             leadName={selectedLead.name}
             onSuccess={handleRefreshLeads}
-            onBack={onUnqualifiedClose}
+            onBack={() => {
+              onUnqualifiedClose();
+              setSelectedLead(null);
+            }}
           />
         </>
       )}
@@ -1285,17 +1337,28 @@ export default function LeadsPage() {
       {leadToCall && (
         <CallDialerModal
           isOpen={isCallDialerOpen}
-          onClose={onCallDialerClose}
+          onClose={() => {
+            onCallDialerClose();
+            setLeadToCall(null);
+          }}
           leadId={leadToCall.id}
           leadName={leadToCall.name}
           leadPhone={leadToCall.phone}
           onOpenUnreachable={() => {
             setSelectedLead({ id: leadToCall.id, name: leadToCall.name });
-            onUnreachableOpen();
+            onCallDialerClose();
+            setLeadToCall(null);
+            setTimeout(() => {
+              onUnreachableOpen();
+            }, 100);
           }}
           onOpenUnqualified={() => {
             setSelectedLead({ id: leadToCall.id, name: leadToCall.name });
-            onUnqualifiedOpen();
+            onCallDialerClose();
+            setLeadToCall(null);
+            setTimeout(() => {
+              onUnqualifiedOpen();
+            }, 100);
           }}
         />
       )}

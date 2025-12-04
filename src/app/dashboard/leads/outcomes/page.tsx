@@ -53,6 +53,7 @@ interface Lead {
   createdAt: string;
   updatedAt: string;
   notes?: string;
+  customerRequirement?: string;
   status: string;
 }
 
@@ -398,9 +399,10 @@ export default function LeadOutcomesPage() {
         });
         onRescheduleClose();
         
-        // Redirect to leads page after a brief delay
+        // Redirect to leads page after a brief delay and force refresh
         setTimeout(() => {
-          router.push('/dashboard/leads');
+          router.push('/dashboard/leads?t=' + Date.now());
+          router.refresh();
         }, 1000);
       } else {
         throw new Error(followUpData.error || 'Failed to reschedule lead');
@@ -602,6 +604,7 @@ export default function LeadOutcomesPage() {
                       >
                         Owner {sortConfig[section.status]?.field === 'assignedTo' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
+                      <Th>Remarks</Th>
                       <Th width="120px">Actions</Th>
                     </Tr>
                   </Thead>
@@ -621,6 +624,11 @@ export default function LeadOutcomesPage() {
                         </Td>
                         <Td>{formatDate(lead.updatedAt)}</Td>
                         <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
+                        <Td>
+                          <Text noOfLines={2} fontSize="sm" maxW="250px" title={lead.customerRequirement || lead.notes || '-'}>
+                            {lead.customerRequirement || lead.notes || '-'}
+                          </Text>
+                        </Td>
                         <Td onClick={(e) => e.stopPropagation()}>
                           <HStack spacing={1}>
                             <IconButton
