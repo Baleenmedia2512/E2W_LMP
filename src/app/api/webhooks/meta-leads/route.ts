@@ -35,20 +35,46 @@ export async function GET(request: NextRequest) {
     const mode = searchParams.get('hub.mode');
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
+    const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
 
-    console.log('🔍 Meta webhook verification:', { mode, token, challenge });
+    console.log('🔍 Meta webhook verification request received');
+    console.log('  Mode:', mode);
+    console.log('  Token provided:', token ? 'YES' : 'NO');
+    console.log('  Challenge provided:', challenge ? 'YES' : 'NO');
+    console.log('  Expected token configured:', verifyToken ? 'YES' : 'NO');
+    console.log('  Timestamp:', new Date().toISOString());
 
-    // For now, accept any request with challenge (will add token check after confirming it works)
-    if (mode === 'subscribe' && challenge) {
+    // Verify the mode
+    if (mode !== 'subscribe') {
+      console.error('❌ Invalid mode:', mode);
+      return new Response('Invalid mode', { status: 403 });
+    }
+
+    // Verify the token
+    if (!verifyToken) {
+      console.error('❌ META_WEBHOOK_VERIFY_TOKEN not configured in environment');
+      return new Response('Server configuration error', { status: 500 });
+    }
+
+    if (token !== verifyToken.trim()) {
+      console.error('❌ Token mismatch');
+      console.error('  Received:', token);
+      console.error('  Expected:', verifyToken.trim());
+      return new Response('Invalid verify token', { status: 403 });
+    }
+
+    // All checks passed
+    if (challenge) {
       console.log('✅ Webhook verified successfully');
+      console.log('  Challenge being returned:', challenge);
       return new Response(challenge, { 
         status: 200,
         headers: { 'Content-Type': 'text/plain' }
       });
     }
 
-    console.error('❌ Webhook verification failed - missing mode or challenge');
-    return new Response('Forbidden', { status: 403 });
+    console.error('❌ No challenge provided');
+    return new Response('No challenge', { status: 400 });
   } catch (error) {
     console.error('❌ Webhook verification error:', error);
     return new Response('Internal Server Error', { status: 500 });
@@ -211,19 +237,36 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
 
 // POST: Receive lead data from Meta
 export async function POST(request: NextRequest) {
+  const requestTimestamp = new Date().toISOString();
+  console.log('\n========================================');
+  console.log('📥 WEBHOOK POST RECEIVED');
+  console.log('  Timestamp:', requestTimestamp);
+  console.log('  URL:', request.url);
+  console.log('========================================');
+  
   try {
     // Log request headers for debugging
     const contentType = request.headers.get('content-type');
-    console.log('📥 Webhook POST received');
-    console.log('Content-Type:', contentType);
-    console.log('Headers:', Object.fromEntries(request.headers.entries()));
+    const userAgent = request.headers.get('user-agent');
+    const signature = request.headers.get('x-hub-signature-256');
+    
+    console.log('📋 Request Details:');
+    console.log('  Content-Type:', contentType);
+    console.log('  User-Agent:', userAgent);
+    console.log('  Has Signature:', signature ? 'YES' : 'NO');
+    console.log('  Origin:', request.headers.get('origin') || 'N/A');
+    console.log('  Referer:', request.headers.get('referer') || 'N/A');
 
     // Clone request to read body multiple times
     const requestClone = request.clone();
     const rawBody = await request.text();
     
-    console.log('Body length:', rawBody.length);
-    console.log('Raw body preview:', rawBody.substring(0, 500));
+    console.log('\n📦 Body Analysis:');
+    console.log('  Length:', rawBody.length, 'bytes');
+    console.log('  Preview (first 500 chars):', rawBody.substring(0, 500));
+    if (rawBody.length > 500) {
+      console.log('  Preview (last 200 chars):', rawBody.substring(rawBody.length - 200));
+    }
 
     // Handle empty body
     if (!rawBody || rawBody.trim().length === 0) {
@@ -435,12 +478,17 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ success: true }, { status: 200 });
+      console.log('\n✅ WEBHOOK PROCESSING COMPLETED SUCCESSFULLY');
+      console.log('========================================\n');
+      return NextResponse.json({ success: true, received: true }, { status: 200 });
     }
 
-    return NextResponse.json({ success: true }, { status: 200 });
+    console.log('\n✅ WEBHOOK ACKNOWLEDGED (no page object)');
+    console.log('========================================\n');
+    return NextResponse.json({ success: true, received: false }, { status: 200 });
   } catch (error) {
-    console.error('❌ Error processing webhook:', error);
+    console.error('\n❌ ERROR PROCESSING WEBHOOK:', error);
+    console.error('========================================\n');
     
     // Return 200 to prevent Meta from retrying
     // Log error for manual review

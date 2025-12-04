@@ -198,7 +198,7 @@ export default function DashboardPage() {
 
   const setQuickDateRange = (range: 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last30days') => {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0]!;
     setHasDateFilter(true);
     
     switch (range) {
@@ -210,7 +210,7 @@ export default function DashboardPage() {
       case 'yesterday':
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const yesterdayStr = yesterday.toISOString().split('T')[0]!;
         setStartDate(yesterdayStr);
         setEndDate(yesterdayStr);
         setDateRangeLabel('Yesterday');
@@ -218,20 +218,20 @@ export default function DashboardPage() {
       case 'last7days':
         const last7 = new Date(today);
         last7.setDate(last7.getDate() - 6);
-        setStartDate(last7.toISOString().split('T')[0]);
+        setStartDate(last7.toISOString().split('T')[0]!);
         setEndDate(todayStr);
         setDateRangeLabel('Last 7 Days');
         break;
       case 'thisMonth':
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        setStartDate(monthStart.toISOString().split('T')[0]);
+        setStartDate(monthStart.toISOString().split('T')[0]!);
         setEndDate(todayStr);
         setDateRangeLabel('This Month');
         break;
       case 'last30days':
         const last30 = new Date(today);
         last30.setDate(last30.getDate() - 29);
-        setStartDate(last30.toISOString().split('T')[0]);
+        setStartDate(last30.toISOString().split('T')[0]!);
         setEndDate(todayStr);
         setDateRangeLabel('Last 30 Days');
         break;
