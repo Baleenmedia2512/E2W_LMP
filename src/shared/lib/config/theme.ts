@@ -217,15 +217,8 @@ const components = {
       px: 2,
       py: 1,
     },
-    variants: {
-      solid: {
-        bg: 'brand.500',
-        color: 'white',
-      },
-      subtle: {
-        bg: 'brand.50',
-        color: 'brand.700',
-      },
+    defaultProps: {
+      variant: 'subtle',
     },
   },
   Table: {

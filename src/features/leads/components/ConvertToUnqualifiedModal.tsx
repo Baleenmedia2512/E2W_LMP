@@ -148,15 +148,7 @@ export default function ConvertToUnqualifiedModal({
               </Text>
             </FormControl>
 
-            <FormControl>
-              <FormLabel fontWeight="600">Competitor / Additional Notes (Optional)</FormLabel>
-              <Textarea
-                placeholder="e.g., Chose competitor XYZ, specific concerns, alternative contact, etc."
-                value={competitor}
-                onChange={(e) => setCompetitor(e.target.value)}
-                rows={3}
-              />
-            </FormControl>
+
           </VStack>
         </ModalBody>
         <ModalFooter>

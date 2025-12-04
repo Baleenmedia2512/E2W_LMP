@@ -664,7 +664,7 @@ export default function DSRPage() {
                           color="white"
                           fontSize={{ base: 'xs', md: 'sm' }}
                         >
-                          {lead.status.toUpperCase()}
+                          {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status.toUpperCase()}
                         </Badge>
                       </Td>
                       <Td display={{ base: 'none', lg: 'table-cell' }}>

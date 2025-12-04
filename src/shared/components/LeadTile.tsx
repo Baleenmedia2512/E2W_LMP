@@ -44,6 +44,27 @@ const getStatusColor = (status: string) => {
   return colors[status] || 'gray';
 };
 
+const getStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'new':
+      return 'NEW';
+    case 'followup':
+      return 'FOLLOW-UP';
+    case 'qualified':
+      return 'QUALIFIED';
+    case 'won':
+      return 'WON';
+    case 'lost':
+      return 'LOST';
+    case 'unqualified':
+      return 'UNQUALIFIED';
+    case 'unreach':
+      return 'UNREACHABLE';
+    default:
+      return status.toUpperCase();
+  }
+};
+
 export default function LeadTile({
   lead,
   userRole,
@@ -93,7 +114,7 @@ export default function LeadTile({
             </Text>
             <HStack spacing={2} mt={1} flexWrap="wrap">
               <Badge colorScheme={getStatusColor(lead.status)} fontSize="xs">
-                {lead.status.toUpperCase()}
+                {getStatusLabel(lead.status)}
               </Badge>
               {lead.callAttempts > 0 && (
                 <Tooltip label={`${lead.callAttempts} call attempt${lead.callAttempts !== 1 ? 's' : ''}`}>

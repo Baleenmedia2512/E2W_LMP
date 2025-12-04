@@ -64,16 +64,51 @@ export function categorizeAndSortLeads(
         sortValue: createdAtDate.getTime(),
       });
     } else {
-      // Has follow-up(s) - find the NEXT (earliest) pending follow-up
-      // This ensures that if a lead has multiple follow-ups (e.g., 10:02, 10:03, 10:05)
+      // Has follow-up(s) - find the NEXT upcoming follow-up
+      // Prioritize future followups over past ones
+      // If a lead has multiple follow-ups (e.g., past: 10:02, 10:03; future: 10:05)
       // and current time is 10:04, we show 10:05 as the next follow-up
-      const nextFollowUp = leadFollowUps.reduce((earliest, current) => {
-        const earliestDate = ensureDate(earliest.scheduledAt);
-        const currentDate = ensureDate(current.scheduledAt);
-        return currentDate < earliestDate ? current : earliest;
-      });
+      
+      // Separate future and past followups
+      const futureFollowUps = leadFollowUps.filter(
+        (f) => ensureDate(f.scheduledAt) >= now
+      );
+      const pastFollowUps = leadFollowUps.filter(
+        (f) => ensureDate(f.scheduledAt) < now
+      );
+      
+      console.log(`Lead ${lead.name}: Future=${futureFollowUps.length}, Past=${pastFollowUps.length}`);
+      if (futureFollowUps.length > 0) {
+        console.log(`  Future dates:`, futureFollowUps.map(f => f.scheduledAt));
+      }
+      if (pastFollowUps.length > 0) {
+        console.log(`  Past dates:`, pastFollowUps.map(f => f.scheduledAt));
+      }
+      
+      let nextFollowUp;
+      
+      // Prefer earliest future followup
+      if (futureFollowUps.length > 0) {
+        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+          const earliestDate = ensureDate(earliest.scheduledAt);
+          const currentDate = ensureDate(current.scheduledAt);
+          return currentDate < earliestDate ? current : earliest;
+        });
+      } else if (pastFollowUps.length > 0) {
+        // If no future followups, use most recent overdue one
+        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+          const latestDate = ensureDate(latest.scheduledAt);
+          const currentDate = ensureDate(current.scheduledAt);
+          return currentDate > latestDate ? current : latest;
+        });
+      } else {
+        // Fallback (shouldn't happen)
+        nextFollowUp = leadFollowUps[0];
+      }
 
       const dueDate = ensureDate(nextFollowUp.scheduledAt);
+      
+      console.log(`Lead ${lead.name}: Selected followup = ${nextFollowUp.scheduledAt}, isOverdue = ${dueDate < now}`);
 
       if (dueDate < now) {
         // Overdue - past current time - sort by oldest first (most overdue first)
