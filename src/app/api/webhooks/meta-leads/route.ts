@@ -83,30 +83,32 @@ export async function GET(request: NextRequest) {
 
 // Check for duplicate leads
 async function checkDuplicateLead(phone: string, email: string | null, metaLeadId: string) {
-  // First check by Meta Lead ID in metadata
-  const allLeads = await prisma.lead.findMany({
-    where: {
-      source: 'Meta',
-    },
-  });
+  // Check by Meta Lead ID using JSON_EXTRACT for MySQL
+  // Note: This requires the metadata to be stored as proper JSON
+  const existingByMetaId = await prisma.$queryRaw<any[]>`
+    SELECT id, name, phone FROM Lead 
+    WHERE source = 'meta' 
+    AND JSON_EXTRACT(metadata, '$.metaLeadId') = ${metaLeadId}
+    LIMIT 1
+  `;
 
-  const existingByMetaId = allLeads.find((lead) => {
-    const metadata = lead.metadata as any;
-    return metadata?.metaLeadId === metaLeadId;
-  });
-
-  if (existingByMetaId) {
+  if (existingByMetaId && existingByMetaId.length > 0) {
     console.log(`Duplicate detected: Meta Lead ID ${metaLeadId} already exists`);
-    return existingByMetaId;
+    return existingByMetaId[0];
   }
 
   // Then check by phone/email if provided
   if (phone && phone !== 'PENDING') {
     const existingByContact = await prisma.lead.findFirst({
       where: {
-        OR: [
-          { phone: phone },
-          ...(email ? [{ email: email }] : []),
+        AND: [
+          { source: 'meta' },
+          {
+            OR: [
+              { phone: phone },
+              ...(email ? [{ email: email }] : []),
+            ],
+          },
         ],
       },
       orderBy: { createdAt: 'desc' },
@@ -447,7 +449,7 @@ export async function POST(request: NextRequest) {
                   name: name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
                   phone: phone,
                   email: email,
-                  source: 'Meta',
+                  source: 'meta',
                   campaign: campaignValue,
                   status: 'new',
                   customerRequirement: customFields.message || null,
