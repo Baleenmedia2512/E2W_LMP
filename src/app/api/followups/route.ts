@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
           leadId: body.leadId,
           userId: createdById,
           action: 'followup_rescheduled',
-          description: `Follow-up rescheduled to ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} ${scheduledDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+          description: `Follow-up rescheduled to ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')} ${scheduledDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
         },
       });
 
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
         leadId: body.leadId,
         userId: createdById,
         action: 'followup_scheduled',
-        description: `Follow-up scheduled for ${new Date(scheduledDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}`,
+        description: `Follow-up scheduled for ${new Date(scheduledDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}`,
       },
     });
 
