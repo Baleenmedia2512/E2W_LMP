@@ -228,10 +228,10 @@ After seeding, you can login with:
 - `PUT /api/leads/[id]` - Update lead
 - `DELETE /api/leads/[id]` - Delete lead
 
-### Meta Integration
-- `GET /api/webhooks/meta-leads` - Webhook verification
-- `POST /api/webhooks/meta-leads` - Receive lead from Meta
-- `GET /api/cron/sync-meta-leads` - Fetch full lead data (polling)
+### Meta Integration (Webhook - Push-based)
+- `GET /api/webhooks/meta-leads` - Webhook verification (Meta calls this once)
+- `POST /api/webhooks/meta-leads` - Real-time lead receiver (Meta pushes leads here instantly)
+- `GET /api/webhooks/meta-leads/test` - Test webhook configuration and connectivity
 
 ### Other
 - `GET /api/calls` - Get call logs

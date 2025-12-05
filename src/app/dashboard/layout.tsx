@@ -17,7 +17,6 @@ import {
   Spinner
 } from '@chakra-ui/react';
 import { useAuth } from '@/shared/lib/auth/auth-context';
-import { useMetaAutoSync } from '@/shared/hooks/useMetaAutoSync';
 import Sidebar from '@/shared/components/layout/Sidebar';
 import Header from '@/shared/components/layout/Header';
 
@@ -27,9 +26,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Auto-sync disabled - now handled by DirectAdmin cron job (every 5 minutes)
-  // This prevents duplicate API calls and reduces client-side load
-  // useMetaAutoSync(isAuthenticated);
+  // ✅ Meta leads now come via WEBHOOK (push-based) - no polling/cron needed!
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

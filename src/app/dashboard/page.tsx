@@ -136,39 +136,7 @@ export default function DashboardPage() {
   // configured in vercel.json or your hosting platform's cron scheduler.
   // These should NOT be called from client-side code as they require authentication.
 
-  // Manual Meta leads sync
-  const [isSyncing, setIsSyncing] = useState(false);
-  const handleSyncMetaLeads = async () => {
-    setIsSyncing(true);
-    try {
-      const response = await fetch('/api/cron/sync-meta-leads');
-      const result = await response.json();
-      
-      if (response.ok) {
-        toast({
-          title: 'Meta Leads Synced',
-          description: `Updated ${result.updatedPlaceholders || 0} placeholders, fetched ${result.newLeads || 0} new leads`,
-          status: 'success',
-          duration: 5000,
-          isClosable: true,
-        });
-        // Refresh dashboard data
-        mutate();
-      } else {
-        throw new Error(result.error || 'Sync failed');
-      }
-    } catch (error) {
-      toast({
-        title: 'Sync Failed',
-        description: error instanceof Error ? error.message : 'Failed to sync Meta leads',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  // ✅ Meta leads now come via WEBHOOK (push-based) - no manual sync needed!
 
   // Show toast on auto-refresh (only once when enabled)
   useEffect(() => {
@@ -323,16 +291,6 @@ export default function DashboardPage() {
               colorScheme="brand"
             />
           </FormControl>
-          <Button
-            leftIcon={<FiRefreshCw />}
-            size="sm"
-            variant="outline"
-            onClick={handleSyncMetaLeads}
-            isLoading={isSyncing}
-            colorScheme="blue"
-          >
-            Sync Meta Leads
-          </Button>
           <Button
             leftIcon={<FiRefreshCw />}
             size="sm"
