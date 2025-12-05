@@ -140,12 +140,18 @@ async function fetchCampaignName(campaignId: string): Promise<string | null> {
     
     const response = await fetch(
       `https://graph.facebook.com/v21.0/${campaignId}?fields=name&access_token=${accessToken}`,
-      { method: 'GET' }
+      { 
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     );
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Failed to fetch campaign name for ${campaignId}: ${response.status} - ${errorText}`);
+      console.error(`   This may be due to insufficient permissions or the campaign ID format`);
       return null;
     }
     
