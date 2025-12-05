@@ -34,8 +34,7 @@ export interface Lead {
   source: string;
   campaign: string | null;
   customerRequirement: string | null;
-  status: 'new' | 'followup' | 'unreach' | 'unqualified' | 'contacted' | 'qualified' | 'won' | 'lost';
-  priority: 'low' | 'medium' | 'high';
+  status: 'new' | 'followup' | 'unreach' | 'unqualified' | 'qualified' | 'won' | 'lost';
   callAttempts: number;
   assignedToId: string | null;
   createdById: string | null;
@@ -47,6 +46,24 @@ export interface Lead {
   createdBy?: User;
 }
 
+export interface LeadUpdatePayload {
+  name?: string;
+  phone?: string;
+  email?: string | null;
+  alternatePhone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  source?: string;
+  campaign?: string | null;
+  customerRequirement?: string | null;
+  status?: 'new' | 'followup' | 'unreach' | 'unqualified' | 'qualified' | 'won' | 'lost';
+  notes?: string | null;
+  assignedToId?: string | null;
+  updatedById?: string;
+}
+
 export interface CallLog {
   id: string;
   leadId: string;
@@ -55,7 +72,8 @@ export interface CallLog {
   endedAt: Date | null;
   duration: number | null;
   remarks: string | null;
-  callStatus: string | null;
+  callStatus: 'answer' | 'busy' | 'wrong_number' | 'ring_not_response' | string | null; // Support both old and new status values
+  customerRequirement: string | null;
   attemptNumber: number;
   recordingUrl: string | null;
   metadata: Record<string, unknown> | null;
@@ -68,10 +86,8 @@ export interface FollowUp {
   id: string;
   leadId: string;
   scheduledAt: Date;
-  completedAt: Date | null;
-  notes: string | null;
-  status: 'pending' | 'completed' | 'cancelled';
-  priority: 'low' | 'medium' | 'high';
+  customerRequirement?: string | null;
+  notes?: string | null;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
@@ -142,7 +158,6 @@ export interface DSRData {
   date: Date;
   totalCalls: number;
   totalAttempts: number;
-  leadsContacted: number;
   leadsQualified: number;
   leadsConverted: number;
   followUpsScheduled: number;

@@ -1,4 +1,5 @@
 import prisma from '@/shared/lib/db/prisma';
+import crypto from 'crypto';
 
 /**
  * Check if a lead already exists in the database
@@ -20,8 +21,14 @@ export async function findDuplicateLead(
   });
 
   const existingByMetaId = allMetaLeads.find((lead) => {
-    const metadata = lead.metadata as any;
-    return metadata?.metaLeadId === metaLeadId;
+    try {
+      const metadata = typeof lead.metadata === 'string' 
+        ? JSON.parse(lead.metadata) 
+        : lead.metadata;
+      return metadata?.metaLeadId === metaLeadId;
+    } catch {
+      return false;
+    }
   });
 
   if (existingByMetaId) {
@@ -61,6 +68,7 @@ export async function updateLeadWithMetaData(
     name?: string;
     phone?: string;
     email?: string | null;
+    campaign?: string | null;
     customerRequirement?: string | null;
     metadata?: Record<string, any>;
   }
@@ -77,6 +85,7 @@ export async function updateLeadWithMetaData(
     // Log activity
     await prisma.activityHistory.create({
       data: {
+        id: crypto.randomUUID(),
         leadId: leadId,
         userId: 'system',
         action: 'updated',

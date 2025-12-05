@@ -7,14 +7,17 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  ModalCloseButton,
   Button,
   FormControl,
   FormLabel,
   Textarea,
   VStack,
+  Text,
   useToast,
+  IconButton,
+  HStack,
 } from '@chakra-ui/react';
+import { HiArrowLeft } from 'react-icons/hi';
 import { useState } from 'react';
 
 interface ConvertToUnqualifiedModalProps {
@@ -23,6 +26,7 @@ interface ConvertToUnqualifiedModalProps {
   leadId: string;
   leadName: string;
   onSuccess?: () => void;
+  onBack?: () => void;
 }
 
 export default function ConvertToUnqualifiedModal({
@@ -31,6 +35,7 @@ export default function ConvertToUnqualifiedModal({
   leadId,
   leadName,
   onSuccess,
+  onBack,
 }: ConvertToUnqualifiedModalProps) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -42,6 +47,16 @@ export default function ConvertToUnqualifiedModal({
       toast({
         title: 'Reason required',
         description: 'Please provide a reason for marking as unqualified',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (reason.trim().length < 10) {
+      toast({
+        title: 'Reason too short',
+        description: 'Please provide a detailed reason (at least 10 characters)',
         status: 'warning',
         duration: 3000,
       });
@@ -99,11 +114,23 @@ export default function ConvertToUnqualifiedModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} size="md" closeOnOverlayClick={false}>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Mark Lead as Unqualified</ModalHeader>
-        <ModalCloseButton />
+        <ModalHeader>
+          <HStack spacing={2}>
+            {onBack && (
+              <IconButton
+                aria-label="Back"
+                icon={<HiArrowLeft />}
+                size="sm"
+                variant="ghost"
+                onClick={onBack}
+              />
+            )}
+            <Text>Mark Lead as Unqualified</Text>
+          </HStack>
+        </ModalHeader>
         <ModalBody>
           <VStack spacing={4} align="stretch">
             <FormControl isRequired>
@@ -114,24 +141,17 @@ export default function ConvertToUnqualifiedModal({
                 onChange={(e) => setReason(e.target.value)}
                 rows={5}
                 autoFocus
+                minLength={10}
               />
+              <Text fontSize="xs" color="gray.500" mt={1}>
+                Minimum 10 characters required
+              </Text>
             </FormControl>
 
-            <FormControl>
-              <FormLabel fontWeight="600">Competitor / Additional Notes (Optional)</FormLabel>
-              <Textarea
-                placeholder="e.g., Chose competitor XYZ, specific concerns, alternative contact, etc."
-                value={competitor}
-                onChange={(e) => setCompetitor(e.target.value)}
-                rows={3}
-              />
-            </FormControl>
+
           </VStack>
         </ModalBody>
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose}>
-            Cancel
-          </Button>
           <Button
             colorScheme="yellow"
             onClick={handleSubmit}

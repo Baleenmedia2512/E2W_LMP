@@ -10,11 +10,15 @@ import {
   Avatar,
   Flex,
   IconButton,
+  useToast,
 } from '@chakra-ui/react';
 import { HiPhone, HiMail, HiClock } from 'react-icons/hi';
+import { FaWhatsapp } from 'react-icons/fa';
 import { formatDistanceToNow } from 'date-fns';
 import { Lead } from '@/shared/types';
 import QuickActionsMenu from './QuickActionsMenu';
+import { openWhatsApp, isValidWhatsAppPhone } from '@/shared/utils/whatsapp';
+import { formatPhoneForDisplay, isValidPhone } from '@/shared/utils/phone';
 
 interface LeadTileProps {
   lead: Lead;
@@ -22,29 +26,43 @@ interface LeadTileProps {
   onAssign?: (lead: { id: string; name: string }) => void;
   onConvertUnreachable?: (lead: { id: string; name: string }) => void;
   onConvertUnqualified?: (lead: { id: string; name: string }) => void;
+  onMarkAsWon?: (lead: { id: string; name: string }) => void;
+  onMarkAsLost?: (lead: { id: string; name: string }) => void;
+  onLogCall?: (lead: { id: string; name: string; phone: string }) => void;
 }
 
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    new: 'blue',
-    contacted: 'purple',
+    new: 'blue',        // New = Blue
     qualified: 'cyan',
-    followup: 'orange',
-    won: 'green',
-    lost: 'red',
-    unreach: 'pink',
-    unqualified: 'purple',
+    followup: 'orange', // Follow-up = Amber (orange)
+    won: 'green',       // Won = Green
+    lost: 'red',        // Lost = Red
+    unreach: 'pink',    // Unreachable = Pink
+    unqualified: 'purple', // Unqualified = Magenta (purple closest to magenta)
   };
   return colors[status] || 'gray';
 };
 
-const getPriorityColor = (priority: string) => {
-  const colors: Record<string, string> = {
-    high: 'red',
-    medium: 'yellow',
-    low: 'green',
-  };
-  return colors[priority] || 'gray';
+const getStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'new':
+      return 'NEW';
+    case 'followup':
+      return 'FOLLOW-UP';
+    case 'qualified':
+      return 'QUALIFIED';
+    case 'won':
+      return 'WON';
+    case 'lost':
+      return 'LOST';
+    case 'unqualified':
+      return 'UNQUALIFIED';
+    case 'unreach':
+      return 'UNREACHABLE';
+    default:
+      return status.toUpperCase();
+  }
 };
 
 export default function LeadTile({
@@ -53,7 +71,29 @@ export default function LeadTile({
   onAssign,
   onConvertUnreachable,
   onConvertUnqualified,
+  onMarkAsWon,
+  onMarkAsLost,
+  onLogCall,
 }: LeadTileProps) {
+  const toast = useToast();
+
+  const handleWhatsAppClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // AC-7: Error handling for invalid phone numbers
+    const success = openWhatsApp(lead.phone);
+    
+    if (!success) {
+      toast({
+        title: 'Invalid phone number',
+        description: 'The phone number must be at least 10 digits.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
   return (
     <Box
       bg="white"
@@ -74,11 +114,19 @@ export default function LeadTile({
             </Text>
             <HStack spacing={2} mt={1} flexWrap="wrap">
               <Badge colorScheme={getStatusColor(lead.status)} fontSize="xs">
-                {lead.status.toUpperCase()}
+                {getStatusLabel(lead.status)}
               </Badge>
-              <Badge colorScheme={getPriorityColor(lead.priority)} fontSize="xs" variant="subtle">
-                {lead.priority.toUpperCase()}
-              </Badge>
+              {lead.callAttempts > 0 && (
+                <Tooltip label={`${lead.callAttempts} call attempt${lead.callAttempts !== 1 ? 's' : ''}`}>
+                  <Badge 
+                    colorScheme={lead.callAttempts >= 7 ? 'red' : lead.callAttempts >= 4 ? 'orange' : 'blue'} 
+                    fontSize="xs"
+                    variant="solid"
+                  >
+                    📞 {lead.callAttempts}
+                  </Badge>
+                </Tooltip>
+              )}
             </HStack>
           </VStack>
         </HStack>
@@ -88,14 +136,34 @@ export default function LeadTile({
           onAssign={onAssign}
           onConvertUnreachable={onConvertUnreachable}
           onConvertUnqualified={onConvertUnqualified}
+          onMarkAsWon={onMarkAsWon}
+          onMarkAsLost={onMarkAsLost}
+          onLogCall={onLogCall}
         />
       </Flex>
 
       <VStack align="start" spacing={2}>
         {lead.phone && (
-          <HStack spacing={2}>
-            <HiPhone color="gray" size={14} />
-            <Text fontSize={{ base: 'xs', md: 'sm' }} noOfLines={1}>{lead.phone}</Text>
+          <HStack spacing={2} justify="space-between" w="full">
+            <HStack spacing={2} flex="1" minW="0">
+              <HiPhone color="gray" size={14} />
+              <Text fontSize={{ base: 'xs', md: 'sm' }} noOfLines={1}>{formatPhoneForDisplay(lead.phone)}</Text>
+            </HStack>
+            <Tooltip 
+              label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
+              placement="top"
+            >
+              <IconButton
+                aria-label="Send WhatsApp"
+                icon={<FaWhatsapp />}
+                size="sm"
+                colorScheme="whatsapp"
+                variant="ghost"
+                isDisabled={!isValidWhatsAppPhone(lead.phone)}
+                onClick={handleWhatsAppClick}
+                _hover={{ bg: 'green.50', color: 'green.600' }}
+              />
+            </Tooltip>
           </HStack>
         )}
         {lead.email && (
@@ -103,6 +171,16 @@ export default function LeadTile({
             <HiMail color="gray" size={14} />
             <Text fontSize={{ base: 'xs', md: 'sm' }} isTruncated maxW={{ base: '150px', md: '200px' }}>
               {lead.email}
+            </Text>
+          </HStack>
+        )}
+        {(lead.campaign || lead.source) && (
+          <HStack spacing={2} flexWrap="wrap">
+            <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" fontWeight="medium">
+              {lead.campaign && lead.campaign !== '-' ? '📢' : '📋'}
+            </Text>
+            <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.700" noOfLines={1}>
+              {lead.campaign && lead.campaign !== '-' ? lead.campaign : lead.source}
             </Text>
           </HStack>
         )}

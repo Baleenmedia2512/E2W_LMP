@@ -1,17 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/shared/lib/db/prisma';
 
-// Get current user ID from headers or session (simplified)
-const getCurrentUserId = (request: NextRequest): string | null => {
-  // In a production app, extract from JWT or session
-  // For now, get from custom header or request context
-  const userId = request.headers.get('x-user-id');
-  return userId;
+export const dynamic = 'force-dynamic';
+import prisma from '@/shared/lib/db/prisma';
+import { verifyToken } from '@/shared/lib/auth/auth-utils';
+
+// Get current user ID from headers or session
+const getCurrentUserId = async (request: NextRequest): Promise<string | null> => {
+  try {
+    // First check custom header (for direct API calls)
+    const userId = request.headers.get('x-user-id');
+    if (userId) return userId;
+
+    // Then check authorization token
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const decoded = await verifyToken(token);
+      return decoded?.userId || null;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error getting user ID:', error);
+    return null;
+  }
 };
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getCurrentUserId(request);
+    const userId = await getCurrentUserId(request);
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -58,7 +75,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = getCurrentUserId(request);
+    const userId = await getCurrentUserId(request);
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -94,11 +111,24 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Validate timezone
+    const validTimezones = [
+      'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+      'Asia/Kolkata', 'Europe/London', 'Europe/Paris', 'Asia/Dubai', 'Asia/Singapore',
+      'Australia/Sydney', 'Pacific/Auckland'
+    ];
+    if (timezone && !validTimezones.includes(timezone)) {
+      return NextResponse.json(
+        { error: 'Invalid timezone' },
+        { status: 400 }
+      );
+    }
+
     // Update user settings in database
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        settings: {
+        settings: JSON.stringify({
           companyName,
           emailNotifications,
           smsNotifications,
@@ -107,7 +137,7 @@ export async function PUT(request: NextRequest) {
           workingHoursStart,
           workingHoursEnd,
           timezone,
-        },
+        }),
       },
       select: {
         settings: true,

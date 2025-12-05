@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { randomUUID } from 'crypto';
 
 // GET call logs with optional filters
 export async function GET(request: NextRequest) {
@@ -7,6 +8,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const leadId = searchParams.get('leadId');
     const callerId = searchParams.get('callerId');
+    const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
@@ -14,13 +16,14 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (leadId) where.leadId = leadId;
     if (callerId) where.callerId = callerId;
+    if (status && status !== 'all') where.callStatus = status;
 
     const [callLogs, total] = await Promise.all([
       prisma.callLog.findMany({
         where,
         include: {
-          lead: { select: { id: true, name: true, phone: true } },
-          caller: { select: { id: true, name: true, email: true } },
+          Lead: { select: { id: true, name: true, phone: true } },
+          User: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -61,19 +64,20 @@ export async function POST(request: NextRequest) {
 
     const callLog = await prisma.callLog.create({
       data: {
+        id: randomUUID(),
         leadId: body.leadId,
         callerId: body.callerId,
         startedAt: body.startedAt ? new Date(body.startedAt) : new Date(),
         endedAt: body.endedAt ? new Date(body.endedAt) : null,
         duration: body.duration || null,
         remarks: body.remarks || null,
-        callStatus: body.callStatus || 'completed',
+        callStatus: body.callStatus || 'answer',
         attemptNumber: body.attemptNumber || 1,
         customerRequirement: body.customerRequirement || null,
       },
       include: {
-        lead: { select: { id: true, name: true } },
-        caller: { select: { id: true, name: true, email: true } },
+        Lead: { select: { id: true, name: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -90,12 +94,9 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // If lead status is 'new', change it to 'contacted' after first call
-    if (currentLead?.status === 'new') {
-      updateData.status = 'contacted';
-    }
+    // Status is managed separately through lead updates
 
-    // Update customer requirement if provided
+    // Update remarks if provided
     if (body.customerRequirement) {
       updateData.customerRequirement = body.customerRequirement;
     }
@@ -108,10 +109,11 @@ export async function POST(request: NextRequest) {
     // Log activity
     await prisma.activityHistory.create({
       data: {
+        id: randomUUID(),
         leadId: body.leadId,
         userId: body.callerId,
         action: 'call_logged',
-        description: `Call logged - Status: ${body.callStatus || 'completed'}`,
+        description: `Call logged - Status: ${body.callStatus || 'answer'}`,
       },
     });
 

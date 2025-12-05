@@ -1,5 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { notifyLeadAssigned } from '@/shared/lib/utils/notification-service';
+import { normalizePhoneForStorage, isValidPhone, getPhoneValidationError } from '@/shared/utils/phone';
+import { randomUUID } from 'crypto';
 
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
@@ -31,8 +34,8 @@ export async function GET(request: NextRequest) {
       prisma.lead.findMany({
         where,
         include: {
-          assignedTo: { select: { id: true, name: true, email: true } },
-          createdBy: { select: { id: true, name: true, email: true } },
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -41,9 +44,18 @@ export async function GET(request: NextRequest) {
       prisma.lead.count({ where }),
     ]);
 
+    // Transform the response to match frontend expectations
+    const transformedLeads = leads.map(lead => ({
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      createdBy: lead.User_Lead_createdByIdToUser,
+      User_Lead_assignedToIdToUser: undefined,
+      User_Lead_createdByIdToUser: undefined,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: leads,
+      data: transformedLeads,
       total,
       page,
       pageSize: limit,
@@ -65,7 +77,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
-        role: {
+        Role: {
           name: {
             in: ['sales_agent', 'team_lead'],
           },
@@ -118,6 +130,19 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // AC-4 & AC-6: Clean and validate phone numbers
+    const cleanedPhone = normalizePhoneForStorage(body.phone);
+    const cleanedAltPhone = body.alternatePhone ? normalizePhoneForStorage(body.alternatePhone) : null;
+    
+    // Validate main phone
+    if (!isValidPhone(cleanedPhone)) {
+      const error = getPhoneValidationError(body.phone);
+      return NextResponse.json(
+        { success: false, error: error || 'Invalid phone number' },
+        { status: 400 }
+      );
+    }
+
     // Determine assignedToId: use provided value or auto-assign via round-robin
     let assignedToId = body.assignedToId || null;
     
@@ -128,10 +153,11 @@ export async function POST(request: NextRequest) {
 
     const lead = await prisma.lead.create({
       data: {
+        id: randomUUID(),
         name: body.name,
-        phone: body.phone,
+        phone: cleanedPhone,
         email: body.email || null,
-        alternatePhone: body.alternatePhone || null,
+        alternatePhone: cleanedAltPhone,
         address: body.address || null,
         city: body.city || null,
         state: body.state || null,
@@ -140,14 +166,14 @@ export async function POST(request: NextRequest) {
         campaign: body.campaign || null,
         customerRequirement: body.customerRequirement || null,
         status: body.status || 'new',
-        priority: body.priority || 'medium',
         notes: body.notes || null,
         assignedToId: assignedToId,
         createdById: body.createdById || null,
+        updatedAt: new Date(),
       },
       include: {
-        assignedTo: { select: { id: true, name: true, email: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+        User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -155,16 +181,35 @@ export async function POST(request: NextRequest) {
     if (lead.id) {
       await prisma.activityHistory.create({
         data: {
+          id: randomUUID(),
           leadId: lead.id,
           userId: body.createdById || 'system',
           action: 'created',
           description: `Lead "${lead.name}" was created${assignedToId && !body.assignedToId ? ' and auto-assigned' : ''}`,
         },
       });
+
+      // Send notification if lead is assigned
+      if (assignedToId) {
+        try {
+          await notifyLeadAssigned(lead.id, lead.name, assignedToId);
+        } catch (error) {
+          console.error('Failed to send lead assignment notification:', error);
+        }
+      }
     }
 
+    // Transform the response to match frontend expectations
+    const transformedLead = {
+      ...lead,
+      assignedTo: lead.User_Lead_assignedToIdToUser,
+      createdBy: lead.User_Lead_createdByIdToUser,
+      User_Lead_assignedToIdToUser: undefined,
+      User_Lead_createdByIdToUser: undefined,
+    };
+
     return NextResponse.json(
-      { success: true, data: lead },
+      { success: true, data: transformedLead },
       { status: 201 }
     );
   } catch (error) {

@@ -7,14 +7,17 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  ModalCloseButton,
   Button,
   FormControl,
   FormLabel,
   Textarea,
   VStack,
   useToast,
+  IconButton,
+  HStack,
+  Text,
 } from '@chakra-ui/react';
+import { HiArrowLeft } from 'react-icons/hi';
 import { useState } from 'react';
 
 interface ConvertToUnreachableModalProps {
@@ -23,6 +26,7 @@ interface ConvertToUnreachableModalProps {
   leadId: string;
   leadName: string;
   onSuccess?: () => void;
+  onBack?: () => void;
 }
 
 export default function ConvertToUnreachableModal({
@@ -31,6 +35,7 @@ export default function ConvertToUnreachableModal({
   leadId,
   leadName,
   onSuccess,
+  onBack,
 }: ConvertToUnreachableModalProps) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -93,15 +98,27 @@ export default function ConvertToUnreachableModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} size="md" closeOnOverlayClick={false}>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Mark Lead as Unreachable</ModalHeader>
-        <ModalCloseButton />
+        <ModalHeader>
+          <HStack spacing={2}>
+            {onBack && (
+              <IconButton
+                aria-label="Back"
+                icon={<HiArrowLeft />}
+                size="sm"
+                variant="ghost"
+                onClick={onBack}
+              />
+            )}
+            <Text>Mark Lead as Unreachable</Text>
+          </HStack>
+        </ModalHeader>
         <ModalBody>
           <VStack spacing={4} align="stretch">
             <FormControl isRequired>
-              <FormLabel fontWeight="600">Customer Requirement / Reason (Required)</FormLabel>
+              <FormLabel fontWeight="600">Remarks / Reason (Required)</FormLabel>
               <Textarea
                 placeholder="Why is this lead unreachable? (e.g., Phone not answering, Invalid number, Customer requested not to call, etc.)"
                 value={reason}
@@ -113,9 +130,6 @@ export default function ConvertToUnreachableModal({
           </VStack>
         </ModalBody>
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose}>
-            Cancel
-          </Button>
           <Button
             colorScheme="orange"
             onClick={handleSubmit}

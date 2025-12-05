@@ -7,6 +7,19 @@ const config: ThemeConfig = {
   useSystemColorMode: false,
 };
 
+// Responsive breakpoints as per US-25 requirements
+// Mobile: < 768px (base)
+// Tablet: 768–1024px (md)
+// Desktop: > 1024px (lg, xl, 2xl)
+const breakpoints = {
+  base: '0px',    // Mobile: 0-767px
+  sm: '480px',    // Small mobile landscape
+  md: '768px',    // Tablet: 768px+
+  lg: '1024px',   // Desktop: 1024px+
+  xl: '1280px',   // Large desktop
+  '2xl': '1536px', // Extra large desktop
+};
+
 const colors = {
   brand: {
     50: '#fef5f3',
@@ -80,6 +93,15 @@ const styles = {
     body: {
       bg: 'gray.50',
       color: 'gray.800',
+      // Prevent text size adjustments on mobile
+      WebkitTextSizeAdjust: '100%',
+      // Smooth scrolling
+      scrollBehavior: 'smooth',
+    },
+    // Improve touch targets on mobile
+    'button, a, input, select, textarea': {
+      minHeight: { base: '44px', md: 'auto' },
+      minWidth: { base: '44px', md: 'auto' },
     },
   },
 };
@@ -195,15 +217,8 @@ const components = {
       px: 2,
       py: 1,
     },
-    variants: {
-      solid: {
-        bg: 'brand.500',
-        color: 'white',
-      },
-      subtle: {
-        bg: 'brand.50',
-        color: 'brand.700',
-      },
+    defaultProps: {
+      variant: 'subtle',
     },
   },
   Table: {
@@ -227,6 +242,7 @@ const components = {
 
 const theme = extendTheme({
   config,
+  breakpoints,
   colors,
   fonts,
   styles,
@@ -239,6 +255,55 @@ const theme = extendTheme({
   },
   shadows: {
     outline: '0 0 0 3px rgba(156, 83, 66, 0.6)',
+  },
+  // Responsive font sizes
+  fontSizes: {
+    xs: '0.75rem',   // 12px
+    sm: '0.875rem',  // 14px
+    md: '1rem',      // 16px
+    lg: '1.125rem',  // 18px
+    xl: '1.25rem',   // 20px
+    '2xl': '1.5rem', // 24px
+    '3xl': '1.875rem', // 30px
+    '4xl': '2.25rem',  // 36px
+    '5xl': '3rem',     // 48px
+    '6xl': '3.75rem',  // 60px
+  },
+  // Spacing scale optimized for touch targets
+  space: {
+    px: '1px',
+    0.5: '0.125rem',
+    1: '0.25rem',
+    1.5: '0.375rem',
+    2: '0.5rem',
+    2.5: '0.625rem',
+    3: '0.75rem',
+    3.5: '0.875rem',
+    4: '1rem',
+    5: '1.25rem',
+    6: '1.5rem',
+    7: '1.75rem',
+    8: '2rem',
+    9: '2.25rem',
+    10: '2.5rem',
+    12: '3rem',
+    14: '3.5rem',
+    16: '4rem',
+    20: '5rem',
+    24: '6rem',
+    28: '7rem',
+    32: '8rem',
+    36: '9rem',
+    40: '10rem',
+    44: '11rem',
+    48: '12rem',
+    52: '13rem',
+    56: '14rem',
+    60: '15rem',
+    64: '16rem',
+    72: '18rem',
+    80: '20rem',
+    96: '24rem',
   },
 });
 

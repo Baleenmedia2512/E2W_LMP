@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
         id: true,
         name: true,
         email: true,
-        role: true,
+        Role: true,
       },
       orderBy: {
         name: 'asc',
@@ -20,12 +20,13 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      users,
+      success: true,
+      data: users,
     });
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch users' },
+      { success: false, error: 'Failed to fetch users' },
       { status: 500 }
     );
   }

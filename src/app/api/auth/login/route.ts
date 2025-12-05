@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Find user by email
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { role: true },
+      include: { Role: true },
     });
 
     if (!user) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       email: user.email,
       roleId: user.roleId,
-      roleName: user.role.name,
+      roleName: user.Role.name,
     });
 
     return NextResponse.json(
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role.name,
+          role: user.Role.name,
           image: user.image,
         },
       },

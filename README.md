@@ -174,7 +174,7 @@ After seeding, you can login with:
 ### Lead Management
 - Create, update, and track leads
 - Multiple lead sources (Website, Meta, Referral, Direct, WhatsApp, Cold Call)
-- Lead status tracking (new, followup, contacted, qualified, won, lost, etc.)
+- Lead status tracking (new, followup, qualified, won, lost, unreach, unqualified)
 - Priority levels (low, medium, high)
 - Auto-assignment with round-robin
 
@@ -228,10 +228,10 @@ After seeding, you can login with:
 - `PUT /api/leads/[id]` - Update lead
 - `DELETE /api/leads/[id]` - Delete lead
 
-### Meta Integration
-- `GET /api/webhooks/meta-leads` - Webhook verification
-- `POST /api/webhooks/meta-leads` - Receive lead from Meta
-- `GET /api/cron/sync-meta-leads` - Fetch full lead data (polling)
+### Meta Integration (Webhook - Push-based)
+- `GET /api/webhooks/meta-leads` - Webhook verification (Meta calls this once)
+- `POST /api/webhooks/meta-leads` - Real-time lead receiver (Meta pushes leads here instantly)
+- `GET /api/webhooks/meta-leads/test` - Test webhook configuration and connectivity
 
 ### Other
 - `GET /api/calls` - Get call logs

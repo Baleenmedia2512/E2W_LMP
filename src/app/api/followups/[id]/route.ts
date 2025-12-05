@@ -12,14 +12,13 @@ export async function PUT(
     const followUp = await prisma.followUp.update({
       where: { id: params.id },
       data: {
-        status: body.status || undefined,
-        completedAt: body.completedAt ? new Date(body.completedAt) : undefined,
+        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
+        customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
         notes: body.notes !== undefined ? body.notes : undefined,
-        priority: body.priority || undefined,
       },
       include: {
-        lead: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        Lead: { select: { id: true, name: true } },
+        User: { select: { id: true, name: true, email: true } },
       },
     });
 

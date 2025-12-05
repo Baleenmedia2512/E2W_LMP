@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import {
@@ -26,10 +26,13 @@ import {
   Button,
   Spinner,
   useToast,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { HiDotsVertical, HiEye, HiPhone, HiSearch } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiPhone, HiSearch, HiRefresh, HiClipboardList } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
+import { formatPhoneForDisplay } from '@/shared/utils/phone';
+import CallAttemptsModal from '@/shared/components/CallAttemptsModal';
 
 interface Lead {
   id: string;
@@ -54,6 +57,50 @@ export default function UnreachableLeadsPage() {
   const [endDate, setEndDate] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLeadForAttempts, setSelectedLeadForAttempts] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const { isOpen: isAttemptsOpen, onOpen: onAttemptsOpen, onClose: onAttemptsClose } = useDisclosure();
+
+  const handleMoveToActive = async (leadId: string, leadName: string) => {
+    try {
+      const response = await fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'followup',
+          notes: 'Moved back to active from unreachable status',
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `${leadName} has been moved back to active status`,
+          status: 'success',
+          duration: 3000,
+        });
+        // Refresh leads
+        const res = await fetch('/api/leads?limit=100');
+        if (res.ok) {
+          const data = await res.json();
+          const leadsList = Array.isArray(data) ? data : data.data || [];
+          setLeads(leadsList);
+        }
+      } else {
+        throw new Error('Failed to update lead');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to move lead to active status',
+        status: 'error',
+        duration: 3000,
+      });
+      console.error(error);
+    }
+  };
 
   useEffect(() => {
     const fetchLeads = async () => {
@@ -239,7 +286,7 @@ export default function UnreachableLeadsPage() {
               {unreachableLeads.map((lead) => (
                 <Tr key={lead.id} _hover={{ bg: 'gray.50' }}>
                   <Td fontWeight="medium">{lead.name}</Td>
-                  <Td>{lead.phone}</Td>
+                  <Td>{formatPhoneForDisplay(lead.phone)}</Td>
                   <Td>{lead.email || '-'}</Td>
                   <Td>
                     <Badge colorScheme="orange">{lead.callAttempts || 0}</Badge>
@@ -272,6 +319,22 @@ export default function UnreachableLeadsPage() {
                         >
                           Retry Call
                         </MenuItem>
+                        <MenuItem
+                          icon={<HiClipboardList />}
+                          onClick={() => {
+                            setSelectedLeadForAttempts({ id: lead.id, name: lead.name });
+                            onAttemptsOpen();
+                          }}
+                        >
+                          View Call Attempts
+                        </MenuItem>
+                        <MenuItem
+                          icon={<HiRefresh />}
+                          onClick={() => handleMoveToActive(lead.id, lead.name)}
+                          color="green.600"
+                        >
+                          Move to Active Status
+                        </MenuItem>
                       </MenuList>
                     </Menu>
                   </Td>
@@ -289,6 +352,19 @@ export default function UnreachableLeadsPage() {
           </Box>
         )}
       </Box>
+
+      {/* Call Attempts Modal */}
+      {selectedLeadForAttempts && (
+        <CallAttemptsModal
+          isOpen={isAttemptsOpen}
+          onClose={() => {
+            onAttemptsClose();
+            setSelectedLeadForAttempts(null);
+          }}
+          leadId={selectedLeadForAttempts.id}
+          leadName={selectedLeadForAttempts.name}
+        />
+      )}
     </Box>
   );
 }

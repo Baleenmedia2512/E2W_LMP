@@ -22,6 +22,7 @@ import {
   Box,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface User {
   id: string;
@@ -53,6 +54,7 @@ export default function AssignLeadModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const toast = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
@@ -64,22 +66,75 @@ export default function AssignLeadModal({
     setIsLoadingUsers(true);
     try {
       const response = await fetch('/api/users');
-      if (response.ok) {
-        const data = await response.json();
-        // Note: Assign modal typically shows all users for reassignment flexibility
-        // If role filtering is needed, it should be applied here
-        setUsers(data.users || []);
+      const result = await response.json();
+      
+      console.log('Fetched users response:', result); // Debug log
+      
+      if (response.ok && result.success) {
+        // API returns {success: true, data: users} format
+        const usersList = result.data || [];
+        console.log('Users list:', usersList); // Debug log
+        
+        if (usersList.length === 0) {
+          console.warn('No users returned from API');
+          setUsers([]);
+          toast({
+            title: 'Notice',
+            description: 'No users found in the system',
+            status: 'info',
+            duration: 3000,
+          });
+          return;
+        }
+        
+        // Filter to show only active agents
+        const activeAgents = usersList.filter((user: User) => {
+          const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
+          console.log('User:', user.name, 'Role:', roleName); // Debug log
+          
+          // Include all agent-type roles (adjust based on your actual role names)
+          return roleName && (
+            roleName.toLowerCase().includes('agent') || 
+            roleName.toLowerCase().includes('lead') ||
+            roleName === 'sales_agent' || 
+            roleName === 'team_lead' || 
+            roleName === 'super_agent'
+          );
+        });
+        
+        console.log('Filtered agents:', activeAgents); // Debug log
+        
+        if (activeAgents.length === 0) {
+          console.warn('No agents found after filtering');
+          // Show all users if no agents found
+          setUsers(usersList);
+          toast({
+            title: 'Notice',
+            description: 'No agents found, showing all users',
+            status: 'info',
+            duration: 3000,
+          });
+        } else {
+          setUsers(activeAgents);
+        }
       } else {
-        console.warn('Failed to fetch users, using empty list');
+        console.error('Failed to fetch users:', result.error || 'Unknown error');
         setUsers([]);
+        toast({
+          title: 'Error',
+          description: result.error || 'Could not load users',
+          status: 'error',
+          duration: 3000,
+        });
       }
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]);
       toast({
-        title: 'Warning',
-        description: 'Could not load all users',
-        status: 'warning',
-        duration: 2000,
+        title: 'Error',
+        description: 'Network error while loading users',
+        status: 'error',
+        duration: 3000,
       });
     } finally {
       setIsLoadingUsers(false);
@@ -114,7 +169,9 @@ export default function AssignLeadModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           assignedToId: selectedUserId,
-          notes: reason || undefined,
+          assignmentReason: reason || undefined,
+          assignmentType: 'MANUAL',
+          updatedById: user?.id,
         }),
       });
 
@@ -122,21 +179,31 @@ export default function AssignLeadModal({
         throw new Error('Failed to assign lead');
       }
 
-      // Create audit log entry
+      // Create audit log entry with enhanced metadata
       try {
+        const activityData = {
+          leadId,
+          userId: user?.id,
+          action: 'assigned',
+          fieldName: 'assignedToId',
+          oldValue: currentAssignee || 'Unassigned',
+          newValue: selectedUser?.name || 'Unknown',
+          description: currentAssignee 
+            ? `Lead reassigned from ${currentAssignee} to ${selectedUser?.name}${reason ? ` - Reason: ${reason}` : ''}` 
+            : `Lead assigned to ${selectedUser?.name}${reason ? ` - Reason: ${reason}` : ''}`,
+          metadata: {
+            assignmentType: 'MANUAL',
+            reason: reason || null,
+            timestamp: new Date().toISOString(),
+            previousAssigneeId: null,
+            newAssigneeId: selectedUserId,
+          },
+        };
+        
         await fetch('/api/activity', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            leadId,
-            action: 'LEAD_ASSIGNED',
-            details: {
-              previousAssignee: currentAssignee || 'Unassigned',
-              newAssignee: selectedUser?.name || 'Unknown',
-              reason: reason || 'No reason provided',
-              assignmentType: 'MANUAL',
-            },
-          }),
+          body: JSON.stringify(activityData),
         }).catch(err => console.error('Failed to create audit log:', err));
       } catch (error) {
         console.error('Audit log error:', error);

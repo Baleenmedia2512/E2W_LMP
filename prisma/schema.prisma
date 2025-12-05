@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,185 +7,171 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model
-model User {
-  id            String     @id @default(cuid())
-  name          String?
-  email         String     @unique
-  emailVerified DateTime?
-  image         String?
-  googleId      String?    @unique
-  password      String?
-  roleId        String
-  isActive      Boolean    @default(true)
-  settings      Json?      // User settings: notification preferences, working hours, etc.
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+model ActivityHistory {
+  id          String   @id
+  leadId      String
+  userId      String
+  action      String
+  fieldName   String?
+  oldValue    String?  @db.Text
+  newValue    String?  @db.Text
+  description String
+  metadata    String?  @db.LongText
+  createdAt   DateTime @default(now())
+  Lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  role           Role             @relation(fields: [roleId], references: [id])
-  leadsAssigned  Lead[]           @relation("assignedTo")
-  leadsCreated   Lead[]           @relation("createdBy")
-  callLogs       CallLog[]
-  followUps      FollowUp[]
-  activityHistory ActivityHistory[]
-  notifications  Notification[]
-
-  @@index([roleId])
-  @@index([email])
-}
-
-// Role model
-model Role {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String?
-  permissions Json?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  users User[]
-}
-
-// Lead model
-model Lead {
-  id                  String    @id @default(cuid())
-  name                String
-  phone               String
-  email               String?
-  alternatePhone      String?
-  address             String?
-  city                String?
-  state               String?
-  pincode             String?
-  source              String // Website, Meta, Referral, Direct, WhatsApp, Cold Call
-  campaign            String?
-  customerRequirement String?
-  status              String    @default("new") // new, followup, contacted, qualified, unreach, unqualified, won, lost
-  priority            String    @default("medium") // low, medium, high
-  notes               String?   @db.LongText
-  callAttempts        Int       @default(0) // Counter for call attempts
-  metadata            Json?
-  
-  assignedToId        String?
-  createdById         String?
-  
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  assignedTo          User?           @relation("assignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy           User?           @relation("createdBy", fields: [createdById], references: [id], onDelete: SetNull)
-  callLogs            CallLog[]
-  followUps           FollowUp[]
-  activityHistory     ActivityHistory[]
-
-  @@index([assignedToId])
-  @@index([createdById])
-  @@index([status])
-  @@index([source])
   @@index([createdAt])
+  @@index([leadId])
+  @@index([userId])
 }
 
-// CallLog model
+model AuditLog {
+  id         String   @id
+  userId     String
+  action     String
+  targetType String
+  targetId   String
+  changes    String?  @db.LongText
+  metadata   String?  @db.LongText
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetType])
+  @@index([userId])
+}
+
 model CallLog {
-  id              String    @id @default(cuid())
-  leadId          String
-  callerId        String
-  startedAt       DateTime  @default(now())
-  endedAt         DateTime?
-  duration        Int?      // in seconds
-  remarks         String?   @db.Text
-  callStatus      String?   // completed, busy, ring_not_response
-  attemptNumber   Int       @default(1)
-  recordingUrl    String?
+  id                  String    @id
+  leadId              String
+  callerId            String
+  startedAt           DateTime  @default(now())
+  endedAt             DateTime?
+  duration            Int?
+  remarks             String?   @db.Text
+  callStatus          String?
+  attemptNumber       Int       @default(1)
+  recordingUrl        String?
   customerRequirement String?
-  metadata        Json?
-  createdAt       DateTime  @default(now())
+  metadata            String?   @db.LongText
+  createdAt           DateTime  @default(now())
+  User                User      @relation(fields: [callerId], references: [id], onDelete: Cascade)
+  Lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
-  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  caller          User      @relation(fields: [callerId], references: [id], onDelete: Cascade)
-
-  @@index([leadId])
   @@index([callerId])
   @@index([createdAt])
+  @@index([leadId])
 }
 
-// FollowUp model
 model FollowUp {
-  id            String    @id @default(cuid())
-  leadId        String
-  scheduledAt   DateTime
-  completedAt   DateTime?
-  notes         String?   @db.Text
-  status        String    @default("pending") // pending, completed, cancelled
-  priority      String    @default("medium") // low, medium, high
-  createdById   String
-  metadata      Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id
+  leadId              String
+  scheduledAt         DateTime
+  completedAt         DateTime?
+  notes               String?   @db.Text
+  status              String    @default("pending")
+  priority            String    @default("medium")
+  createdById         String
+  metadata            String?   @db.LongText
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime
+  customerRequirement String?   @db.Text
+  User                User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  Lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
-  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  createdBy     User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
-
-  @@index([leadId])
   @@index([createdById])
+  @@index([leadId])
   @@index([scheduledAt])
   @@index([status])
 }
 
-// ActivityHistory model
-model ActivityHistory {
-  id            String    @id @default(cuid())
-  leadId        String
-  userId        String
-  action        String    // created, updated, status_changed, assigned, call_logged, followup_scheduled
-  fieldName     String?
-  oldValue      String?   @db.Text
-  newValue      String?   @db.Text
-  description   String
-  metadata      Json?
-  createdAt     DateTime  @default(now())
+model Lead {
+  id                           String            @id
+  name                         String
+  phone                        String
+  email                        String?
+  alternatePhone               String?
+  address                      String?
+  city                         String?
+  state                        String?
+  pincode                      String?
+  source                       String
+  campaign                     String?
+  customerRequirement          String?
+  status                       String            @default("new")
+  priority                     String            @default("medium")
+  notes                        String?           @db.LongText
+  metadata                     String?           @db.LongText
+  assignedToId                 String?
+  createdById                  String?
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime
+  callAttempts                 Int               @default(0)
+  ActivityHistory              ActivityHistory[]
+  CallLog                      CallLog[]
+  FollowUp                     FollowUp[]
+  User_Lead_assignedToIdToUser User?             @relation("Lead_assignedToIdToUser", fields: [assignedToId], references: [id])
+  User_Lead_createdByIdToUser  User?             @relation("Lead_createdByIdToUser", fields: [createdById], references: [id])
 
-  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([leadId])
-  @@index([userId])
+  @@index([assignedToId])
   @@index([createdAt])
+  @@index([createdById])
+  @@index([source])
+  @@index([status])
 }
 
-// Notification model
 model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  type      String    // info, success, warning, error, LEAD_ASSIGNED, LEAD_UPDATED, CALL_LOGGED
-  title     String
-  message   String    @db.Text
-  isRead    Boolean   @default(false)
-  readAt    DateTime?
-  relatedLeadId String? // Link to related lead if applicable
-  metadata  Json?
-  createdAt DateTime  @default(now())
+  id            String    @id
+  userId        String
+  type          String
+  title         String
+  message       String    @db.Text
+  isRead        Boolean   @default(false)
+  readAt        DateTime?
+  metadata      String?   @db.LongText
+  createdAt     DateTime  @default(now())
+  relatedLeadId String?
+  User          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
   @@index([createdAt])
+  @@index([relatedLeadId])
+  @@index([type])
+  @@index([userId])
 }
 
-// Audit Log model (optional, for advanced tracking)
-model AuditLog {
-  id        String    @id @default(cuid())
-  userId    String
-  action    String
-  targetType String
-  targetId  String
-  changes   Json?
-  metadata  Json?
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime  @default(now())
+model Role {
+  id          String   @id
+  name        String   @unique
+  description String?
+  permissions String?  @db.LongText
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  User        User[]
+}
 
-  @@index([userId])
-  @@index([createdAt])
-  @@index([targetType])
+model User {
+  id                           String            @id
+  name                         String?
+  email                        String            @unique
+  emailVerified                DateTime?
+  image                        String?
+  googleId                     String?           @unique
+  password                     String?
+  roleId                       String
+  isActive                     Boolean           @default(true)
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime
+  settings                     String?           @db.LongText
+  ActivityHistory              ActivityHistory[]
+  CallLog                      CallLog[]
+  FollowUp                     FollowUp[]
+  Lead_Lead_assignedToIdToUser Lead[]            @relation("Lead_assignedToIdToUser")
+  Lead_Lead_createdByIdToUser  Lead[]            @relation("Lead_createdByIdToUser")
+  Notification                 Notification[]
+  Role                         Role              @relation(fields: [roleId], references: [id])
+
+  @@index([email])
+  @@index([roleId])
 }

@@ -26,6 +26,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 
+  // ✅ Meta leads now come via WEBHOOK (push-based) - no polling/cron needed!
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');

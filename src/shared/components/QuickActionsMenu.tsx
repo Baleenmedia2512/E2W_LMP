@@ -12,6 +12,7 @@ import {
   Text,
   useDisclosure,
   Portal,
+  Tooltip,
 } from '@chakra-ui/react';
 import {
   HiDotsVertical,
@@ -22,9 +23,12 @@ import {
   HiUserAdd,
   HiBan,
   HiX,
+  HiCheckCircle,
+  HiXCircle,
 } from 'react-icons/hi';
 import { useRouter } from 'next/navigation';
 import { Lead } from '@/shared/types';
+import { useRoleBasedAccess } from '@/shared/hooks/useRoleBasedAccess';
 
 interface QuickActionsMenuProps {
   lead: Lead;
@@ -32,6 +36,11 @@ interface QuickActionsMenuProps {
   onAssign?: (lead: { id: string; name: string }) => void;
   onConvertUnreachable?: (lead: { id: string; name: string }) => void;
   onConvertUnqualified?: (lead: { id: string; name: string }) => void;
+  onMarkAsWon?: (lead: { id: string; name: string }) => void;
+  onMarkAsLost?: (lead: { id: string; name: string }) => void;
+  onLogCall?: (lead: { id: string; name: string; phone: string }) => void;
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  variant?: 'ghost' | 'outline' | 'solid';
 }
 
 export default function QuickActionsMenu({
@@ -40,80 +49,199 @@ export default function QuickActionsMenu({
   onAssign,
   onConvertUnreachable,
   onConvertUnqualified,
+  onMarkAsWon,
+  onMarkAsLost,
+  onLogCall,
+  size = 'sm',
+  variant = 'ghost',
 }: QuickActionsMenuProps) {
   const router = useRouter();
+  const { hasPermission } = useRoleBasedAccess();
 
-  const handleViewDetails = () => {
+  // Check role-based permissions
+  const canAssignLeads = hasPermission('canAssignLeads');
+  const canUpdateLead = hasPermission('canUpdateOwnLead');
+  const canLogCallPermission = hasPermission('canLogCall');
+
+  const handleViewDetails = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     router.push(`/dashboard/leads/${lead.id}`);
   };
 
-  const handleEditLead = () => {
-    router.push(`/dashboard/leads/${lead.id}/edit`);
+  const handleEditLead = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (canUpdateLead) {
+      router.push(`/dashboard/leads/${lead.id}/edit`);
+    }
   };
 
-  const handleLogCall = () => {
-    router.push(`/dashboard/leads/${lead.id}/call`);
+  const handleLogCall = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (canLogCallPermission) {
+      if (onLogCall) {
+        onLogCall({ id: lead.id, name: lead.name, phone: lead.phone });
+      } else {
+        router.push(`/dashboard/leads/${lead.id}/call`);
+      }
+    }
   };
 
-  const handleScheduleFollowup = () => {
-    router.push(`/dashboard/leads/${lead.id}/followup`);
+  const handleAssign = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (canAssignLeads && onAssign) {
+      onAssign({ id: lead.id, name: lead.name });
+    }
   };
 
   return (
-    <Menu>
-      <MenuButton
-        as={IconButton}
-        icon={<HiDotsVertical />}
-        variant="ghost"
-        size="sm"
-        aria-label="Actions"
-      />
+    <Menu isLazy>
+      <Tooltip label="Quick Actions" placement="top" hasArrow>
+        <MenuButton
+          as={IconButton}
+          icon={<HiDotsVertical />}
+          variant={variant}
+          size={size}
+          aria-label="Quick Actions"
+          onClick={(e) => e.stopPropagation()}
+          _hover={{ bg: 'gray.100' }}
+          _active={{ bg: 'gray.200' }}
+        />
+      </Tooltip>
       <Portal>
-        <MenuList zIndex={10}>
-          <MenuItem icon={<HiEye />} onClick={handleViewDetails}>
-            View Details
-          </MenuItem>
-          <MenuItem icon={<HiPencil />} onClick={handleEditLead}>
-            Edit Lead
-          </MenuItem>
+        <MenuList 
+          zIndex={1500} 
+          boxShadow="lg"
+          borderWidth="1px"
+          borderColor="gray.200"
+          minW="200px"
+        >
+          {/* View & Edit Actions */}
+          <Tooltip label="View full lead details" placement="left" hasArrow>
+            <MenuItem 
+              icon={<HiEye />} 
+              onClick={handleViewDetails}
+              fontSize="sm"
+              _hover={{ bg: 'blue.50' }}
+            >
+              View Details
+            </MenuItem>
+          </Tooltip>
+          
+          {canUpdateLead && (
+            <Tooltip label="Edit lead information" placement="left" hasArrow>
+              <MenuItem 
+                icon={<HiPencil />} 
+                onClick={handleEditLead}
+                fontSize="sm"
+                _hover={{ bg: 'blue.50' }}
+              >
+                Edit
+              </MenuItem>
+            </Tooltip>
+          )}
+          
           <MenuDivider />
-          <MenuItem icon={<HiPhone />} onClick={handleLogCall}>
-            Log Call
-          </MenuItem>
-          <MenuItem icon={<HiClock />} onClick={handleScheduleFollowup}>
-            Schedule Follow-up
-          </MenuItem>
-          {userRole === 'SuperAgent' && onAssign && (
+          
+          {/* Communication Actions */}
+          {canLogCallPermission && (
+            <Tooltip label="Log a call with this lead" placement="left" hasArrow>
+              <MenuItem 
+                icon={<HiPhone />} 
+                onClick={handleLogCall}
+                fontSize="sm"
+                _hover={{ bg: 'green.50' }}
+              >
+                Log Call
+              </MenuItem>
+            </Tooltip>
+          )}
+          
+          {/* Assignment Action */}
+          {canAssignLeads && onAssign && (
             <>
               <MenuDivider />
-              <MenuItem
-                icon={<HiUserAdd />}
-                onClick={() => onAssign({ id: lead.id, name: lead.name })}
-              >
-                Assign Lead
-              </MenuItem>
+              <Tooltip label="Assign or reassign this lead" placement="left" hasArrow>
+                <MenuItem
+                  icon={<HiUserAdd />}
+                  onClick={handleAssign}
+                  fontSize="sm"
+                  _hover={{ bg: 'purple.50' }}
+                >
+                  Assign/Reassign
+                </MenuItem>
+              </Tooltip>
             </>
           )}
+          
+          {/* Status Change Actions */}
+          <MenuDivider />
+          
+          {lead.status !== 'won' && onMarkAsWon && (
+            <Tooltip label="Mark this lead as won" placement="left" hasArrow>
+              <MenuItem
+                icon={<HiCheckCircle />}
+                color="green.600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMarkAsWon({ id: lead.id, name: lead.name });
+                }}
+                fontSize="sm"
+                _hover={{ bg: 'green.50' }}
+              >
+                Mark as Won
+              </MenuItem>
+            </Tooltip>
+          )}
+          
+          {lead.status !== 'lost' && onMarkAsLost && (
+            <Tooltip label="Mark this lead as lost" placement="left" hasArrow>
+              <MenuItem
+                icon={<HiXCircle />}
+                color="red.600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMarkAsLost({ id: lead.id, name: lead.name });
+                }}
+                fontSize="sm"
+                _hover={{ bg: 'red.50' }}
+              >
+                Mark as Lost
+              </MenuItem>
+            </Tooltip>
+          )}
+          
           {lead.status !== 'unreach' && onConvertUnreachable && (
-            <>
-              <MenuDivider />
+            <Tooltip label="Mark as unreachable" placement="left" hasArrow>
               <MenuItem
                 icon={<HiBan />}
-                color="orange.500"
-                onClick={() => onConvertUnreachable({ id: lead.id, name: lead.name })}
+                color="orange.600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConvertUnreachable({ id: lead.id, name: lead.name });
+                }}
+                fontSize="sm"
+                _hover={{ bg: 'orange.50' }}
               >
-                Mark as Unreachable
+                Mark Unreachable
               </MenuItem>
-            </>
+            </Tooltip>
           )}
+          
           {lead.status !== 'unqualified' && onConvertUnqualified && (
-            <MenuItem
-              icon={<HiX />}
-              color="red.500"
-              onClick={() => onConvertUnqualified({ id: lead.id, name: lead.name })}
-            >
-              Mark as Unqualified
-            </MenuItem>
+            <Tooltip label="Mark as unqualified" placement="left" hasArrow>
+              <MenuItem
+                icon={<HiX />}
+                color="purple.600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConvertUnqualified({ id: lead.id, name: lead.name });
+                }}
+                fontSize="sm"
+                _hover={{ bg: 'purple.50' }}
+              >
+                Mark Unqualified
+              </MenuItem>
+            </Tooltip>
           )}
         </MenuList>
       </Portal>

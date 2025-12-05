@@ -26,9 +26,19 @@ import {
   Button,
   Spinner,
   useToast,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { HiDotsVertical, HiEye, HiSearch } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiSearch, HiRefresh } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 
 interface Lead {
@@ -46,6 +56,7 @@ interface Lead {
 export default function UnqualifiedLeadsPage() {
   const router = useRouter();
   const toast = useToast();
+  const { isOpen: isRequalifyOpen, onOpen: onRequalifyOpen, onClose: onRequalifyClose } = useDisclosure();
   
   // State for filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,30 +65,71 @@ export default function UnqualifiedLeadsPage() {
   const [endDate, setEndDate] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
+  const [requalifyLoading, setRequalifyLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchLeads = async () => {
-      try {
-        const res = await fetch('/api/leads?limit=100');
-        if (!res.ok) throw new Error('Failed to fetch leads');
-        const data = await res.json();
-        
-        const leadsList = Array.isArray(data) ? data : data.data || [];
-        setLeads(leadsList);
-      } catch (error) {
+  const fetchLeads = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/leads?limit=100');
+      if (!res.ok) throw new Error('Failed to fetch leads');
+      const data = await res.json();
+      
+      const leadsList = Array.isArray(data) ? data : data.data || [];
+      setLeads(leadsList);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load leads',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequalify = async () => {
+    if (!selectedLead) return;
+
+    setRequalifyLoading(true);
+    try {
+      const response = await fetch(`/api/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: requalifyStatus,
+        }),
+      });
+
+      if (response.ok) {
         toast({
-          title: 'Error',
-          description: 'Failed to load leads',
-          status: 'error',
+          title: 'Success!',
+          description: `${selectedLead.name} has been requalified as ${requalifyStatus}`,
+          status: 'success',
           duration: 3000,
         });
-      } finally {
-        setLoading(false);
+        onRequalifyClose();
+        fetchLeads();
+      } else {
+        throw new Error('Failed to requalify lead');
       }
-    };
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to requalify lead',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setRequalifyLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchLeads();
-  }, [toast]);
+  }, []);
 
   // Filter unqualified leads
   const unqualifiedLeads = useMemo(() => {
@@ -266,6 +318,17 @@ export default function UnqualifiedLeadsPage() {
                         >
                           View Details
                         </MenuItem>
+                        <MenuItem
+                          icon={<HiRefresh />}
+                          color="green.500"
+                          onClick={() => {
+                            setSelectedLead(lead);
+                            setRequalifyStatus('new');
+                            onRequalifyOpen();
+                          }}
+                        >
+                          Requalify Lead
+                        </MenuItem>
                       </MenuList>
                     </Menu>
                   </Td>
@@ -283,6 +346,45 @@ export default function UnqualifiedLeadsPage() {
           </Box>
         )}
       </Box>
+
+      {/* Requalification Modal */}
+      <Modal isOpen={isRequalifyOpen} onClose={onRequalifyClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Requalify Lead</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Text>
+                Change status for <strong>{selectedLead?.name}</strong> back to an active status.
+              </Text>
+              <FormControl isRequired>
+                <FormLabel fontWeight="600">New Status</FormLabel>
+                <Select
+                  value={requalifyStatus}
+                  onChange={(e) => setRequalifyStatus(e.target.value as 'new' | 'followup')}
+                >
+                  <option value="new">New</option>
+                  <option value="followup">Follow-up</option>
+                </Select>
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onRequalifyClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="green"
+              onClick={handleRequalify}
+              isLoading={requalifyLoading}
+              loadingText="Requalifying..."
+            >
+              Requalify Lead
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

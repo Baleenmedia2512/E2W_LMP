@@ -9,7 +9,7 @@ export interface CategorizedLead {
 
 export interface LeadCategories {
   overdue: CategorizedLead[];
-  new: CategorizedLead[];
+  newLeads: CategorizedLead[];
   future: CategorizedLead[];
 }
 
@@ -35,10 +35,12 @@ export function categorizeAndSortLeads(
   followUps: FollowUp[]
 ): LeadCategories {
   const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   const categorized: CategorizedLead[] = [];
   
   // Filter out leads with terminal statuses (unqualified, unreachable, won, lost)
-  const activeStatuses = ['new', 'contacted', 'followup', 'qualified'];
+  const activeStatuses = ['new', 'followup', 'qualified'];
 
   leads.forEach((lead) => {
     // Skip leads with terminal statuses
@@ -46,10 +48,12 @@ export function categorizeAndSortLeads(
       return;
     }
     
-    // Find the next pending follow-up for this lead
+    // Find the next follow-up for this lead
     const leadFollowUps = followUps.filter(
-      (f) => f.leadId === lead.id && f.status === 'pending'
+      (f) => f.leadId === lead.id
     );
+
+    console.log(`Lead ${lead.name} (${lead.id}): Found ${leadFollowUps.length} follow-ups`);
 
     if (leadFollowUps.length === 0) {
       // No follow-up history = New lead
@@ -60,26 +64,67 @@ export function categorizeAndSortLeads(
         sortValue: createdAtDate.getTime(),
       });
     } else {
-      // Has follow-up(s) - check if overdue or future
-      const nextFollowUp = leadFollowUps.reduce((earliest, current) => {
-        const earliestDate = ensureDate(earliest.scheduledAt);
-        const currentDate = ensureDate(current.scheduledAt);
-        return currentDate < earliestDate ? current : earliest;
-      });
+      // Has follow-up(s) - find the NEXT upcoming follow-up
+      // Prioritize future followups over past ones
+      // If a lead has multiple follow-ups (e.g., past: 10:02, 10:03; future: 10:05)
+      // and current time is 10:04, we show 10:05 as the next follow-up
+      
+      // Separate future and past followups
+      const futureFollowUps = leadFollowUps.filter(
+        (f) => ensureDate(f.scheduledAt) >= now
+      );
+      const pastFollowUps = leadFollowUps.filter(
+        (f) => ensureDate(f.scheduledAt) < now
+      );
+      
+      console.log(`Lead ${lead.name}: Future=${futureFollowUps.length}, Past=${pastFollowUps.length}`);
+      if (futureFollowUps.length > 0) {
+        console.log(`  Future dates:`, futureFollowUps.map(f => f.scheduledAt));
+      }
+      if (pastFollowUps.length > 0) {
+        console.log(`  Past dates:`, pastFollowUps.map(f => f.scheduledAt));
+      }
+      
+      let nextFollowUp;
+      
+      // Prefer earliest future followup
+      if (futureFollowUps.length > 0) {
+        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+          const earliestDate = ensureDate(earliest.scheduledAt);
+          const currentDate = ensureDate(current.scheduledAt);
+          return currentDate < earliestDate ? current : earliest;
+        });
+      } else if (pastFollowUps.length > 0) {
+        // If no future followups, use most recent overdue one
+        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+          const latestDate = ensureDate(latest.scheduledAt);
+          const currentDate = ensureDate(current.scheduledAt);
+          return currentDate > latestDate ? current : latest;
+        });
+      } else {
+        // Fallback (shouldn't happen)
+        nextFollowUp = leadFollowUps[0];
+      }
+
+      if (!nextFollowUp) {
+        console.warn(`Lead ${lead.name}: No valid followup found, skipping`);
+        return;
+      }
 
       const dueDate = ensureDate(nextFollowUp.scheduledAt);
+      
+      console.log(`Lead ${lead.name}: Selected followup = ${nextFollowUp.scheduledAt}, isOverdue = ${dueDate < now}`);
 
       if (dueDate < now) {
-        // Overdue - sort by how overdue (largest time difference first)
-        const timeDifference = now.getTime() - dueDate.getTime();
+        // Overdue - past current time - sort by oldest first (most overdue first)
         categorized.push({
           lead,
           followUp: nextFollowUp,
           category: 'overdue',
-          sortValue: -timeDifference, // Negative for descending order
+          sortValue: dueDate.getTime(),
         });
       } else {
-        // Future - sort by scheduled time (ascending)
+        // Scheduled (today or future) - sort by scheduled time (earliest first)
         categorized.push({
           lead,
           followUp: nextFollowUp,
@@ -93,17 +138,17 @@ export function categorizeAndSortLeads(
   // Separate and sort by category
   const overdue = categorized
     .filter((item) => item.category === 'overdue')
-    .sort((a, b) => a.sortValue - b.sortValue); // Most overdue first (negative values)
+    .sort((a, b) => a.sortValue - b.sortValue); // Oldest first (most overdue first)
 
   const newLeads = categorized
     .filter((item) => item.category === 'new')
-    .sort((a, b) => a.sortValue - b.sortValue); // Oldest first
+    .sort((a, b) => b.sortValue - a.sortValue); // Newest first
 
   const future = categorized
     .filter((item) => item.category === 'future')
     .sort((a, b) => a.sortValue - b.sortValue); // Earliest due date first
 
-  return { overdue, new: newLeads, future };
+  return { overdue, newLeads, future };
 }
 
 /**
@@ -136,7 +181,7 @@ export function formatTimeDifference(date: string | Date): string {
 export function isFollowUpOverdue(followUp: FollowUp): boolean {
   const now = new Date();
   const dueDate = ensureDate(followUp.scheduledAt);
-  return dueDate < now && followUp.status === 'pending';
+  return dueDate < now;
 }
 
 
