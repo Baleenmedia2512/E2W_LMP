@@ -365,25 +365,49 @@ export function parseLeadFields(fieldData: LeadField[]): {
   customFields: Record<string, any>;
 } {
   let name = '';
+  let firstName = '';
+  let lastName = '';
   let phone = '';
   let email: string | null = null;
   const customFields: Record<string, any> = {};
 
+  // First pass: collect all field values
   for (const field of fieldData) {
     const fieldName = field.name.toLowerCase();
     const fieldValue = field.values?.[0];
 
     if (!fieldValue) continue;
 
-    if (fieldName.includes('name') || fieldName === 'full_name') {
+    // Handle name fields
+    if (fieldName === 'full_name' || fieldName === 'name') {
       name = fieldValue;
-    } else if (fieldName.includes('phone') || fieldName === 'phone_number') {
+    } else if (fieldName === 'first_name' || fieldName === 'firstname') {
+      firstName = fieldValue;
+    } else if (fieldName === 'last_name' || fieldName === 'lastname') {
+      lastName = fieldValue;
+    } else if (fieldName.includes('name') && !name) {
+      // Fallback for any field containing 'name'
+      name = fieldValue;
+    }
+    // Handle phone fields
+    else if (fieldName === 'phone_number' || fieldName === 'phone' || fieldName === 'mobile') {
       phone = fieldValue;
-    } else if (fieldName.includes('email')) {
+    } else if (fieldName.includes('phone') && !phone) {
+      phone = fieldValue;
+    }
+    // Handle email fields
+    else if (fieldName === 'email' || fieldName.includes('email')) {
       email = fieldValue;
-    } else {
+    }
+    // Everything else goes to custom fields
+    else {
       customFields[field.name] = fieldValue;
     }
+  }
+
+  // Construct full name from parts if needed
+  if (!name && (firstName || lastName)) {
+    name = `${firstName} ${lastName}`.trim();
   }
 
   return { name, phone, email, customFields };
