@@ -21,7 +21,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/shared/lib/auth/auth-context';
-import { normalizePhoneForStorage } from '@/shared/utils/phone';
+import { normalizePhoneForStorage, cleanPhoneNumber } from '@/shared/utils/phone';
 
 interface Lead {
   id: string;
@@ -111,9 +111,9 @@ export default function EditLeadPage() {
 
         setFormData({
           name: data.name,
-          phone: data.phone,
+          phone: cleanPhoneNumber(data.phone),
           email: data.email || '',
-          alternatePhone: data.alternatePhone || '',
+          alternatePhone: cleanPhoneNumber(data.alternatePhone),
           address: data.address || '',
           city: data.city || '',
           state: data.state || '',
@@ -330,13 +330,13 @@ export default function EditLeadPage() {
                   <Box>
                     <Text fontSize="xs" fontWeight="bold" color="gray.600">Created At</Text>
                     <Text fontSize="sm" color="gray.800">
-                      {lead.createdAt ? new Date(lead.createdAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
+                      {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-') + ' ' + new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                     </Text>
                   </Box>
                   <Box>
                     <Text fontSize="xs" fontWeight="bold" color="gray.600">Last Updated</Text>
                     <Text fontSize="sm" color="gray.800">
-                      {lead.updatedAt ? new Date(lead.updatedAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
+                      {lead.updatedAt ? new Date(lead.updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-') + ' ' + new Date(lead.updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                     </Text>
                   </Box>
                 </SimpleGrid>

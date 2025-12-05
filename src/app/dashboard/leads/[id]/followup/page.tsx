@@ -282,7 +282,7 @@ export default function ScheduleFollowUpPage() {
           body: JSON.stringify({
             leadId: lead.id,
             action: actionDescription,
-            description: `Follow-up ${existingFollowUp ? 'rescheduled' : 'scheduled'} for ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} at ${scheduledDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })} - ${formData.customerRequirement}`,
+            description: `Follow-up ${existingFollowUp ? 'rescheduled' : 'scheduled'} for ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')} at ${scheduledDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })} - ${formData.customerRequirement}`,
           }),
         });
       } catch (err) {
@@ -291,7 +291,7 @@ export default function ScheduleFollowUpPage() {
 
       toast({
         title: existingFollowUp ? 'Follow-up rescheduled successfully' : 'Follow-up scheduled successfully',
-        description: `Follow-up with ${lead.name} ${existingFollowUp ? 'rescheduled' : 'scheduled'} for ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} at ${scheduledDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+        description: `Follow-up with ${lead.name} ${existingFollowUp ? 'rescheduled' : 'scheduled'} for ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')} at ${scheduledDateTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
         status: 'success',
         duration: 5000,
       });

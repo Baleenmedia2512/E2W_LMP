@@ -276,7 +276,7 @@ export default function ReportsPage() {
             </HStack>
             <Box>
               <Text fontSize="sm" color="gray.600">
-                Showing leads {dateFilterType === 'created' ? 'created' : 'updated'} from {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                Showing leads {dateFilterType === 'created' ? 'created' : 'updated'} from {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}
               </Text>
             </Box>
           </VStack>
