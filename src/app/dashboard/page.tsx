@@ -525,7 +525,7 @@ export default function DashboardPage() {
                     >
                       <Td>
                         {isValidDate 
-                          ? format(scheduledDate, 'dd/MM/yy hh:mm a')
+                          ? format(scheduledDate, 'dd-MMM-yy hh:mm a')
                           : 'Invalid date'
                         }
                       </Td>
