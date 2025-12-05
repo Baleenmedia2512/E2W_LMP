@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta Webhook Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+        }
+        .test-section h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: white;
+            border-left: 4px solid #48bb78;
+            display: none;
+        }
+        .result.error {
+            border-left-color: #f56565;
+            background: #fff5f5;
+        }
+        .result.success {
+            border-left-color: #48bb78;
+            background: #f0fff4;
+        }
+        .result.show {
+            display: block;
+        }
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #2d3748;
+        }
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-top: 10px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-badge.success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        .status-badge.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        .info-box {
+            background: #ebf8ff;
+            border: 1px solid #90cdf4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .info-box-title {
+            font-weight: 600;
+            color: #2c5282;
+            margin-bottom: 8px;
+        }
+        .info-box-content {
+            color: #2d3748;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Meta Webhook Tester</h1>
+        <p class="subtitle">Test your Meta Lead Generation webhook integration</p>
+
+        <!-- Test 1: Check Status -->
+        <div class="test-section">
+            <h2>
+                <span>1️⃣</span>
+                <span>Check Webhook Health</span>
+            </h2>
+            <p style="color: #718096; margin-bottom: 15px; font-size: 14px;">
+                Verify environment variables, Meta API connection, and token validity
+            </p>
+            <button id="checkStatusBtn" class="btn btn-secondary">
+                <span id="checkStatusSpinner" style="display: none;" class="spinner"></span>
+                <span id="checkStatusText">Check Status</span>
+            </button>
+            <div id="statusResult" class="result"></div>
+        </div>
+
+        <!-- Test 2: Simulate Webhook -->
+        <div class="test-section">
+            <h2>
+                <span>2️⃣</span>
+                <span>Simulate Meta Webhook</span>
+            </h2>
+            <p style="color: #718096; margin-bottom: 15px; font-size: 14px;">
+                Send a test webhook payload to your endpoint
+            </p>
+            <button id="testWebhookBtn" class="btn">
+                <span id="testWebhookSpinner" style="display: none;" class="spinner"></span>
+                <span id="testWebhookText">Send Test Webhook</span>
+            </button>
+            <div id="webhookResult" class="result"></div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <div class="info-box-title">📋 What happens during testing?</div>
+            <div class="info-box-content">
+                <strong>Status Check:</strong> Validates your Meta credentials and webhook configuration.<br>
+                <strong>Test Webhook:</strong> Simulates a real Meta lead submission. The system will try to fetch lead details from Meta API (will fail for test ID, which is normal).
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://e2-w-lmp.vercel.app';
+
+        // Check Status
+        document.getElementById('checkStatusBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('checkStatusBtn');
+            const spinner = document.getElementById('checkStatusSpinner');
+            const text = document.getElementById('checkStatusText');
+            const result = document.getElementById('statusResult');
+
+            btn.disabled = true;
+            spinner.style.display = 'inline-block';
+            text.textContent = 'Checking...';
+            result.classList.remove('show');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/webhooks/meta-leads/test`);
+                const data = await response.json();
+
+                let html = `<div class="result-title">Status Check Results</div>`;
+                
+                // Overall Status
+                const isHealthy = data.summary?.overall === 'HEALTHY';
+                html += `<div style="margin-bottom: 15px;">
+                    <span class="status-badge ${isHealthy ? 'success' : 'error'}">
+                        ${data.summary?.overall || 'UNKNOWN'}
+                    </span>
+                </div>`;
+
+                // Environment Variables
+                if (data.checks?.environmentVariables) {
+                    const envStatus = data.checks.environmentVariables.status;
+                    html += `<p><strong>Environment Variables:</strong> ${envStatus}</p>`;
+                }
+
+                // Meta API Connection
+                if (data.checks?.metaApiConnection) {
+                    const apiStatus = data.checks.metaApiConnection.status;
+                    html += `<p><strong>Meta API Connection:</strong> ${apiStatus}</p>`;
+                    if (data.checks.metaApiConnection.pageName) {
+                        html += `<p>📄 Page: ${data.checks.metaApiConnection.pageName}</p>`;
+                    }
+                }
+
+                // Access Token
+                if (data.checks?.accessToken) {
+                    const tokenStatus = data.checks.accessToken.status;
+                    html += `<p><strong>Access Token:</strong> ${tokenStatus}</p>`;
+                    if (data.checks.accessToken.expiresAt) {
+                        html += `<p>⏰ Expires: ${data.checks.accessToken.expiresAt}</p>`;
+                    }
+                }
+
+                // Recommendations
+                if (data.recommendations && data.recommendations.length > 0) {
+                    html += `<div style="margin-top: 15px;"><strong>Recommendations:</strong></div>`;
+                    html += `<ul style="margin-left: 20px; margin-top: 8px;">`;
+                    data.recommendations.forEach(rec => {
+                        html += `<li style="margin-bottom: 5px;">${rec}</li>`;
+                    });
+                    html += `</ul>`;
+                }
+
+                html += `<div class="code-block">${JSON.stringify(data, null, 2)}</div>`;
+
+                result.innerHTML = html;
+                result.classList.add('show', isHealthy ? 'success' : 'error');
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="result-title">❌ Error</div>
+                    <p>${error.message}</p>
+                `;
+                result.classList.add('show', 'error');
+            } finally {
+                btn.disabled = false;
+                spinner.style.display = 'none';
+                text.textContent = 'Check Status';
+            }
+        });
+
+        // Test Webhook
+        document.getElementById('testWebhookBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('testWebhookBtn');
+            const spinner = document.getElementById('testWebhookSpinner');
+            const text = document.getElementById('testWebhookText');
+            const result = document.getElementById('webhookResult');
+
+            btn.disabled = true;
+            spinner.style.display = 'inline-block';
+            text.textContent = 'Sending...';
+            result.classList.remove('show');
+
+            try {
+                const testPayload = {
+                    object: 'page',
+                    entry: [{
+                        id: '1552034478376801',
+                        time: Math.floor(Date.now() / 1000),
+                        changes: [{
+                            field: 'leadgen',
+                            value: {
+                                leadgen_id: `test_lead_${Date.now()}`,
+                                form_id: '123456789',
+                                page_id: '1552034478376801',
+                                ad_id: '987654321',
+                                adgroup_id: '456789123',
+                                campaign_id: '789123456',
+                                created_time: Math.floor(Date.now() / 1000).toString()
+                            }
+                        }]
+                    }]
+                };
+
+                const response = await fetch(`${API_BASE}/api/webhooks/meta-leads`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testPayload)
+                });
+
+                const data = await response.json();
+
+                let html = `<div class="result-title">Webhook Test Results</div>`;
+                
+                const isSuccess = response.ok;
+                html += `<div style="margin-bottom: 15px;">
+                    <span class="status-badge ${isSuccess ? 'success' : 'error'}">
+                        HTTP ${response.status}
+                    </span>
+                </div>`;
+
+                if (isSuccess) {
+                    html += `<p>✅ <strong>Webhook accepted successfully!</strong></p>`;
+                    html += `<p>The webhook endpoint received and processed your test payload.</p>`;
+                    html += `<p style="margin-top: 10px;">⚠️ <strong>Note:</strong> The system will try to fetch lead details from Meta API, but it will fail because the test lead ID doesn't exist in Meta (this is expected).</p>`;
+                } else {
+                    html += `<p>❌ <strong>Webhook failed</strong></p>`;
+                    html += `<p>${data.error || 'Unknown error occurred'}</p>`;
+                }
+
+                html += `<div class="code-block">${JSON.stringify(data, null, 2)}</div>`;
+
+                result.innerHTML = html;
+                result.classList.add('show', isSuccess ? 'success' : 'error');
+            } catch (error) {
+                result.innerHTML = `
+                    <div class="result-title">❌ Error</div>
+                    <p>${error.message}</p>
+                `;
+                result.classList.add('show', 'error');
+            } finally {
+                btn.disabled = false;
+                spinner.style.display = 'none';
+                text.textContent = 'Send Test Webhook';
+            }
+        });
+    </script>
+</body>
+</html>
