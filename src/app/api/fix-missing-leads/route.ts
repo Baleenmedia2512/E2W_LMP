@@ -6,6 +6,24 @@ import crypto from 'crypto';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// List of missing phone numbers from the user's query
+const MISSING_PHONES = [
+  '+919500616749',
+  '+919454285474',
+  '+919444466660',
+  '+919790910555',
+  '+919884883757',
+  '+919884856339',
+  '+919042180000',
+  '+918220566885',
+  '+919884132257',
+  '+919841911028',
+  '+917358417358',
+  '+919444078500',
+  '+919382175000',
+  '+919677900677',
+];
+
 // Fetch campaign name from Meta Graph API
 async function fetchCampaignName(campaignId: string, accessToken: string): Promise<string | null> {
   try {
@@ -25,7 +43,7 @@ async function fetchCampaignName(campaignId: string, accessToken: string): Promi
   }
 }
 
-// Check for duplicate leads
+// Check for duplicate leads using efficient query
 async function isDuplicate(phone: string, email: string | null, metaLeadId: string): Promise<boolean> {
   // Check by Meta Lead ID using JSON_EXTRACT for MySQL
   const existingByMetaId = await prisma.$queryRaw<any[]>`
@@ -87,10 +105,13 @@ async function getGomathiUserId(): Promise<string | null> {
   }
 }
 
-// One-time backfill of missed Meta leads from past 3 days
+/**
+ * Targeted recovery of specific missing leads
+ * This endpoint searches for the exact phone numbers that are missing from the database
+ */
 export async function GET(request: NextRequest) {
   console.log('\n========================================');
-  console.log('🔄 BACKFILL: Fetching missed Meta leads from past 3 days');
+  console.log('🔧 FIX MISSING LEADS: Targeted recovery');
   console.log('========================================\n');
 
   try {
@@ -103,8 +124,43 @@ export async function GET(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Calculate 3 days ago timestamp
-    const threeDaysAgo = Math.floor(Date.now() / 1000) - (3 * 24 * 60 * 60);
+    // Check which phones are actually missing
+    console.log(`📞 Verifying missing phones in database...`);
+    const stillMissing: string[] = [];
+    const alreadyExists: string[] = [];
+
+    for (const phone of MISSING_PHONES) {
+      const existing = await prisma.lead.findFirst({
+        where: {
+          phone: phone,
+          source: 'meta',
+        },
+      });
+
+      if (existing) {
+        alreadyExists.push(phone);
+      } else {
+        stillMissing.push(phone);
+      }
+    }
+
+    console.log(`✅ Already in DB: ${alreadyExists.length}`);
+    console.log(`❌ Still missing: ${stillMissing.length}`);
+    
+    if (stillMissing.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'All phones are already in the database',
+        alreadyExists: alreadyExists.length,
+        recovered: 0,
+      });
+    }
+
+    console.log('\n📋 Missing phones:', stillMissing);
+
+    // Search Meta for leads with these phone numbers
+    // Going back 30 days to be safe
+    const thirtyDaysAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
 
     // Get all forms for the page
     const formsResponse = await fetch(
@@ -122,19 +178,21 @@ export async function GET(request: NextRequest) {
     const formsData = await formsResponse.json();
     const forms = formsData.data || [];
 
-    console.log(`📋 Found ${forms.length} forms`);
+    console.log(`\n📋 Searching ${forms.length} forms for missing leads...`);
 
     let totalProcessed = 0;
-    let newLeads = 0;
+    let recovered = 0;
     let duplicatesSkipped = 0;
     let errors = 0;
 
+    const normalizedMissing = stillMissing.map(p => normalizePhoneForStorage(p));
+
     // Process each form
     for (const form of forms) {
-      console.log(`\n📝 Processing form: ${form.name} (${form.id})`);
+      console.log(`\n📝 Checking form: ${form.name} (${form.id})`);
 
       try {
-        // Get leads for this form (filtered by time)
+        // Get leads for this form
         const leadsResponse = await fetch(
           `https://graph.facebook.com/v21.0/${form.id}/leads?fields=id,created_time,field_data,ad_id,adgroup_id,campaign_id&access_token=${accessToken}`,
           { method: 'GET' }
@@ -148,13 +206,13 @@ export async function GET(request: NextRequest) {
         const leadsData = await leadsResponse.json();
         const leads = leadsData.data || [];
 
-        // Filter leads from past 3 days
+        // Filter leads from past 30 days
         const recentLeads = leads.filter((lead: any) => {
           const createdTime = parseInt(lead.created_time);
-          return createdTime >= threeDaysAgo;
+          return createdTime >= thirtyDaysAgo;
         });
 
-        console.log(`   Found ${recentLeads.length} leads from past 3 days`);
+        console.log(`   Found ${recentLeads.length} recent leads`);
 
         // Process each lead
         for (const leadData of recentLeads) {
@@ -190,14 +248,19 @@ export async function GET(request: NextRequest) {
             }
 
             if (!phone) {
-              console.log(`   ⚠️  Skipping lead ${metaLeadId} - no phone number`);
-              errors++;
               continue;
             }
 
+            // Check if this phone is in our missing list
+            if (!normalizedMissing.includes(phone)) {
+              continue;
+            }
+
+            console.log(`\n🎯 FOUND MISSING LEAD: ${phone} (Meta ID: ${metaLeadId})`);
+
             // Check for duplicates
             if (await isDuplicate(phone, email, metaLeadId)) {
-              console.log(`   ⏭️  Skipping lead ${metaLeadId} - duplicate`);
+              console.log(`   ⏭️  Already exists, skipping`);
               duplicatesSkipped++;
               continue;
             }
@@ -218,7 +281,8 @@ export async function GET(request: NextRequest) {
               campaignId,
               ...customFields,
               submittedAt: new Date(parseInt(createdTime) * 1000).toISOString(),
-              backfilled: new Date().toISOString(),
+              recoveredAt: new Date().toISOString(),
+              recoveryReason: 'Targeted recovery for missing leads',
             };
 
             // Get Gomathi's ID
@@ -236,10 +300,10 @@ export async function GET(request: NextRequest) {
                 campaign: campaignValue,
                 status: 'new',
                 customerRequirement: customFields.message || null,
-                notes: 'Lead backfilled from Meta (past 3 days)',
+                notes: 'Lead recovered via targeted fix for missing leads',
                 metadata: JSON.stringify(metadata),
                 assignedToId: assignedTo,
-                createdAt: new Date(parseInt(createdTime) * 1000), // Use original creation time
+                createdAt: new Date(parseInt(createdTime) * 1000),
                 updatedAt: new Date(),
               },
             });
@@ -251,12 +315,12 @@ export async function GET(request: NextRequest) {
                 leadId: lead.id,
                 userId: 'system',
                 action: 'created',
-                description: `Meta lead backfilled from past 3 days. Original submission: ${new Date(parseInt(createdTime) * 1000).toISOString()}`,
+                description: `Meta lead recovered via targeted fix. Original submission: ${new Date(parseInt(createdTime) * 1000).toISOString()}`,
               },
             });
 
-            console.log(`   ✅ Created lead: ${lead.name} (${lead.phone})`);
-            newLeads++;
+            console.log(`   ✅ RECOVERED: ${lead.name} (${lead.phone})`);
+            recovered++;
           } catch (leadError) {
             console.error(`   ❌ Error processing lead:`, leadError);
             errors++;
@@ -269,25 +333,32 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('\n========================================');
-    console.log('✅ BACKFILL COMPLETE');
-    console.log(`   Processed: ${totalProcessed}`);
-    console.log(`   New leads: ${newLeads}`);
+    console.log('✅ TARGETED RECOVERY COMPLETE');
+    console.log(`   Forms searched: ${forms.length}`);
+    console.log(`   Leads examined: ${totalProcessed}`);
+    console.log(`   Successfully recovered: ${recovered}`);
+    console.log(`   Already existed: ${alreadyExists.length}`);
     console.log(`   Duplicates skipped: ${duplicatesSkipped}`);
     console.log(`   Errors: ${errors}`);
+    console.log(`   Still missing: ${stillMissing.length - recovered}`);
     console.log('========================================\n');
 
     return NextResponse.json({
       success: true,
-      totalProcessed,
-      newLeads,
+      formsSearched: forms.length,
+      leadsExamined: totalProcessed,
+      recovered,
+      alreadyExisted: alreadyExists.length,
       duplicatesSkipped,
       errors,
-      message: `Backfilled ${newLeads} new leads from past 3 days`,
+      stillMissing: stillMissing.length - recovered,
+      missingPhoneList: stillMissing,
+      message: `Recovered ${recovered} out of ${stillMissing.length} missing leads`,
     });
   } catch (error) {
-    console.error('❌ Backfill error:', error);
+    console.error('❌ Recovery error:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Backfill failed' 
+      error: error instanceof Error ? error.message : 'Recovery failed' 
     }, { status: 500 });
   }
 }
