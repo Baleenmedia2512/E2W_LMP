@@ -11,16 +11,41 @@ async function fetchCampaignName(campaignId: string, accessToken: string): Promi
   try {
     if (!campaignId) return null;
     
+    console.log(`🔍 Fetching campaign name for ID: ${campaignId}`);
+    
     const response = await fetch(
       `https://graph.facebook.com/v21.0/${campaignId}?fields=name&access_token=${accessToken}`,
-      { method: 'GET' }
+      { 
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Failed to fetch campaign name for ${campaignId}: ${response.status} - ${errorText}`);
+      console.error(`   This may be due to insufficient permissions or the campaign ID format`);
+      return null;
+    }
+    
     const data = await response.json();
-    return data.name || null;
+    
+    if (data.error) {
+      console.error(`❌ Meta API error fetching campaign ${campaignId}:`, data.error);
+      return null;
+    }
+    
+    if (data.name) {
+      console.log(`✅ Campaign name fetched: "${data.name}" (ID: ${campaignId})`);
+      return data.name;
+    }
+    
+    console.warn(`⚠️ No name field in response for campaign ${campaignId}`);
+    return null;
   } catch (error) {
-    console.error(`Error fetching campaign name for ${campaignId}:`, error);
+    console.error(`❌ Error fetching campaign name for ${campaignId}:`, error);
     return null;
   }
 }
