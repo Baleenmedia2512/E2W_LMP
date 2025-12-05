@@ -130,17 +130,20 @@ export async function GET(request: NextRequest) {
     const alreadyExists: string[] = [];
 
     for (const phone of MISSING_PHONES) {
+      const normalizedPhone = normalizePhoneForStorage(phone);
       const existing = await prisma.lead.findFirst({
         where: {
-          phone: phone,
+          phone: normalizedPhone,
           source: 'meta',
         },
       });
 
       if (existing) {
-        alreadyExists.push(phone);
+        alreadyExists.push(normalizedPhone);
+        console.log(`   ✅ Found in DB: ${phone} → ${normalizedPhone}`);
       } else {
-        stillMissing.push(phone);
+        stillMissing.push(normalizedPhone);
+        console.log(`   ❌ Missing: ${phone} → ${normalizedPhone}`);
       }
     }
 
@@ -159,8 +162,8 @@ export async function GET(request: NextRequest) {
     console.log('\n📋 Missing phones:', stillMissing);
 
     // Search Meta for leads with these phone numbers
-    // Going back 30 days to be safe
-    const thirtyDaysAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
+    // Going back 90 days to catch older leads
+    const ninetyDaysAgo = Math.floor(Date.now() / 1000) - (90 * 24 * 60 * 60);
 
     // Get all forms for the page
     const formsResponse = await fetch(
@@ -206,10 +209,10 @@ export async function GET(request: NextRequest) {
         const leadsData = await leadsResponse.json();
         const leads = leadsData.data || [];
 
-        // Filter leads from past 30 days
+        // Filter leads from past 90 days
         const recentLeads = leads.filter((lead: any) => {
           const createdTime = parseInt(lead.created_time);
-          return createdTime >= thirtyDaysAgo;
+          return createdTime >= ninetyDaysAgo;
         });
 
         console.log(`   Found ${recentLeads.length} recent leads`);
