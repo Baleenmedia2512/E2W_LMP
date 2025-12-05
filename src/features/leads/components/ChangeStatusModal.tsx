@@ -160,7 +160,7 @@ export default function ChangeStatusModal({
 
         toast({
           title: 'Success!',
-          description: `Status updated to Follow-up and scheduled for ${scheduledDateTime.toLocaleDateString()}`,
+          description: `Status updated to Follow-up and scheduled for ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}`,
           status: 'success',
           duration: 3000,
         });

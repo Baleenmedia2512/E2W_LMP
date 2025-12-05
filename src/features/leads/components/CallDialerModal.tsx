@@ -951,10 +951,11 @@ export default function CallDialerModal({
                   const value = e.target.value;
                   if (!remarksInitialized && value.length > 0) {
                     const now = new Date();
-                    const dateTimeStr = now.toLocaleString('en-GB', {
-                      year: '2-digit',
-                      month: '2-digit',
+                    const dateTimeStr = now.toLocaleDateString('en-GB', {
                       day: '2-digit',
+                      month: 'short',
+                      year: '2-digit'
+                    }).replace(/\//g, '-') + ' ' + now.toLocaleTimeString('en-US', {
                       hour: '2-digit',
                       minute: '2-digit',
                       hour12: true
@@ -1002,10 +1003,11 @@ export default function CallDialerModal({
                 onFocus={(e) => {
                   if (!remarksInitialized && remarks === '') {
                     const now = new Date();
-                    const dateTimeStr = now.toLocaleString('en-GB', {
-                      year: '2-digit',
-                      month: '2-digit',
+                    const dateTimeStr = now.toLocaleDateString('en-GB', {
                       day: '2-digit',
+                      month: 'short',
+                      year: '2-digit'
+                    }).replace(/\//g, '-') + ' ' + now.toLocaleTimeString('en-US', {
                       hour: '2-digit',
                       minute: '2-digit',
                       hour12: true
