@@ -216,7 +216,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('🔄 Starting Meta leads backup sync (safety net)...');
+    // Check for custom time range parameter (for manual backfill)
+    const searchParams = request.nextUrl.searchParams;
+    const daysParam = searchParams.get('days');
+    const hoursToFetch = daysParam ? parseInt(daysParam) * 24 : 1; // Default 1 hour, or custom days
+    
+    console.log(`🔄 Starting Meta leads backup sync (checking last ${hoursToFetch} hour(s))...`);
 
     // Step 1: Check for any old placeholder leads (shouldn't exist with new webhook)
     const placeholderLeads = await prisma.lead.findMany({
@@ -299,9 +304,10 @@ export async function GET(request: NextRequest) {
       console.log('✅ No placeholder leads found (webhook working correctly)');
     }
 
-    // Step 2: Backup check - fetch any leads from last hour that webhook might have missed
-    // Only check last hour since webhook should handle everything in real-time
-    const since = Math.floor((Date.now() - 60 * 60 * 1000) / 1000); // Last 1 hour only
+    // Step 2: Backup check - fetch any leads from specified time range
+    // Default: last hour (normal operation)
+    // Manual: can specify days via ?days=2 parameter for backfill
+    const since = Math.floor((Date.now() - hoursToFetch * 60 * 60 * 1000) / 1000);
 
     // Fetch leads from Meta
     const leadsResponse = await fetch(
