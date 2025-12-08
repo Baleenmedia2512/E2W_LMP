@@ -106,7 +106,8 @@ function getStatusChangeToday(
 }
 
 /**
- * Get count of followups scheduled or created today or in date range
+ * Get count of followups scheduled today or in date range
+ * Only counts followups scheduled on the selected date (not created date)
  */
 function getFollowupsToday(
   followups: DSRMetricsInput['followups'],
@@ -117,15 +118,13 @@ function getFollowupsToday(
     // No date range - use today
     return followups.filter(followup => {
       const scheduledToday = isToday(followup.scheduledAt, timezone);
-      const createdToday = isToday(followup.createdAt, timezone);
-      return scheduledToday || createdToday;
+      return scheduledToday;
     }).length;
   }
   
   // Date range specified
   return followups.filter(followup => {
     const scheduledDate = typeof followup.scheduledAt === 'string' ? new Date(followup.scheduledAt) : followup.scheduledAt;
-    const createdDate = typeof followup.createdAt === 'string' ? new Date(followup.createdAt) : followup.createdAt;
     const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
     const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
     
@@ -139,7 +138,7 @@ function getFollowupsToday(
       return false;
     };
     
-    return checkInRange(scheduledDate) || checkInRange(createdDate);
+    return checkInRange(scheduledDate);
   }).length;
 }
 
@@ -160,18 +159,29 @@ function getPendingFollowups(
 }
 
 /**
- * Get count of overdue followups (scheduled < now)
+ * Get count of overdue followups (scheduled < reference date)
+ * Reference date is the selected date or current time if no date range
  */
 function getOverdueFollowups(
   followups: DSRMetricsInput['followups'],
-  timezone: string = DEFAULT_TIMEZONE
+  timezone: string = DEFAULT_TIMEZONE,
+  dateRange?: { startDate?: Date | string; endDate?: Date | string }
 ): number {
-  const now = new Date();
+  // Use end of selected date as reference, or current time if no date range
+  const referenceDate = dateRange?.endDate 
+    ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate)
+    : new Date();
+  
+  // Set to end of day for fair comparison
+  if (dateRange?.endDate) {
+    referenceDate.setHours(23, 59, 59, 999);
+  }
+  
   return followups.filter(followup => {
     const scheduledDate = typeof followup.scheduledAt === 'string' 
       ? new Date(followup.scheduledAt) 
       : followup.scheduledAt;
-    return scheduledDate < now;
+    return scheduledDate < referenceDate;
   }).length;
 }
 
@@ -463,7 +473,7 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   const totalCalls = getCallsToday(calls, timezone, dateRange);
   
   // Overdue: Follow-ups that were overdue by selected date
-  const totalOverdue = getOverdueFollowups(followups, timezone);
+  const totalOverdue = getOverdueFollowups(followups, timezone, dateRange);
   
   // Unqualified: Leads marked unqualified on selected date
   const totalUnqualified = getStatusChangeToday(leads, 'unqualified', timezone, dateRange);

@@ -63,7 +63,11 @@ export async function GET(request: NextRequest) {
       callsWhere.callerId = agentId;
     }
 
-    const now = new Date();
+    // Calculate reference date for overdue (end of selected date or current time)
+    const referenceDate = endDateParam ? new Date(endDateParam) : new Date();
+    if (endDateParam) {
+      referenceDate.setHours(23, 59, 59, 999);
+    }
 
     console.log('[DSR Stats API] Fetching data from database...');
 
@@ -292,33 +296,36 @@ export async function GET(request: NextRequest) {
     console.log('[DSR Stats API] Calculating agent performance...');
     const agentPerformanceData = await Promise.all(
       (agentId ? agents.filter(a => a.id === agentId) : agents).map(async (agent) => {
-        const [newLeads, followUps, totalCalls, won, lost, unreachable, overdue] = await Promise.all([
-          // New Leads - leads where first call was made by agent in date range
-          prisma.callLog.count({
-            where: {
-              callerId: agent.id,
-              attemptNumber: 1,
-              ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+        // Fetch calls made on leads assigned to this agent in the date range
+        const agentCalls = await prisma.callLog.findMany({
+          where: {
+            Lead: {
+              assignedToId: agent.id,
             },
-          }),
-          
-          // Follow-ups - calls that are NOT first calls in date range
-          prisma.callLog.count({
-            where: {
-              callerId: agent.id,
-              attemptNumber: { gt: 1 },
-              ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
-            },
-          }),
-          
-          // Total Calls made by agent in date range
-          prisma.callLog.count({
-            where: {
-              callerId: agent.id,
-              ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
-            },
-          }),
-          
+            ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+          },
+          select: {
+            leadId: true,
+            attemptNumber: true,
+          },
+        });
+
+        // Count unique leads with first calls (attemptNumber = 1)
+        const newLeadsSet = new Set<string>();
+        agentCalls.forEach(call => {
+          if (call.attemptNumber === 1) {
+            newLeadsSet.add(call.leadId);
+          }
+        });
+        const newLeads = newLeadsSet.size;
+
+        // Count follow-up calls (attemptNumber > 1)
+        const followUps = agentCalls.filter(call => call.attemptNumber > 1).length;
+
+        // Total calls for this agent
+        const totalCalls = agentCalls.length;
+
+        const [won, lost, unreachable, overdue] = await Promise.all([
           // Won - leads marked won by agent in date range
           prisma.lead.count({
             where: {
@@ -346,14 +353,14 @@ export async function GET(request: NextRequest) {
             },
           }),
           
-          // Overdue - follow-ups that are overdue for this agent
+          // Overdue - follow-ups that are overdue relative to selected date
           prisma.followUp.count({
             where: {
               Lead: {
                 assignedToId: agent.id,
               },
               scheduledAt: {
-                lt: now,
+                lt: referenceDate,
               },
               status: {
                 not: 'completed',

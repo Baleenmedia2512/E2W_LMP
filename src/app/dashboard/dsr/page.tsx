@@ -32,6 +32,7 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  ButtonGroup,
 } from '@chakra-ui/react';
 import { 
   HiFilter, 
@@ -45,10 +46,31 @@ import {
   HiClock,
   HiDownload,
   HiRefresh,
+  HiChevronUp,
+  HiChevronDown,
+  HiChevronLeft,
+  HiChevronRight,
 } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useResponsive } from '@/shared/hooks/useResponsive';
+
+// Custom hook for debouncing
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 // Custom color theme
 const THEME_COLORS = {
@@ -119,12 +141,25 @@ export default function DSRPage() {
   const [apiLeads, setApiLeads] = useState<Lead[]>([]);
   const [agentPerformanceData, setAgentPerformanceData] = useState<AgentPerformance[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [callLogs, setCallLogs] = useState<any[]>([]);
   
   // Filter state - DEFAULT TO TODAY (single date selection)
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [selectedAgentId, setSelectedAgentId] = useState('all');
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [callLogsPage, setCallLogsPage] = useState(1);
+  const itemsPerPage = 50;
+  
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Debounced search
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Fetch DSR data from API
   const fetchDSRData = useCallback(async () => {
@@ -156,6 +191,21 @@ export default function DSRPage() {
       } else {
         throw new Error(result.error || 'Failed to fetch data');
       }
+      
+      // Fetch call logs separately
+      const callLogsParams = new URLSearchParams();
+      callLogsParams.append('date', selectedDate);
+      callLogsParams.append('page', callLogsPage.toString());
+      callLogsParams.append('limit', '50');
+      if (selectedAgentId !== 'all') callLogsParams.append('agentId', selectedAgentId);
+      
+      const callLogsResponse = await fetch(`/api/dsr/call-logs?${callLogsParams.toString()}`);
+      if (callLogsResponse.ok) {
+        const callLogsResult = await callLogsResponse.json();
+        if (callLogsResult.success) {
+          setCallLogs(callLogsResult.data.callLogs);
+        }
+      }
     } catch (err) {
       console.error('Error fetching DSR data:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -170,7 +220,7 @@ export default function DSRPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, selectedAgentId, toast]);
+  }, [selectedDate, selectedAgentId, callLogsPage, toast]);
 
   // Fetch data on component mount and when filters change
   useEffect(() => {
@@ -281,6 +331,61 @@ export default function DSRPage() {
     }));
     exportToCSV(exportData, 'agent_performance');
   };
+  
+  // Export filtered leads
+  const handleExportLeads = () => {
+    const exportData = filteredLeads.map(lead => ({
+      Name: lead.name,
+      Phone: formatPhoneForDisplay(lead.phone),
+      Email: lead.email || '',
+      Status: lead.status,
+      Source: lead.source,
+      Campaign: lead.campaign || '',
+      'Assigned To': lead.assignedTo?.name || 'Unassigned',
+      'Created Date': formatDate(new Date(lead.createdAt)),
+    }));
+    exportToCSV(exportData, 'filtered_leads');
+  };
+  
+  // Export call logs
+  const handleExportCallLogs = () => {
+    const exportData = callLogs.map(call => ({
+      Time: formatDate(new Date(call.createdAt)),
+      'Lead Name': call.Lead?.name || 'Unknown',
+      Phone: call.Lead?.phone || '',
+      'Call Status': call.callStatus || 'N/A',
+      'Attempt Number': call.attemptNumber,
+      Duration: call.duration || 'N/A',
+      Agent: call.User?.name || 'Unknown',
+      Notes: call.notes || '',
+    }));
+    exportToCSV(exportData, 'call_logs');
+  };
+  
+  // Date preset handlers
+  const setDatePreset = (preset: 'today' | 'yesterday' | 'last7days' | 'last30days') => {
+    const today = new Date();
+    let targetDate = new Date();
+    
+    switch (preset) {
+      case 'today':
+        targetDate = today;
+        break;
+      case 'yesterday':
+        targetDate.setDate(today.getDate() - 1);
+        break;
+      case 'last7days':
+        targetDate.setDate(today.getDate() - 7);
+        break;
+      case 'last30days':
+        targetDate.setDate(today.getDate() - 30);
+        break;
+    }
+    
+    setSelectedDate(targetDate.toISOString().split('T')[0]);
+    setCurrentPage(1);
+    setCallLogsPage(1);
+  };
 
   // Filter leads for the table based on active card and search
   const filteredLeads = useMemo(() => {
@@ -326,9 +431,9 @@ export default function DSRPage() {
     }
     // If no card is active, show all leads with activity on selected date
 
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Apply search filter using debounced value
+    if (debouncedSearch.trim()) {
+      const query = debouncedSearch.toLowerCase();
       filtered = filtered.filter(lead => 
         lead.name.toLowerCase().includes(query) ||
         lead.phone.includes(query) ||
@@ -337,7 +442,50 @@ export default function DSRPage() {
     }
 
     return filtered;
-  }, [apiLeads, activeCard, searchQuery]);
+  }, [apiLeads, activeCard, debouncedSearch]);
+  
+  // Paginated leads
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredLeads.slice(startIndex, endIndex);
+  }, [filteredLeads, currentPage]);
+  
+  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
+  
+  // Sorted agent performance
+  const sortedAgentPerformance = useMemo(() => {
+    if (!sortColumn) return agentPerformanceData;
+    
+    const sorted = [...agentPerformanceData].sort((a, b) => {
+      const aValue = a[sortColumn as keyof AgentPerformance];
+      const bValue = b[sortColumn as keyof AgentPerformance];
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+      
+      return 0;
+    });
+    
+    return sorted;
+  }, [agentPerformanceData, sortColumn, sortDirection]);
+  
+  // Handle sort
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   // Show loading state
   if (loading && !stats) {
@@ -384,6 +532,12 @@ export default function DSRPage() {
               <MenuItem onClick={handleExportAgentPerformance}>
                 Agent Performance (CSV)
               </MenuItem>
+              <MenuItem onClick={handleExportLeads}>
+                Filtered Leads (CSV)
+              </MenuItem>
+              <MenuItem onClick={handleExportCallLogs}>
+                Call Logs (CSV)
+              </MenuItem>
             </MenuList>
           </Menu>
         </HStack>
@@ -393,6 +547,44 @@ export default function DSRPage() {
       <Card mb={{ base: 4, md: 6 }} boxShadow={{ base: 'md', md: 'lg' }} borderTop="4px" borderColor={THEME_COLORS.primary} bg="white">
         <CardBody p={{ base: 3, md: 6 }}>
           <VStack spacing={4} align="stretch">
+            {/* Date Presets */}
+            <Box>
+              <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                Quick Date Selection
+              </Text>
+              <ButtonGroup size={{ base: 'xs', md: 'sm' }} isAttached variant="outline" flexWrap="wrap">
+                <Button
+                  onClick={() => setDatePreset('today')}
+                  colorScheme={selectedDate === todayString ? 'blue' : 'gray'}
+                  bg={selectedDate === todayString ? THEME_COLORS.primary : 'white'}
+                  color={selectedDate === todayString ? 'white' : THEME_COLORS.dark}
+                  _hover={{ bg: selectedDate === todayString ? THEME_COLORS.medium : 'gray.100' }}
+                >
+                  Today
+                </Button>
+                <Button
+                  onClick={() => setDatePreset('yesterday')}
+                  colorScheme="gray"
+                >
+                  Yesterday
+                </Button>
+                <Button
+                  onClick={() => setDatePreset('last7days')}
+                  colorScheme="gray"
+                >
+                  Last 7 Days
+                </Button>
+                <Button
+                  onClick={() => setDatePreset('last30days')}
+                  colorScheme="gray"
+                >
+                  Last 30 Days
+                </Button>
+              </ButtonGroup>
+            </Box>
+            
+            <Divider borderColor={THEME_COLORS.light} />
+            
             <Flex gap={3} flexWrap="wrap" align="stretch" direction={{ base: 'column', md: 'row' }}>
               {/* Date Picker */}
               <Box flex={{ base: '1', md: '0 0 200px' }}>
@@ -761,7 +953,7 @@ export default function DSRPage() {
                 px={3}
                 py={1}
               >
-                {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
+                {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} (Page {currentPage} of {totalPages || 1})
               </Badge>
             </Flex>
             {activeCard && (
@@ -803,8 +995,8 @@ export default function DSRPage() {
                 </Tr>
               </Thead>
               <Tbody>
-                {filteredLeads.length > 0 ? (
-                  filteredLeads.map((lead) => (
+                {paginatedLeads.length > 0 ? (
+                  paginatedLeads.map((lead) => (
                     <Tr 
                       key={lead.id} 
                       _hover={{ bg: `${THEME_COLORS.light}20` }}
@@ -864,6 +1056,145 @@ export default function DSRPage() {
               </Tbody>
             </Table>
           </Box>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <Flex justify="center" align="center" p={4} gap={2} flexWrap="wrap">
+              <IconButton
+                aria-label="Previous page"
+                icon={<HiChevronLeft />}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                isDisabled={currentPage === 1}
+                size="sm"
+              />
+              <Text fontSize="sm" color={THEME_COLORS.medium}>
+                Page {currentPage} of {totalPages}
+              </Text>
+              <IconButton
+                aria-label="Next page"
+                icon={<HiChevronRight />}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                isDisabled={currentPage === totalPages}
+                size="sm"
+              />
+            </Flex>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Call Logs Table */}
+      <Card boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.accent} mb={{ base: 4, md: 6 }}>
+        <CardBody p={0}>
+          <Box p={{ base: 3, md: 4 }} bg={THEME_COLORS.accent} bgGradient={`linear(to-r, ${THEME_COLORS.accent}, ${THEME_COLORS.medium})`} borderTopRadius="lg">
+            <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap={2}>
+              <Heading size={{ base: 'sm', md: 'md' }} color="white" textAlign={{ base: 'center', sm: 'left' }}>
+                Call Logs
+              </Heading>
+              <Badge 
+                bg="white" 
+                color={THEME_COLORS.accent}
+                fontSize={{ base: 'sm', md: 'md' }}
+                px={3}
+                py={1}
+              >
+                {callLogs.length} call{callLogs.length !== 1 ? 's' : ''}
+              </Badge>
+            </Flex>
+            <Text fontSize={{ base: 'xs', md: 'sm' }} color="white" mt={2}>
+              All calls made on {formatDate(new Date(selectedDate))}
+            </Text>
+          </Box>
+
+          <Box 
+            overflowX="auto"
+            css={{
+              '&::-webkit-scrollbar': {
+                height: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: THEME_COLORS.light,
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: THEME_COLORS.medium,
+              },
+            }}
+          >
+            <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+              <Thead bg="gray.50">
+                <Tr>
+                  <Th color={THEME_COLORS.dark}>Time</Th>
+                  <Th color={THEME_COLORS.dark}>Lead Name</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', md: 'table-cell' }}>Phone</Th>
+                  <Th color={THEME_COLORS.dark}>Status</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>Attempt #</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Duration</Th>
+                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Agent</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {callLogs.length > 0 ? (
+                  callLogs.map((call) => (
+                    <Tr 
+                      key={call.id} 
+                      _hover={{ bg: `${THEME_COLORS.accent}20` }}
+                      transition="all 0.2s"
+                    >
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
+                        {new Date(call.createdAt).toLocaleTimeString('en-IN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </Td>
+                      <Td fontWeight="medium" color={THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }}>
+                        {call.Lead?.name || 'Unknown'}
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', md: 'table-cell' }}>
+                        {call.Lead?.phone ? formatPhoneForDisplay(call.Lead.phone) : '-'}
+                      </Td>
+                      <Td>
+                        <Badge
+                          bg={
+                            call.callStatus === 'completed' ? 'green.500' :
+                            call.callStatus === 'no_answer' ? 'orange.500' :
+                            call.callStatus === 'unreachable' ? 'red.500' :
+                            THEME_COLORS.light
+                          }
+                          color="white"
+                          fontSize={{ base: 'xs', md: 'sm' }}
+                        >
+                          {call.callStatus || 'N/A'}
+                        </Badge>
+                      </Td>
+                      <Td isNumeric>
+                        <Badge bg={call.attemptNumber === 1 ? THEME_COLORS.primary : THEME_COLORS.medium} color="white">
+                          {call.attemptNumber}
+                        </Badge>
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
+                        {call.duration || '-'}
+                      </Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
+                        {call.User?.name || 'Unknown'}
+                      </Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td colSpan={7} textAlign="center" py={8}>
+                      <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
+                        No call logs found for the selected date
+                      </Text>
+                    </Td>
+                  </Tr>
+                )}
+              </Tbody>
+            </Table>
+          </Box>
         </CardBody>
       </Card>
 
@@ -911,19 +1242,122 @@ export default function DSRPage() {
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead bg="gray.50">
                 <Tr>
-                  <Th color={THEME_COLORS.dark}>Agent Name</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>New Leads</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>Follow-ups</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>Total Calls</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>Won</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>Lost</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>Unreachable</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>Overdue</Th>
+                  <Th 
+                    color={THEME_COLORS.dark}
+                    cursor="pointer"
+                    onClick={() => handleSort('agentName')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1}>
+                      Agent Name
+                      {sortColumn === 'agentName' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('newLeads')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      New Leads
+                      {sortColumn === 'newLeads' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('followUps')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      Follow-ups
+                      {sortColumn === 'followUps' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('totalCalls')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      Total Calls
+                      {sortColumn === 'totalCalls' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('won')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      Won
+                      {sortColumn === 'won' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('lost')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      Lost
+                      {sortColumn === 'lost' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('unreachable')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      Unreachable
+                      {sortColumn === 'unreachable' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('overdue')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      Overdue
+                      {sortColumn === 'overdue' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {agentPerformanceData.length > 0 ? (
-                  agentPerformanceData.map((row) => (
+                {sortedAgentPerformance.length > 0 ? (
+                  sortedAgentPerformance.map((row) => (
                     <Tr 
                       key={row.agentId} 
                       _hover={{ bg: `${THEME_COLORS.light}20` }}
