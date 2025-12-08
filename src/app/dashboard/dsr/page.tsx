@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Box,
   Heading,
@@ -26,11 +26,28 @@ import {
   useToast,
   Spinner,
   Center,
+  Tooltip,
+  IconButton,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from '@chakra-ui/react';
-import { HiFilter, HiPhone, HiUserAdd, HiClipboardList, HiBan, HiExclamation, HiCheckCircle, HiXCircle, HiClock } from 'react-icons/hi';
+import { 
+  HiFilter, 
+  HiPhone, 
+  HiUserAdd, 
+  HiClipboardList, 
+  HiBan, 
+  HiExclamation, 
+  HiCheckCircle, 
+  HiXCircle, 
+  HiClock,
+  HiDownload,
+  HiRefresh,
+} from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
-import DSRCard from '@/features/dsr/components/DSRCard';
 import { useResponsive } from '@/shared/hooks/useResponsive';
 
 // Custom color theme
@@ -58,6 +75,13 @@ interface Lead {
     name: string;
     email: string;
   };
+  activityFlags?: {
+    createdToday: boolean;
+    hadCallToday: boolean;
+    statusChangedToday: boolean;
+    isNewLead: boolean;
+    isFollowup: boolean;
+  };
 }
 
 interface AgentPerformance {
@@ -65,10 +89,13 @@ interface AgentPerformance {
   agentName: string;
   agentEmail: string;
   date: Date;
-  callsMade: number;
-  leadsGenerated: number;
-  conversions: number;
-  status: string;
+  newLeads: number;
+  followUps: number;
+  totalCalls: number;
+  won: number;
+  lost: number;
+  unreachable: number;
+  overdue: number;
 }
 
 interface Agent {
@@ -81,7 +108,7 @@ export default function DSRPage() {
   const toast = useToast();
   const { isMobile, isTablet, isDesktop } = useResponsive();
   
-  // Get today's date and set default date range
+  // Get today's date and set default to TODAY
   const today = new Date();
   const todayString = today.toISOString().split('T')[0];
   
@@ -93,31 +120,24 @@ export default function DSRPage() {
   const [agentPerformanceData, setAgentPerformanceData] = useState<AgentPerformance[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   
-  // Filter state
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  // Filter state - DEFAULT TO TODAY (single date selection)
+  const [selectedDate, setSelectedDate] = useState(todayString);
   const [selectedAgentId, setSelectedAgentId] = useState('all');
-  const [isFiltered, setIsFiltered] = useState(false);
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateRangePreset, setDateRangePreset] = useState('all_time');
-
-  // Temporary state for filters before applying
-  const [tempStartDate, setTempStartDate] = useState('');
-  const [tempEndDate, setTempEndDate] = useState('');
-  const [tempSelectedAgentId, setTempSelectedAgentId] = useState('all');
-  const [tempDateRangePreset, setTempDateRangePreset] = useState('all_time');
 
   // Fetch DSR data from API
-  const fetchDSRData = async () => {
+  const fetchDSRData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
       const params = new URLSearchParams();
-      // Only send date params when not empty and not all_time
-      if (startDate && dateRangePreset !== 'all_time') params.append('startDate', startDate);
-      if (endDate && dateRangePreset !== 'all_time') params.append('endDate', endDate);
+      // Send the selected date as both start and end to get data for that specific day
+      if (selectedDate) {
+        params.append('startDate', selectedDate);
+        params.append('endDate', selectedDate);
+      }
       if (selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
       
       const response = await fetch(`/api/dsr/stats?${params.toString()}`);
@@ -150,85 +170,21 @@ export default function DSRPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate, selectedAgentId, toast]);
 
   // Fetch data on component mount and when filters change
   useEffect(() => {
     fetchDSRData();
-  }, [startDate, endDate, selectedAgentId]);
+  }, [fetchDSRData]);
 
-  // Handle date range preset changes
-  const handleDateRangePresetChange = (preset: string) => {
-    setTempDateRangePreset(preset);
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0] ?? '';
-    
-    if (preset === 'today') {
-      setTempStartDate(todayStr);
-      setTempEndDate(todayStr);
-    } else if (preset === 'last_week') {
-      const lastWeek = new Date(now);
-      lastWeek.setDate(now.getDate() - 7);
-      setTempStartDate(lastWeek.toISOString().split('T')[0] ?? '');
-      setTempEndDate(todayStr);
-    } else if (preset === 'last_month') {
-      const lastMonth = new Date(now);
-      lastMonth.setMonth(now.getMonth() - 1);
-      setTempStartDate(lastMonth.toISOString().split('T')[0] ?? '');
-      setTempEndDate(todayStr);
-    } else if (preset === 'all_time') {
-      // For all time, clear the dates (will show today's data by default)
-      setTempStartDate('');
-      setTempEndDate('');
-    }
-    // For 'custom', don't change dates - user will set them manually
-  };
-
-  // Apply filters
-  const handleApplyFilters = () => {
-    setStartDate(tempStartDate);
-    setEndDate(tempEndDate);
-    setSelectedAgentId(tempSelectedAgentId);
-    setDateRangePreset(tempDateRangePreset);
-    setIsFiltered(true);
-    
-    toast({
-      title: 'Filters Applied',
-      description: 'DSR data has been updated based on your filters.',
-      status: 'success',
-      duration: 2000,
-      isClosable: true,
-      position: 'top-right',
-    });
-  };
-
-  // Reset filters
-  const handleResetFilters = () => {
-    setTempStartDate('');
-    setTempEndDate('');
-    setTempSelectedAgentId('all');
-    setTempDateRangePreset('all_time');
-    setStartDate('');
-    setEndDate('');
-    setSelectedAgentId('all');
-    setDateRangePreset('all_time');
-    setIsFiltered(false);
-    setActiveCard(null);
-    setSearchQuery('');
-    
-    toast({
-      title: 'Filters Reset',
-      description: 'All filters have been cleared.',
-      status: 'info',
-      duration: 2000,
-      isClosable: true,
-      position: 'top-right',
-    });
-  };
-
-  // Handle card click
+  // Handle card click - filter leads in the current page
   const handleCardClick = (type: string) => {
-    setActiveCard(activeCard === type ? null : type);
+    // Toggle the active card - if same card clicked, deactivate it
+    if (activeCard === type) {
+      setActiveCard(null);
+    } else {
+      setActiveCard(type);
+    }
     
     const cardLabels: Record<string, string> = {
       newLeads: 'New Leads',
@@ -236,21 +192,94 @@ export default function DSRPage() {
       overdue: 'Overdue Follow-ups',
       unqualified: 'Unqualified',
       unreachable: 'Unreachable',
-      win: 'Won Deals',
-      lose: 'Lost Deals',
-      totalCalls: 'Total Calls',
-      completedCalls: 'Completed Calls',
+      won: 'Won Deals',
+      lost: 'Lost Deals',
     };
     
     const label = cardLabels[type] || type;
+    
+    if (activeCard === type) {
+      toast({
+        title: 'Filter Cleared',
+        description: 'Showing all leads',
+        status: 'info',
+        duration: 2000,
+        isClosable: true,
+        position: 'top-right',
+      });
+    } else {
+      toast({
+        title: `${label} Filter Applied`,
+        description: `Showing ${label.toLowerCase()} only`,
+        status: 'info',
+        duration: 2000,
+        isClosable: true,
+        position: 'top-right',
+      });
+    }
+  };
+
+  // Export to CSV
+  const exportToCSV = (data: any[], filename: string) => {
+    if (!data || data.length === 0) {
+      toast({
+        title: 'No Data',
+        description: 'No data available to export.',
+        status: 'warning',
+        duration: 2000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => 
+        headers.map(header => {
+          const value = row[header];
+          // Escape commas and quotes
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${selectedDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     toast({
-      title: `${label} Card Selected`,
-      description: `Viewing details for ${label.toLowerCase()}`,
-      status: 'info',
+      title: 'Export Successful',
+      description: `${filename} has been exported.`,
+      status: 'success',
       duration: 2000,
       isClosable: true,
-      position: 'top-right',
     });
+  };
+
+  // Export agent performance
+  const handleExportAgentPerformance = () => {
+    const exportData = agentPerformanceData.map(agent => ({
+      Date: formatDate(new Date(agent.date)),
+      Agent: agent.agentName,
+      'New Leads': agent.newLeads,
+      'Follow-ups': agent.followUps,
+      'Total Calls': agent.totalCalls,
+      Won: agent.won,
+      Lost: agent.lost,
+      Unreachable: agent.unreachable,
+      Overdue: agent.overdue,
+    }));
+    exportToCSV(exportData, 'agent_performance');
   };
 
   // Filter leads for the table based on active card and search
@@ -259,19 +288,43 @@ export default function DSRPage() {
     
     let filtered = [...apiLeads];
 
-    // Apply card-based filters
+    // Apply card-based filters - only show leads relevant to that specific KPI
     if (activeCard === 'newLeads') {
-      // Already filtered by API
-      filtered = filtered;
+      // Show ONLY leads where first call (attemptNumber=1) was made on selected date
+      filtered = filtered.filter(lead => 
+        lead.activityFlags?.isNewLead && lead.activityFlags?.hadCallToday
+      );
+    } else if (activeCard === 'followUps') {
+      // Show ONLY leads that had follow-up calls (attemptNumber > 1) on selected date
+      filtered = filtered.filter(lead => 
+        lead.activityFlags?.isFollowup === true
+      );
     } else if (activeCard === 'unqualified') {
-      filtered = filtered.filter(lead => lead.status === 'unqualified');
+      // Show ONLY leads with unqualified status (preferably changed today)
+      filtered = filtered.filter(lead => 
+        lead.status === 'unqualified' &&
+        (lead.activityFlags?.statusChangedToday || true)
+      );
     } else if (activeCard === 'unreachable') {
-      filtered = filtered.filter(lead => lead.status === 'unreach');
-    } else if (activeCard === 'win') {
-      filtered = filtered.filter(lead => lead.status === 'won');
-    } else if (activeCard === 'lose') {
-      filtered = filtered.filter(lead => lead.status === 'lost');
+      // Show ONLY leads with unreachable status
+      filtered = filtered.filter(lead => 
+        lead.status === 'unreach' &&
+        (lead.activityFlags?.statusChangedToday || true)
+      );
+    } else if (activeCard === 'won') {
+      // Show ONLY leads with won status
+      filtered = filtered.filter(lead => 
+        lead.status === 'won' &&
+        (lead.activityFlags?.statusChangedToday || true)
+      );
+    } else if (activeCard === 'lost') {
+      // Show ONLY leads with lost status
+      filtered = filtered.filter(lead => 
+        lead.status === 'lost' &&
+        (lead.activityFlags?.statusChangedToday || true)
+      );
     }
+    // If no card is active, show all leads with activity on selected date
 
     // Apply search filter
     if (searchQuery.trim()) {
@@ -300,32 +353,91 @@ export default function DSRPage() {
 
   return (
     <Box p={{ base: 3, sm: 4, md: 6 }} maxW="100%" overflowX="hidden" bg={{ base: 'gray.50', md: 'transparent' }}>
-      <Flex justify="space-between" align="center" mb={{ base: 4, md: 6 }} flexWrap="wrap" gap={3} direction={{ base: 'column', sm: 'row' }}>
-        <Heading size={{ base: 'md', md: 'lg' }} color={THEME_COLORS.dark} w={{ base: 'full', sm: 'auto' }} textAlign={{ base: 'center', sm: 'left' }}>
+      {/* Header with refresh button */}
+      <Flex justify="space-between" align="center" mb={{ base: 4, md: 6 }} flexWrap="wrap" gap={3}>
+        <Heading size={{ base: 'md', md: 'lg' }} color={THEME_COLORS.dark}>
           Daily Sales Report (DSR)
         </Heading>
-        {isFiltered && (
-          <Badge 
-            colorScheme="blue" 
-            fontSize={{ base: 'sm', md: 'md' }}
-            px={3} 
-            py={1}
-            bg={THEME_COLORS.primary}
-            color="white"
-          >
-            Filtered Results
-          </Badge>
-        )}
+        <HStack spacing={2}>
+          <Tooltip label="Refresh data">
+            <IconButton
+              aria-label="Refresh"
+              icon={<HiRefresh />}
+              onClick={fetchDSRData}
+              isLoading={loading}
+              colorScheme="gray"
+              variant="outline"
+              size={{ base: 'sm', md: 'md' }}
+            />
+          </Tooltip>
+          <Menu>
+            <MenuButton
+              as={Button}
+              leftIcon={<HiDownload />}
+              colorScheme="gray"
+              variant="outline"
+              size={{ base: 'sm', md: 'md' }}
+            >
+              Export
+            </MenuButton>
+            <MenuList>
+              <MenuItem onClick={handleExportAgentPerformance}>
+                Agent Performance (CSV)
+              </MenuItem>
+            </MenuList>
+          </Menu>
+        </HStack>
       </Flex>
 
-      {/* Search Bar and Filters */}
+      {/* Filters Card */}
       <Card mb={{ base: 4, md: 6 }} boxShadow={{ base: 'md', md: 'lg' }} borderTop="4px" borderColor={THEME_COLORS.primary} bg="white">
         <CardBody p={{ base: 3, md: 6 }}>
           <VStack spacing={4} align="stretch">
-            {/* Search and Filter Row */}
             <Flex gap={3} flexWrap="wrap" align="stretch" direction={{ base: 'column', md: 'row' }}>
+              {/* Date Picker */}
+              <Box flex={{ base: '1', md: '0 0 200px' }}>
+                <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                  Select Date
+                </Text>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  max={todayString}
+                  borderColor={THEME_COLORS.light}
+                  _hover={{ borderColor: THEME_COLORS.primary }}
+                  _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                  size={{ base: 'md', md: 'md' }}
+                />
+              </Box>
+
+              {/* Agent Selector */}
+              <Box flex={{ base: '1', md: '0 0 200px' }}>
+                <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                  Filter by Agent
+                </Text>
+                <Select
+                  value={selectedAgentId}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  borderColor={THEME_COLORS.light}
+                  _hover={{ borderColor: THEME_COLORS.primary }}
+                  _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                  size={{ base: 'md', md: 'md' }}
+                >
+                  <option value="all">All Agents</option>
+                  {agents.map(agent => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name || agent.email}
+                    </option>
+                  ))}
+                </Select>
+              </Box>
+
               {/* Search Input */}
-              <Box flex={{ base: '1', md: '1 1 300px' }} w={{ base: 'full', md: 'auto' }}>
+              <Box flex={{ base: '1', md: '1 1 300px' }}>
+                <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                  Search Leads
+                </Text>
                 <Input
                   placeholder="Search name, phone or email"
                   value={searchQuery}
@@ -334,247 +446,294 @@ export default function DSRPage() {
                   borderColor={THEME_COLORS.light}
                   _hover={{ borderColor: THEME_COLORS.primary }}
                   _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                  fontSize={{ base: 'sm', md: 'md' }}
                 />
               </Box>
-
-              {/* Date Range Preset Dropdown */}
-              <Select
-                value={tempDateRangePreset}
-                onChange={(e) => handleDateRangePresetChange(e.target.value)}
-                borderColor={THEME_COLORS.light}
-                _hover={{ borderColor: THEME_COLORS.primary }}
-                _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                size={{ base: 'md', md: 'md' }}
-                w={{ base: 'full', md: 'auto' }}
-                maxW={{ base: 'full', md: '180px' }}
-                fontSize={{ base: 'sm', md: 'md' }}
-              >
-                <option value="all_time">All Time</option>
-                <option value="today">Today</option>
-                <option value="last_week">Last Week</option>
-                <option value="last_month">Last Month</option>
-                <option value="custom">Custom</option>
-              </Select>
-
-              {/* Agent Selector */}
-              <Select
-                value={tempSelectedAgentId}
-                onChange={(e) => setTempSelectedAgentId(e.target.value)}
-                borderColor={THEME_COLORS.light}
-                _hover={{ borderColor: THEME_COLORS.primary }}
-                _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                size={{ base: 'md', md: 'md' }}
-                w={{ base: 'full', md: 'auto' }}
-                maxW={{ base: 'full', md: '200px' }}
-                fontSize={{ base: 'sm', md: 'md' }}
-              >
-                <option value="all">All Agents</option>
-                {agents.map(agent => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name || agent.email}
-                  </option>
-                ))}
-              </Select>
-
-              {/* Action Buttons */}
-              <HStack spacing={2} w={{ base: 'full', md: 'auto' }}>
-                <Button
-                  bg={THEME_COLORS.primary}
-                  color="white"
-                  leftIcon={<HiFilter />}
-                  onClick={handleApplyFilters}
-                  size={{ base: 'md', md: 'md' }}
-                  _hover={{ bg: THEME_COLORS.medium }}
-                  _active={{ bg: THEME_COLORS.dark }}
-                  flex="1"
-                  isLoading={loading}
-                  fontSize={{ base: 'sm', md: 'md' }}
-                >
-                  Apply
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleResetFilters}
-                  borderColor={THEME_COLORS.light}
-                  color={THEME_COLORS.medium}
-                  size={{ base: 'md', md: 'md' }}
-                  _hover={{ bg: THEME_COLORS.light, color: 'white' }}
-                  flex="1"
-                  fontSize={{ base: 'sm', md: 'md' }}
-                >
-                  Reset
-                </Button>
-              </HStack>
             </Flex>
 
-            {/* Conditional Date Inputs - Only show when Custom is selected */}
-            {tempDateRangePreset === 'custom' && (
-              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
-                <Box>
-                  <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
-                    Start Date
-                  </Text>
-                  <Input
-                    type="date"
-                    value={tempStartDate}
-                    onChange={(e) => setTempStartDate(e.target.value)}
-                    max={tempEndDate}
-                    borderColor={THEME_COLORS.light}
-                    _hover={{ borderColor: THEME_COLORS.primary }}
-                    _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                    size={{ base: 'sm', md: 'md' }}
-                  />
-                </Box>
-
-                <Box>
-                  <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
-                    End Date
-                  </Text>
-                  <Input
-                    type="date"
-                    value={tempEndDate}
-                    onChange={(e) => setTempEndDate(e.target.value)}
-                    min={tempStartDate}
-                    borderColor={THEME_COLORS.light}
-                    _hover={{ borderColor: THEME_COLORS.primary }}
-                    _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                    size={{ base: 'sm', md: 'md' }}
-                  />
-                </Box>
-              </SimpleGrid>
-            )}
-
             {/* Active Filters Info */}
-            {(isFiltered || searchQuery) && (
-              <Box>
-                <Divider my={2} borderColor={THEME_COLORS.light} />
-                <Text fontSize={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.medium}>
-                  {startDate && endDate ? (
-                    <>
-                      Showing results from <strong>{formatDate(new Date(startDate))}</strong> to{' '}
-                      <strong>{formatDate(new Date(endDate))}</strong>
-                    </>
-                  ) : (
-                    <>Showing <strong>today's</strong> results</>
-                  )}
-                  {selectedAgentId !== 'all' && agents.find(a => a.id === selectedAgentId) && (
-                    <> for agent <strong>{agents.find(a => a.id === selectedAgentId)?.name}</strong></>
-                  )}
-                  {searchQuery && (
-                    <> matching search <strong>"{searchQuery}"</strong></>
-                  )}
-                </Text>
-              </Box>
-            )}
+            <Box>
+              <Divider my={2} borderColor={THEME_COLORS.light} />
+              <Text fontSize={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.medium}>
+                Showing results for <strong>{formatDate(new Date(selectedDate))}</strong>
+                {selectedAgentId !== 'all' && agents.find(a => a.id === selectedAgentId) && (
+                  <> • Agent: <strong>{agents.find(a => a.id === selectedAgentId)?.name}</strong></>
+                )}
+                {searchQuery && (
+                  <> • Search: <strong>"{searchQuery}"</strong></>
+                )}
+              </Text>
+            </Box>
           </VStack>
         </CardBody>
       </Card>
 
-      {/* Stats Grid - Clickable DSR Cards */}
+      {/* KPI Cards - All metrics for selected date */}
       {stats && (
-        <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
+        <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
           {/* New Leads Card */}
-          <DSRCard
-            label="New Leads Handled"
-            value={stats.newLeadsHandledToday}
-            total={stats.totalNewLeads}
-            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Today / Total NEW' : 'In range / Total NEW'}
-            icon={HiUserAdd}
-            colorScheme="primary"
-            type="newLeads"
-            onClick={handleCardClick}
-            isActive={activeCard === 'newLeads'}
-          />
+          <Tooltip label={`${stats.newLeadsHandled} leads had their first call on ${formatDate(new Date(selectedDate))}`} placement="top">
+            <Box>
+              <Card
+                cursor="pointer"
+                onClick={() => handleCardClick('newLeads')}
+                boxShadow={activeCard === 'newLeads' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
+                borderTop="4px"
+                borderColor={THEME_COLORS.primary}
+                bg={activeCard === 'newLeads' ? `${THEME_COLORS.primary}10` : 'white'}
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiUserAdd} boxSize={6} color={THEME_COLORS.primary} />
+                    <Badge colorScheme={activeCard === 'newLeads' ? 'green' : 'gray'} fontSize="xs">
+                      {activeCard === 'newLeads' ? 'Active' : 'Click to filter'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    New Leads
+                  </Text>
+                  <Heading size="lg" color={THEME_COLORS.dark}>
+                    {stats.newLeadsHandled} / {stats.totalNewLeads}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    First calls / New leads created
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
 
           {/* Follow-ups Card */}
-          <DSRCard
-            label="Follow-ups Handled"
-            value={stats.followUpsHandledToday}
-            total={stats.totalFollowUps}
-            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Today / Pending' : 'In range / Pending'}
-            icon={HiClipboardList}
-            colorScheme="medium"
-            type="followUps"
-            onClick={handleCardClick}
-            isActive={activeCard === 'followUps'}
-          />
+          <Tooltip label={`${stats.followUpsHandled} follow-up calls made on ${formatDate(new Date(selectedDate))}`} placement="top">
+            <Box>
+              <Card
+                cursor="pointer"
+                onClick={() => handleCardClick('followUps')}
+                boxShadow={activeCard === 'followUps' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
+                borderTop="4px"
+                borderColor={THEME_COLORS.medium}
+                bg={activeCard === 'followUps' ? `${THEME_COLORS.medium}10` : 'white'}
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiClipboardList} boxSize={6} color={THEME_COLORS.medium} />
+                    <Badge colorScheme={activeCard === 'followUps' ? 'blue' : 'gray'} fontSize="xs">
+                      {activeCard === 'followUps' ? 'Active' : 'Click to filter'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    Follow-ups
+                  </Text>
+                  <Heading size="lg" color={THEME_COLORS.dark}>
+                    {stats.followUpsHandled} / {stats.totalFollowUps}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    Follow-up calls / Total due
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
 
           {/* Total Calls Card */}
-          <DSRCard
-            label="Total Calls"
-            value={stats.totalCalls}
-            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Calls made today' : 'Calls in range'}
-            icon={HiPhone}
-            colorScheme="accent"
-            type="totalCalls"
-            onClick={handleCardClick}
-            isActive={activeCard === 'totalCalls'}
-          />
+          <Tooltip label={`${stats.totalCalls} calls made on ${formatDate(new Date(selectedDate))}`} placement="top">
+            <Box>
+              <Card
+                boxShadow="md"
+                borderTop="4px"
+                borderColor={THEME_COLORS.accent}
+                bg="white"
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiPhone} boxSize={6} color={THEME_COLORS.accent} />
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    Total Calls
+                  </Text>
+                  <Heading size="lg" color={THEME_COLORS.dark}>
+                    {stats.totalCalls}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    Calls made on selected date
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
 
-          {/* Overdue Follow-ups Card */}
-          <DSRCard
-            label="Overdue Follow-ups"
-            value={stats.overdueFollowUps || 0}
-            helpText="Needs immediate attention"
-            icon={HiClock}
-            colorScheme="dark"
-            type="overdue"
-            onClick={handleCardClick}
-            isActive={activeCard === 'overdue'}
-          />
+          {/* Overdue Card */}
+          <Tooltip label={`${stats.overdueFollowUps} overdue follow-ups`} placement="top">
+            <Box>
+              <Card
+                cursor="pointer"
+                onClick={() => handleCardClick('overdue')}
+                boxShadow={activeCard === 'overdue' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
+                borderTop="4px"
+                borderColor="red.500"
+                bg={activeCard === 'overdue' ? 'red.50' : 'white'}
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiClock} boxSize={6} color="red.500" />
+                    <Badge colorScheme="red" fontSize="xs">
+                      {activeCard === 'overdue' ? 'Active' : 'Click to filter'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    Overdue
+                  </Text>
+                  <Heading size="lg" color="red.600">
+                    {stats.overdueFollowUps}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    Overdue follow-ups
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
 
           {/* Unqualified Card */}
-          <DSRCard
-            label="Unqualified"
-            value={stats.unqualifiedToday}
-            total={stats.totalUnqualified}
-            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Changed today / Total' : 'In range / Total'}
-            icon={HiBan}
-            colorScheme="accent"
-            type="unqualified"
-            onClick={handleCardClick}
-            isActive={activeCard === 'unqualified'}
-          />
+          <Tooltip label={`${stats.unqualified} leads marked unqualified`} placement="top">
+            <Box>
+              <Card
+                cursor="pointer"
+                onClick={() => handleCardClick('unqualified')}
+                boxShadow={activeCard === 'unqualified' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
+                borderTop="4px"
+                borderColor="orange.500"
+                bg={activeCard === 'unqualified' ? 'orange.50' : 'white'}
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiBan} boxSize={6} color="orange.500" />
+                    <Badge colorScheme="orange" fontSize="xs">
+                      {activeCard === 'unqualified' ? 'Active' : 'Click to filter'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    Unqualified
+                  </Text>
+                  <Heading size="lg" color={THEME_COLORS.dark}>
+                    {stats.unqualified}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    Marked on selected date
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
 
           {/* Unreachable Card */}
-          <DSRCard
-            label="Unreachable"
-            value={stats.unreachableToday}
-            total={stats.totalUnreachable}
-            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Changed today / Total' : 'In range / Total'}
-            icon={HiExclamation}
-            colorScheme="dark"
-            type="unreachable"
-            onClick={handleCardClick}
-            isActive={activeCard === 'unreachable'}
-          />
+          <Tooltip label={`${stats.unreachable} leads marked unreachable`} placement="top">
+            <Box>
+              <Card
+                cursor="pointer"
+                onClick={() => handleCardClick('unreachable')}
+                boxShadow={activeCard === 'unreachable' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
+                borderTop="4px"
+                borderColor="gray.500"
+                bg={activeCard === 'unreachable' ? 'gray.50' : 'white'}
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiExclamation} boxSize={6} color="gray.500" />
+                    <Badge colorScheme="gray" fontSize="xs">
+                      {activeCard === 'unreachable' ? 'Active' : 'Click to filter'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    Unreachable
+                  </Text>
+                  <Heading size="lg" color={THEME_COLORS.dark}>
+                    {stats.unreachable}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    Marked on selected date
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
 
-          {/* Won Deals Card */}
-          <DSRCard
-            label="Won Deals"
-            value={stats.wonToday}
-            total={stats.totalWon}
-            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Closed today / Total' : 'In range / Total'}
-            icon={HiCheckCircle}
-            colorScheme="primary"
-            type="win"
-            onClick={handleCardClick}
-            isActive={activeCard === 'win'}
-          />
+          {/* Won Card */}
+          <Tooltip label={`${stats.won} leads marked won`} placement="top">
+            <Box>
+              <Card
+                cursor="pointer"
+                onClick={() => handleCardClick('won')}
+                boxShadow={activeCard === 'won' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
+                borderTop="4px"
+                borderColor="green.500"
+                bg={activeCard === 'won' ? 'green.50' : 'white'}
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiCheckCircle} boxSize={6} color="green.500" />
+                    <Badge colorScheme="green" fontSize="xs">
+                      {activeCard === 'won' ? 'Active' : 'Click to filter'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    Won
+                  </Text>
+                  <Heading size="lg" color="green.600">
+                    {stats.won}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    Closed on selected date
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
 
-          {/* Lost Deals Card */}
-          <DSRCard
-            label="Lost Deals"
-            value={stats.lostToday}
-            total={stats.totalLost}
-            helpText={dateRangePreset === 'all_time' || (!startDate && !endDate) ? 'Lost today / Total' : 'In range / Total'}
-            icon={HiXCircle}
-            colorScheme="medium"
-            type="lose"
-            onClick={handleCardClick}
-            isActive={activeCard === 'lose'}
-          />
+          {/* Lost Card */}
+          <Tooltip label={`${stats.lost} leads marked lost`} placement="top">
+            <Box>
+              <Card
+                cursor="pointer"
+                onClick={() => handleCardClick('lost')}
+                boxShadow={activeCard === 'lost' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
+                borderTop="4px"
+                borderColor="red.500"
+                bg={activeCard === 'lost' ? 'red.50' : 'white'}
+              >
+                <CardBody>
+                  <HStack justify="space-between" mb={2}>
+                    <Icon as={HiXCircle} boxSize={6} color="red.500" />
+                    <Badge colorScheme="red" fontSize="xs">
+                      {activeCard === 'lost' ? 'Active' : 'Click to filter'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                    Lost
+                  </Text>
+                  <Heading size="lg" color={THEME_COLORS.dark}>
+                    {stats.lost}
+                  </Heading>
+                  <Text fontSize="xs" color="gray.600" mt={2}>
+                    Lost on selected date
+                  </Text>
+                </CardBody>
+              </Card>
+            </Box>
+          </Tooltip>
         </SimpleGrid>
       )}
 
@@ -584,7 +743,16 @@ export default function DSRPage() {
           <Box p={{ base: 3, md: 4 }} bg={THEME_COLORS.light} bgGradient={`linear(to-r, ${THEME_COLORS.light}, ${THEME_COLORS.accent})`} borderTopRadius="lg">
             <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap={2}>
               <Heading size={{ base: 'sm', md: 'md' }} color="white" textAlign={{ base: 'center', sm: 'left' }}>
-                {activeCard ? `Filtered by ${activeCard}` : 'All Filtered Leads'}
+                {activeCard ? (
+                  activeCard === 'newLeads' ? 'New Leads' :
+                  activeCard === 'followUps' ? 'Follow-ups' :
+                  activeCard === 'overdue' ? 'Overdue Follow-ups' :
+                  activeCard === 'unqualified' ? 'Unqualified Leads' :
+                  activeCard === 'unreachable' ? 'Unreachable Leads' :
+                  activeCard === 'won' ? 'Won Deals' :
+                  activeCard === 'lost' ? 'Lost Deals' :
+                  'Filtered Leads'
+                ) : 'All Filtered Leads'}
               </Heading>
               <Badge 
                 bg="white" 
@@ -598,7 +766,7 @@ export default function DSRPage() {
             </Flex>
             {activeCard && (
               <Text fontSize={{ base: 'xs', md: 'sm' }} color="white" mt={2}>
-                Click the card again to view all leads
+                Click the card again to clear filter and view all leads
               </Text>
             )}
           </Box>
@@ -718,7 +886,7 @@ export default function DSRPage() {
               </Badge>
             </Flex>
             <Text fontSize={{ base: 'xs', md: 'sm' }} color="white" mt={2}>
-              Performance metrics for the selected date range and agent filter
+              Performance metrics for {formatDate(new Date(selectedDate))}
             </Text>
           </Box>
 
@@ -743,68 +911,69 @@ export default function DSRPage() {
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead bg="gray.50">
                 <Tr>
-                  <Th color={THEME_COLORS.dark}>Date</Th>
-                  <Th color={THEME_COLORS.dark}>Agent</Th>
-                  <Th color={THEME_COLORS.dark}>Calls Made</Th>
-                  <Th color={THEME_COLORS.dark}>Leads Generated</Th>
-                  <Th color={THEME_COLORS.dark}>Conversions</Th>
-                  <Th color={THEME_COLORS.dark}>Status/Remarks</Th>
+                  <Th color={THEME_COLORS.dark}>Agent Name</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>New Leads</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>Follow-ups</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>Total Calls</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>Won</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>Lost</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>Unreachable</Th>
+                  <Th color={THEME_COLORS.dark} isNumeric>Overdue</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {agentPerformanceData.length > 0 ? (
-                  agentPerformanceData.map((row, index) => (
+                  agentPerformanceData.map((row) => (
                     <Tr 
-                      key={`${row.agentId}-${index}`} 
+                      key={row.agentId} 
                       _hover={{ bg: `${THEME_COLORS.light}20` }}
                       transition="all 0.2s"
                     >
-                      <Td fontWeight="medium" fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
-                        {formatDate(new Date(row.date))}
-                      </Td>
                       <Td color={THEME_COLORS.primary} fontWeight="semibold" fontSize={{ base: 'xs', md: 'sm' }}>
                         {row.agentName}
                       </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }}>
-                        <Badge bg={THEME_COLORS.accent} color="white">
-                          {row.callsMade}
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg={THEME_COLORS.primary} color="white">
+                          {row.newLeads}
                         </Badge>
                       </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }}>
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
                         <Badge bg={THEME_COLORS.medium} color="white">
-                          {row.leadsGenerated}
+                          {row.followUps}
                         </Badge>
                       </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }}>
-                        <Badge 
-                          bg={row.conversions > 2 ? THEME_COLORS.accent : row.conversions > 0 ? THEME_COLORS.primary : THEME_COLORS.light}
-                          color="white"
-                          fontWeight="bold"
-                        >
-                          {row.conversions}
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg={THEME_COLORS.accent} color="white">
+                          {row.totalCalls}
                         </Badge>
                       </Td>
-                      <Td>
-                        <Badge
-                          bg={
-                            row.status === 'Excellent' ? THEME_COLORS.accent :
-                            row.status === 'Good' ? THEME_COLORS.primary :
-                            row.status === 'Active' ? THEME_COLORS.medium :
-                            THEME_COLORS.light
-                          }
-                          color="white"
-                          fontSize={{ base: 'xs', md: 'sm' }}
-                        >
-                          {row.status}
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg="green.500" color="white" fontWeight="bold">
+                          {row.won}
+                        </Badge>
+                      </Td>
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg="red.500" color="white">
+                          {row.lost}
+                        </Badge>
+                      </Td>
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg="gray.500" color="white">
+                          {row.unreachable}
+                        </Badge>
+                      </Td>
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg={row.overdue > 0 ? "red.500" : "gray.300"} color="white">
+                          {row.overdue}
                         </Badge>
                       </Td>
                     </Tr>
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={6} textAlign="center" py={8}>
+                    <Td colSpan={8} textAlign="center" py={8}>
                       <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
-                        No agent performance data available for the selected filters
+                        No agent performance data available for the selected date
                       </Text>
                     </Td>
                   </Tr>

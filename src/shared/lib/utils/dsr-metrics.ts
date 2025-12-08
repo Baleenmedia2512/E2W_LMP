@@ -1,6 +1,16 @@
 /**
  * DSR (Daily Sales Report) Metrics Calculation Service
- * Production-ready service for calculating all DSR metrics with proper timezone handling
+ * 
+ * Production-ready service that calculates DSR metrics for a SELECTED DATE.
+ * All metrics are calculated for the selected date only, not for "today" vs "range".
+ * 
+ * When a user selects a date:
+ * - All KPIs show metrics for THAT DATE ONLY
+ * - New Leads: Leads where first call was made on selected date / Total new leads created on selected date
+ * - Follow-ups: Leads with 2nd+ call on selected date / Total follow-ups due on selected date
+ * - And so on...
+ * 
+ * Default date is TODAY, but all calculations are date-specific.
  */
 
 import { isToday, getStartOfToday, getEndOfToday, isPast, DEFAULT_TIMEZONE } from './timezone';
@@ -25,6 +35,8 @@ export interface DSRMetricsInput {
     id: string;
     leadId: string;
     createdAt: Date | string;
+    attemptNumber: number;
+    callStatus?: string | null;
   }>;
   agentId?: string | null;
   timezone?: string;
@@ -35,14 +47,14 @@ export interface DSRMetricsInput {
 }
 
 export interface DSRMetricsResult {
-  newLeads: { today: number; total: number };
-  followups: { today: number; total: number };
-  calls: { today: number };
+  newLeads: { handled: number; total: number };
+  followups: { handled: number; total: number };
+  calls: { total: number };
   overdueFollowups: { total: number };
-  unqualified: { today: number; total: number };
-  unreachable: { today: number; total: number };
-  won: { today: number; total: number };
-  lost: { today: number; total: number };
+  unqualified: { total: number };
+  unreachable: { total: number };
+  won: { total: number };
+  lost: { total: number };
 }
 
 // ==================== Helper Functions ====================
@@ -193,6 +205,192 @@ function getCallsToday(
 }
 
 /**
+ * A. New Leads Handled Today
+ * Count of leads whose first call (attemptNumber = 1) happened today/in date range
+ */
+function getNewLeadsHandledToday(
+  calls: DSRMetricsInput['calls'],
+  timezone: string = DEFAULT_TIMEZONE,
+  dateRange?: { startDate?: Date | string; endDate?: Date | string }
+): number {
+  // Get unique leads that had their first call today/in range
+  const firstCallLeads = new Set<string>();
+  
+  calls.forEach(call => {
+    // Check if this is a first call (attemptNumber = 1)
+    if (call.attemptNumber === 1) {
+      // Check if call was made today or in date range
+      const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
+      
+      if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
+        // No date range - use today
+        if (isToday(call.createdAt, timezone)) {
+          firstCallLeads.add(call.leadId);
+        }
+      } else {
+        // Date range specified
+        const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
+        const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
+        
+        if (start) start.setHours(0, 0, 0, 0);
+        if (end) end.setHours(23, 59, 59, 999);
+        
+        let inRange = false;
+        if (start && end) inRange = callDate >= start && callDate <= end;
+        else if (start) inRange = callDate >= start;
+        else if (end) inRange = callDate <= end;
+        
+        if (inRange) {
+          firstCallLeads.add(call.leadId);
+        }
+      }
+    }
+  });
+  
+  return firstCallLeads.size;
+}
+
+/**
+ * B. Follow-ups Handled Today
+ * Count of calls that are NOT first calls (attemptNumber > 1) and were made today/in date range
+ */
+function getFollowUpCallsToday(
+  calls: DSRMetricsInput['calls'],
+  timezone: string = DEFAULT_TIMEZONE,
+  dateRange?: { startDate?: Date | string; endDate?: Date | string }
+): number {
+  return calls.filter(call => {
+    // Must not be a first call
+    if (call.attemptNumber === 1) return false;
+    
+    const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
+    
+    if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
+      // No date range - use today
+      return isToday(call.createdAt, timezone);
+    }
+    
+    // Date range specified
+    const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
+    const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
+    
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(23, 59, 59, 999);
+    
+    if (start && end) return callDate >= start && callDate <= end;
+    if (start) return callDate >= start;
+    if (end) return callDate <= end;
+    return false;
+  }).length;
+}
+
+/**
+ * D. Overdue Follow-ups Handled Today
+ * Count of calls today where the scheduled follow-up date < today and call is not the first call
+ */
+function getOverdueFollowupsHandledToday(
+  calls: DSRMetricsInput['calls'],
+  followups: DSRMetricsInput['followups'],
+  timezone: string = DEFAULT_TIMEZONE,
+  dateRange?: { startDate?: Date | string; endDate?: Date | string }
+): number {
+  // Build a map of leadId -> most recent scheduled follow-up date before the call
+  const leadFollowupMap = new Map<string, Date>();
+  
+  followups.forEach(followup => {
+    const scheduledDate = typeof followup.scheduledAt === 'string' 
+      ? new Date(followup.scheduledAt) 
+      : followup.scheduledAt;
+    
+    const existing = leadFollowupMap.get(followup.leadId);
+    if (!existing || scheduledDate > existing) {
+      leadFollowupMap.set(followup.leadId, scheduledDate);
+    }
+  });
+  
+  // Count calls today that are NOT first calls and had an overdue follow-up
+  return calls.filter(call => {
+    // Must not be a first call
+    if (call.attemptNumber === 1) return false;
+    
+    const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
+    
+    // Check if call was made today or in date range
+    let inDateRange = false;
+    if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
+      inDateRange = isToday(call.createdAt, timezone);
+    } else {
+      const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
+      const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
+      
+      if (start) start.setHours(0, 0, 0, 0);
+      if (end) end.setHours(23, 59, 59, 999);
+      
+      if (start && end) inDateRange = callDate >= start && callDate <= end;
+      else if (start) inDateRange = callDate >= start;
+      else if (end) inDateRange = callDate <= end;
+    }
+    
+    if (!inDateRange) return false;
+    
+    // Check if there was a scheduled follow-up for this lead that was overdue
+    const scheduledFollowup = leadFollowupMap.get(call.leadId);
+    if (!scheduledFollowup) return false;
+    
+    // Follow-up is overdue if scheduled date < call date
+    return scheduledFollowup < callDate;
+  }).length;
+}
+
+/**
+ * F. Unreachable Leads Handled Today
+ * Count of distinct leads called today where call outcome is "Unreachable" or "No Answer" 
+ * (excluding first calls)
+ */
+function getUnreachableLeadsToday(
+  calls: DSRMetricsInput['calls'],
+  timezone: string = DEFAULT_TIMEZONE,
+  dateRange?: { startDate?: Date | string; endDate?: Date | string }
+): number {
+  const unreachableLeads = new Set<string>();
+  
+  calls.forEach(call => {
+    // Exclude first calls
+    if (call.attemptNumber === 1) return;
+    
+    // Check if call status indicates unreachable
+    const status = call.callStatus?.toLowerCase() || '';
+    if (!status.includes('unreachable') && !status.includes('no answer') && status !== 'no_answer') {
+      return;
+    }
+    
+    const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
+    
+    // Check if call was made today or in date range
+    let inDateRange = false;
+    if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
+      inDateRange = isToday(call.createdAt, timezone);
+    } else {
+      const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
+      const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
+      
+      if (start) start.setHours(0, 0, 0, 0);
+      if (end) end.setHours(23, 59, 59, 999);
+      
+      if (start && end) inDateRange = callDate >= start && callDate <= end;
+      else if (start) inDateRange = callDate >= start;
+      else if (end) inDateRange = callDate <= end;
+    }
+    
+    if (inDateRange) {
+      unreachableLeads.add(call.leadId);
+    }
+  });
+  
+  return unreachableLeads.size;
+}
+
+/**
  * Get count of leads created today or in date range
  */
 function getNewLeadsToday(
@@ -224,17 +422,17 @@ function getNewLeadsToday(
 // ==================== Main Calculation Function ====================
 
 /**
- * Calculate all DSR metrics based on the requirements
+ * Calculate all DSR metrics based on the requirements for a SELECTED DATE
  * 
- * Metrics calculated:
- * 1. New Leads Handled: today count / total count
- * 2. Follow-ups Handled: today count / total count
- * 3. Total Calls: today count only
- * 4. Overdue Follow-ups: total count only
- * 5. Unqualified Today: today count / total count
- * 6. Unreachable Today: today count / total count
- * 7. Won Deals Today: today count / total count
- * 8. Lost Deals Today: today count / total count
+ * All metrics are calculated for the selected date only:
+ * - New Leads: First calls made on selected date / New leads created on selected date
+ * - Follow-ups: Follow-up calls made on selected date / Total follow-ups due on selected date
+ * - Total Calls: Calls made on selected date
+ * - Overdue: Follow-ups that were overdue by selected date and not completed
+ * - Unqualified: Leads marked unqualified on selected date
+ * - Unreachable: Leads marked unreachable on selected date
+ * - Won: Leads marked won on selected date
+ * - Lost: Leads marked lost on selected date
  */
 export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   const timezone = input.timezone || DEFAULT_TIMEZONE;
@@ -252,65 +450,58 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     calls = calls.filter(c => leadIds.has(c.leadId));
   }
   
-  // 1. New Leads Handled
-  const newLeadsToday = getNewLeadsToday(leads, timezone, dateRange);
-  const totalNewLeads = getTotalByStatus(leads, 'new');
+  // All calculations are for the selected date (dateRange) ONLY
+  // New Leads: First calls made on selected date / New leads created on selected date
+  const newLeadsHandled = getNewLeadsHandledToday(calls, timezone, dateRange);
+  const totalNewLeadsCreated = getNewLeadsToday(leads, timezone, dateRange);
   
-  // 2. Follow-ups Handled
-  const followupsToday = getFollowupsToday(followups, timezone, dateRange);
-  const totalPendingFollowups = getPendingFollowups(followups, timezone);
+  // Follow-ups: Follow-up calls made on selected date / Total follow-ups in range
+  const followupsHandled = getFollowUpCallsToday(calls, timezone, dateRange);
+  const totalFollowupsDue = getFollowupsToday(followups, timezone, dateRange);
   
-  // 3. Total Calls (today or in range)
-  const callsToday = getCallsToday(calls, timezone, dateRange);
+  // Total Calls: Calls made on selected date
+  const totalCalls = getCallsToday(calls, timezone, dateRange);
   
-  // 4. Overdue Follow-ups (total only)
-  const totalOverdueFollowups = getOverdueFollowups(followups, timezone);
+  // Overdue: Follow-ups that were overdue by selected date
+  const totalOverdue = getOverdueFollowups(followups, timezone);
   
-  // 5. Unqualified Today (or in range)
-  const unqualifiedToday = getStatusChangeToday(leads, 'unqualified', timezone, dateRange);
-  const totalUnqualified = getTotalByStatus(leads, 'unqualified');
+  // Unqualified: Leads marked unqualified on selected date
+  const totalUnqualified = getStatusChangeToday(leads, 'unqualified', timezone, dateRange);
   
-  // 6. Unreachable Today (or in range)
-  const unreachableToday = getStatusChangeToday(leads, 'unreach', timezone, dateRange);
-  const totalUnreachable = getTotalByStatus(leads, 'unreach');
+  // Unreachable: Leads marked unreachable on selected date
+  const totalUnreachable = getStatusChangeToday(leads, 'unreach', timezone, dateRange);
   
-  // 7. Won Deals Today (or in range)
-  const wonToday = getStatusChangeToday(leads, 'won', timezone, dateRange);
-  const totalWon = getTotalByStatus(leads, 'won');
+  // Won: Leads marked won on selected date
+  const totalWon = getStatusChangeToday(leads, 'won', timezone, dateRange);
   
-  // 8. Lost Deals Today (or in range)
-  const lostToday = getStatusChangeToday(leads, 'lost', timezone, dateRange);
-  const totalLost = getTotalByStatus(leads, 'lost');
+  // Lost: Leads marked lost on selected date
+  const totalLost = getStatusChangeToday(leads, 'lost', timezone, dateRange);
   
   return {
     newLeads: { 
-      today: newLeadsToday, 
-      total: totalNewLeads 
+      handled: newLeadsHandled, 
+      total: totalNewLeadsCreated 
     },
     followups: { 
-      today: followupsToday, 
-      total: totalPendingFollowups 
+      handled: followupsHandled, 
+      total: totalFollowupsDue 
     },
     calls: { 
-      today: callsToday 
+      total: totalCalls 
     },
     overdueFollowups: { 
-      total: totalOverdueFollowups 
+      total: totalOverdue 
     },
     unqualified: { 
-      today: unqualifiedToday, 
       total: totalUnqualified 
     },
     unreachable: { 
-      today: unreachableToday, 
       total: totalUnreachable 
     },
     won: { 
-      today: wonToday, 
       total: totalWon 
     },
     lost: { 
-      today: lostToday, 
       total: totalLost 
     }
   };
@@ -327,4 +518,8 @@ export {
   getOverdueFollowups,
   getCallsToday,
   getNewLeadsToday,
+  getNewLeadsHandledToday,
+  getFollowUpCallsToday,
+  getOverdueFollowupsHandledToday,
+  getUnreachableLeadsToday,
 };

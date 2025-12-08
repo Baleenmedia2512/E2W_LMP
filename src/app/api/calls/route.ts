@@ -32,9 +32,18 @@ export async function GET(request: NextRequest) {
       prisma.callLog.count({ where }),
     ]);
 
+    // Map the data to match frontend expectations (lead and caller instead of Lead and User)
+    const formattedCallLogs = callLogs.map(log => ({
+      ...log,
+      lead: log.Lead,
+      caller: log.User,
+      Lead: undefined,
+      User: undefined,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: callLogs,
+      data: formattedCallLogs,
       total,
       page,
       pageSize: limit,
