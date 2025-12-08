@@ -25,7 +25,7 @@ import {
 import { useEffect } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/swr';
-import { format } from 'date-fns';
+import { formatDate, formatTime, formatDateTime } from '@/shared/lib/date-utils';
 
 interface CallAttempt {
   id: string;
@@ -146,7 +146,7 @@ export default function CallAttemptsModal({
                   Total Attempts: <strong>{attempts.length}</strong>
                 </Text>
                 <Badge colorScheme="blue">
-                  Latest: {format(new Date(attempts[attempts.length - 1]?.startedAt || new Date()), 'dd-MMM-yy hh:mm a')}
+                  Latest: {attempts.length > 0 ? formatDateTime(attempts[attempts.length - 1].startedAt) : 'N/A'}
                 </Badge>
               </HStack>
 
@@ -177,10 +177,10 @@ export default function CallAttemptsModal({
                           )}
                         </Td>
                         <Td fontSize="sm">
-                          {format(new Date(attempt.startedAt), 'dd-MMM-yy')}
+                          {formatDate(attempt.startedAt)}
                           <br />
                           <Text as="span" color="gray.600" fontSize="xs">
-                            {format(new Date(attempt.startedAt), 'hh:mm:ss a')}
+                            {formatTime(attempt.startedAt)}
                           </Text>
                         </Td>
                         <Td>{formatDuration(attempt.duration)}</Td>
