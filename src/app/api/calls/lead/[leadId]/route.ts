@@ -28,7 +28,7 @@ export async function GET(
     }
 
     // Get all call attempts/logs for this lead
-    const attempts = await prisma.callLog.findMany({
+    const callLogs = await prisma.callLog.findMany({
       where: { leadId },
       include: {
         User: {
@@ -43,8 +43,26 @@ export async function GET(
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
+
+    // Transform the data to match component expectations
+    const attempts = callLogs.map((log, index) => ({
+      id: log.id,
+      attemptNumber: index + 1,
+      startedAt: log.createdAt.toISOString(),
+      endedAt: log.createdAt.toISOString(),
+      duration: log.duration,
+      callStatus: log.callStatus,
+      remarks: log.remarks || log.customerRequirement,
+      caller: {
+        name: log.User.name,
+        email: log.User.email,
+        role: {
+          name: log.User.Role?.name || 'Unknown',
+        },
+      },
+    }));
 
     return NextResponse.json({
       success: true,

@@ -173,9 +173,9 @@ export default function CallsPage() {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(g =>
-        g.leadName.toLowerCase().includes(query) ||
-        g.leadPhone.toLowerCase().includes(query) ||
-        g.latestCall.caller.name.toLowerCase().includes(query)
+        g.leadName?.toLowerCase().includes(query) ||
+        g.leadPhone?.toLowerCase().includes(query) ||
+        g.latestCall?.caller?.name?.toLowerCase().includes(query)
       );
     }
 
@@ -183,6 +183,7 @@ export default function CallsPage() {
   }, [groupedCalls, statusFilter, searchQuery, dateFilter]);
 
   const getCallStatusColor = (status: string) => {
+    if (!status) return 'gray';
     switch (status?.toLowerCase()) {
       case 'answer':
         return 'green';
