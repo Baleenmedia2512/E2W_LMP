@@ -5,7 +5,8 @@ import {
   notifyLeadAssigned, 
   notifyDealWon, 
   notifyLeadUnreachable, 
-  notifyLeadUnqualified 
+  notifyLeadUnqualified,
+  notifyLeadFollowUpStageChange
 } from '@/shared/lib/utils/notification-service';
 import { randomUUID } from 'crypto';
 
@@ -167,6 +168,25 @@ export async function PUT(
           } else if (body.status === 'unqualified') {
             notificationPromises.push(
               notifyLeadUnqualified(params.id, lead.name, assignedToId)
+            );
+          }
+
+          // Check for follow-up related stage changes
+          const followupRelatedStatuses = ['new', 'followup', 'qualified', 'won', 'lost', 'unqualified', 'unreach'];
+          const oldStatusInFollowupFlow = followupRelatedStatuses.includes(oldLead.status);
+          const newStatusInFollowupFlow = followupRelatedStatuses.includes(body.status);
+
+          if (oldStatusInFollowupFlow && newStatusInFollowupFlow && 
+              (oldLead.status === 'followup' || body.status === 'followup' || 
+               oldLead.status === 'new' && body.status === 'followup')) {
+            notificationPromises.push(
+              notifyLeadFollowUpStageChange(
+                params.id,
+                lead.name,
+                assignedToId,
+                oldLead.status,
+                body.status
+              )
             );
           }
         }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 import prisma from '@/shared/lib/db/prisma';
+import { notifyFollowUpOverdue, notifyFollowUpStatusChange } from '@/shared/lib/utils/notification-service';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,8 +12,9 @@ import { randomUUID } from 'crypto';
  * 
  * This job:
  * 1. Finds all pending follow-ups that are now overdue
- * 2. Creates notifications for assigned agents
- * 3. Marks follow-ups to prevent duplicate notifications
+ * 2. Updates their status to 'overdue'
+ * 3. Creates notifications for assigned agents
+ * 4. Marks follow-ups to prevent duplicate notifications
  */
 export async function GET(request: NextRequest) {
   try {
@@ -28,14 +30,12 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-    // Find follow-ups that became overdue in the last hour
-    // This prevents sending duplicate notifications on every run
-    const overdueFollowUps = await prisma.followUp.findMany({
+    // Find follow-ups that are pending and overdue (scheduled time has passed)
+    const pendingOverdueFollowUps = await prisma.followUp.findMany({
       where: {
+        status: 'pending',
         scheduledAt: {
-          gte: oneHourAgo,
           lt: now,
         },
       },
@@ -46,67 +46,94 @@ export async function GET(request: NextRequest) {
             name: true,
             phone: true,
             assignedToId: true,
+            priority: true,
           },
         },
       },
     });
 
-    console.log(`Found ${overdueFollowUps.length} newly overdue follow-ups`);
+    console.log(`Found ${pendingOverdueFollowUps.length} pending follow-ups that are now overdue`);
 
-    // Create notifications for each overdue follow-up
-    const notifications = await Promise.all(
-      overdueFollowUps.map(async (followUp) => {
-        // Only create notification if lead is assigned to someone
-        if (!followUp.Lead.assignedToId) {
-          return null;
-        }
+    const updatePromises = [];
+    const notificationPromises = [];
+    const activityPromises = [];
 
-        // Check if notification already exists for this follow-up
-        const existingNotification = await prisma.notification.findFirst({
-          where: {
-            userId: followUp.Lead.assignedToId,
-            type: 'FOLLOWUP_OVERDUE',
-            relatedLeadId: followUp.leadId,
+    for (const followUp of pendingOverdueFollowUps) {
+      // Update followup status to overdue
+      updatePromises.push(
+        prisma.followUp.update({
+          where: { id: followUp.id },
+          data: { 
+            status: 'overdue',
+            updatedAt: new Date(),
           },
-        });
+        })
+      );
 
-        if (existingNotification) {
-          console.log(`Notification already exists for follow-up ${followUp.id}`);
-          return null;
-        }
+      // Only create notification if lead is assigned to someone
+      if (followUp.Lead.assignedToId) {
+        // Send status change notification
+        notificationPromises.push(
+          notifyFollowUpStatusChange(
+            followUp.Lead.id,
+            followUp.Lead.name,
+            followUp.Lead.assignedToId,
+            'pending',
+            'overdue'
+          ).catch(error => {
+            console.error(`Failed to send status change notification for follow-up ${followUp.id}:`, error);
+          })
+        );
 
-        // Calculate days overdue
-        const diffTime = now.getTime() - new Date(followUp.scheduledAt).getTime();
-        const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // Send overdue notification using the priority
+        notificationPromises.push(
+          notifyFollowUpOverdue(
+            followUp.Lead.id,
+            followUp.Lead.name,
+            followUp.Lead.assignedToId,
+            followUp.Lead.priority || 'medium'
+          ).catch(error => {
+            console.error(`Failed to send overdue notification for follow-up ${followUp.id}:`, error);
+          })
+        );
+      }
 
-        // Create notification
-        return prisma.notification.create({
+      // Create activity log for status change
+      activityPromises.push(
+        prisma.activityHistory.create({
           data: {
             id: randomUUID(),
-            userId: followUp.Lead.assignedToId,
-            type: 'FOLLOWUP_OVERDUE',
-            title: '⚠️ Follow-up Overdue',
-            message: `Follow-up with ${followUp.Lead.name} is ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue. Please take action immediately.`,
-            relatedLeadId: followUp.leadId,
+            leadId: followUp.Lead.id,
+            userId: 'system', // System-generated activity
+            action: 'followup_status_changed',
+            fieldName: 'status',
+            oldValue: 'pending',
+            newValue: 'overdue',
+            description: `Follow-up automatically marked as overdue (scheduled: ${followUp.scheduledAt.toLocaleDateString()})`,
             metadata: JSON.stringify({
               followUpId: followUp.id,
-              daysOverdue,
-              leadName: followUp.Lead.name,
-              leadPhone: followUp.Lead.phone,
+              scheduledAt: followUp.scheduledAt.toISOString(),
+              overdueAt: now.toISOString(),
+              trigger: 'cron_job',
             }),
           },
-        });
-      })
-    );
+        }).catch(error => {
+          console.error(`Failed to create activity log for follow-up ${followUp.id}:`, error);
+        })
+      );
+    }
 
-    const createdNotifications = notifications.filter(n => n !== null);
+    // Execute all updates first (most critical)
+    await Promise.allSettled(updatePromises);
+    
+    // Then execute notifications and activities (non-blocking)
+    await Promise.allSettled([...notificationPromises, ...activityPromises]);
 
     return NextResponse.json({
       success: true,
-      message: `Processed ${overdueFollowUps.length} overdue follow-ups, created ${createdNotifications.length} notifications`,
+      message: `Processed ${pendingOverdueFollowUps.length} overdue follow-ups`,
       data: {
-        overdueCount: overdueFollowUps.length,
-        notificationsCreated: createdNotifications.length,
+        overdueCount: pendingOverdueFollowUps.length,
         timestamp: now.toISOString(),
       },
     });

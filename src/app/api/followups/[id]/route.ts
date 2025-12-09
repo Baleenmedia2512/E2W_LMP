@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { notifyFollowUpStatusChange } from '@/shared/lib/utils/notification-service';
+import { 
+  shouldNotifyFollowUpStatusChange,
+  determineFollowUpStatus,
+  formatStatusChangeMessage
+} from '@/shared/lib/utils/followup-status-utils';
+import { randomUUID } from 'crypto';
 
 // PUT/PATCH update follow-up
 export async function PUT(
@@ -9,18 +16,101 @@ export async function PUT(
   try {
     const body = await request.json();
 
+    // Get the existing followup to compare status changes
+    const existingFollowUp = await prisma.followUp.findUnique({
+      where: { id: params.id },
+      include: {
+        Lead: { 
+          select: { 
+            id: true, 
+            name: true, 
+            assignedToId: true 
+          } 
+        },
+      },
+    });
+
+    if (!existingFollowUp) {
+      return NextResponse.json(
+        { success: false, error: 'Follow-up not found' },
+        { status: 404 }
+      );
+    }
+
+    // Determine new status using utility function if not explicitly provided
+    let newStatus = body.status;
+    if (!newStatus) {
+      newStatus = determineFollowUpStatus(
+        body.scheduledAt ? new Date(body.scheduledAt) : existingFollowUp.scheduledAt,
+        body.completedAt !== undefined ? (body.completedAt ? new Date(body.completedAt) : null) : existingFollowUp.completedAt,
+        existingFollowUp.status as any
+      );
+    }
+
+    const updateData: any = {
+      scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
+      completedAt: body.completedAt ? (body.completedAt === null ? null : new Date(body.completedAt)) : undefined,
+      customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
+      notes: body.notes !== undefined ? body.notes : undefined,
+      status: newStatus || undefined,
+      updatedAt: new Date(),
+    };
+
+    // Remove undefined values
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
     const followUp = await prisma.followUp.update({
       where: { id: params.id },
-      data: {
-        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : undefined,
-        customerRequirement: body.customerRequirement !== undefined ? body.customerRequirement : undefined,
-        notes: body.notes !== undefined ? body.notes : undefined,
-      },
+      data: updateData,
       include: {
         Lead: { select: { id: true, name: true } },
         User: { select: { id: true, name: true, email: true } },
       },
     });
+
+    // Check for status change and send notification
+    const oldStatus = existingFollowUp.status;
+    const currentStatus = followUp.status;
+    
+    const statusChange = shouldNotifyFollowUpStatusChange(oldStatus as any, currentStatus as any);
+    
+    if (statusChange.shouldNotify && existingFollowUp.Lead.assignedToId && body.updatedById) {
+      try {
+        await notifyFollowUpStatusChange(
+          existingFollowUp.Lead.id,
+          existingFollowUp.Lead.name,
+          existingFollowUp.Lead.assignedToId,
+          oldStatus,
+          currentStatus
+        );
+
+        // Log activity for status change using formatted message
+        await prisma.activityHistory.create({
+          data: {
+            id: randomUUID(),
+            leadId: existingFollowUp.Lead.id,
+            userId: body.updatedById,
+            action: 'followup_status_changed',
+            fieldName: 'status',
+            oldValue: oldStatus,
+            newValue: currentStatus,
+            description: formatStatusChangeMessage('followup', 'status', oldStatus, currentStatus, existingFollowUp.Lead.name),
+            metadata: JSON.stringify({
+              followUpId: params.id,
+              timestamp: new Date().toISOString(),
+              notificationType: statusChange.notificationType,
+            }),
+          },
+        });
+      } catch (notificationError) {
+        console.error('Failed to send follow-up status change notification:', notificationError);
+        // Don't fail the update if notification fails
+      }
+    }
 
     return NextResponse.json({ success: true, data: followUp });
   } catch (error) {

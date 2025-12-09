@@ -140,6 +140,153 @@ export async function notifyFollowUpOverdue(
 }
 
 /**
+ * Create notification for follow-up status change
+ */
+export async function notifyFollowUpStatusChange(
+  leadId: string,
+  leadName: string,
+  assignedToId: string,
+  oldStatus: string,
+  newStatus: string
+) {
+  const statusMessages: Record<string, { title: string; message: string; type: NotificationType }> = {
+    'pending_to_completed': {
+      title: '✅ Follow-up Completed',
+      message: `Follow-up with "${leadName}" has been marked as completed.`,
+      type: 'success'
+    },
+    'completed_to_pending': {
+      title: '🔄 Follow-up Reopened',
+      message: `Follow-up with "${leadName}" has been reopened and is now pending.`,
+      type: 'info'
+    },
+    'pending_to_overdue': {
+      title: '⚠️ Follow-up Now Overdue',
+      message: `Follow-up with "${leadName}" is now overdue. Please take action immediately.`,
+      type: 'warning'
+    },
+    'overdue_to_completed': {
+      title: '✅ Overdue Follow-up Completed',
+      message: `Overdue follow-up with "${leadName}" has been completed. Great work!`,
+      type: 'success'
+    },
+    'overdue_to_pending': {
+      title: '🔄 Overdue Follow-up Rescheduled',
+      message: `Overdue follow-up with "${leadName}" has been rescheduled.`,
+      type: 'info'
+    }
+  };
+
+  const statusKey = `${oldStatus}_to_${newStatus}`;
+  const notificationConfig = statusMessages[statusKey];
+
+  if (!notificationConfig) {
+    // Generic notification for other status changes
+    return createNotification({
+      userId: assignedToId,
+      type: 'info',
+      title: '📋 Follow-up Status Updated',
+      message: `Follow-up status for "${leadName}" changed from ${oldStatus} to ${newStatus}.`,
+      relatedLeadId: leadId,
+      metadata: { 
+        action: 'FOLLOWUP_STATUS_CHANGE',
+        oldStatus,
+        newStatus,
+      },
+    });
+  }
+
+  return createNotification({
+    userId: assignedToId,
+    type: notificationConfig.type,
+    title: notificationConfig.title,
+    message: notificationConfig.message,
+    relatedLeadId: leadId,
+    metadata: { 
+      action: 'FOLLOWUP_STATUS_CHANGE',
+      oldStatus,
+      newStatus,
+    },
+  });
+}
+
+/**
+ * Create notification for lead follow-up stage change
+ */
+export async function notifyLeadFollowUpStageChange(
+  leadId: string,
+  leadName: string,
+  assignedToId: string,
+  oldStatus: string,
+  newStatus: string
+) {
+  const stageMessages: Record<string, { title: string; message: string; type: NotificationType }> = {
+    'new_to_followup': {
+      title: '📅 Lead Moved to Follow-up',
+      message: `Lead "${leadName}" has been moved to follow-up stage.`,
+      type: 'info'
+    },
+    'followup_to_qualified': {
+      title: '🎯 Lead Qualified',
+      message: `Follow-up lead "${leadName}" has been qualified!`,
+      type: 'success'
+    },
+    'followup_to_won': {
+      title: '🎉 Follow-up Lead Won!',
+      message: `Follow-up lead "${leadName}" has been won! Congratulations!`,
+      type: 'success'
+    },
+    'followup_to_lost': {
+      title: '📝 Follow-up Lead Lost',
+      message: `Follow-up lead "${leadName}" has been marked as lost.`,
+      type: 'warning'
+    },
+    'followup_to_unqualified': {
+      title: '❌ Follow-up Lead Unqualified',
+      message: `Follow-up lead "${leadName}" has been marked as unqualified.`,
+      type: 'warning'
+    },
+    'followup_to_unreach': {
+      title: '📞 Follow-up Lead Unreachable',
+      message: `Follow-up lead "${leadName}" has been marked as unreachable.`,
+      type: 'warning'
+    }
+  };
+
+  const stageKey = `${oldStatus}_to_${newStatus}`;
+  const notificationConfig = stageMessages[stageKey];
+
+  if (!notificationConfig) {
+    // Generic notification for other stage changes
+    return createNotification({
+      userId: assignedToId,
+      type: 'info',
+      title: '🔄 Lead Stage Updated',
+      message: `Lead "${leadName}" stage changed from ${oldStatus} to ${newStatus}.`,
+      relatedLeadId: leadId,
+      metadata: { 
+        action: 'LEAD_FOLLOWUP_STAGE_CHANGE',
+        oldStatus,
+        newStatus,
+      },
+    });
+  }
+
+  return createNotification({
+    userId: assignedToId,
+    type: notificationConfig.type,
+    title: notificationConfig.title,
+    message: notificationConfig.message,
+    relatedLeadId: leadId,
+    metadata: { 
+      action: 'LEAD_FOLLOWUP_STAGE_CHANGE',
+      oldStatus,
+      newStatus,
+    },
+  });
+}
+
+/**
  * Mark a notification as read
  */
 export async function markNotificationAsRead(notificationId: string) {
