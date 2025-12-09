@@ -237,9 +237,9 @@ export default function DSRPage() {
     }
     
     const cardLabels: Record<string, string> = {
-      newLeads: 'New Leads',
-      followUps: 'Follow-ups',
-      overdue: 'Overdue Follow-ups',
+      newLeads: 'New Calls',
+      followUps: 'Follow-up Calls',
+      overdue: 'Overdue Calls Handled',
       unqualified: 'Unqualified',
       unreachable: 'Unreachable',
       won: 'Won Deals',
@@ -662,8 +662,8 @@ export default function DSRPage() {
       {/* KPI Cards - All metrics for selected date */}
       {stats && (
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
-          {/* New Leads Card */}
-          <Tooltip label={`${stats.newLeadsHandled} leads had their first call on ${formatDate(new Date(selectedDate))}`} placement="top">
+          {/* New Calls Card */}
+          <Tooltip label={`${stats.newCallsCount} new calls (attemptNumber = 1) made on ${formatDate(new Date(selectedDate))}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -683,21 +683,21 @@ export default function DSRPage() {
                     </Badge>
                   </HStack>
                   <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    New Leads
+                    New Calls
                   </Text>
                   <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.newLeadsHandled} / {stats.totalNewLeads}
+                    {stats.newCallsCount}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    First calls / New leads created
+                    First calls (Calls Page)
                   </Text>
                 </CardBody>
               </Card>
             </Box>
           </Tooltip>
 
-          {/* Follow-ups Card */}
-          <Tooltip label={`${stats.followUpsHandled} follow-up calls made on ${formatDate(new Date(selectedDate))}`} placement="top">
+          {/* Follow-up Calls Card */}
+          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1) made on ${formatDate(new Date(selectedDate))}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -717,13 +717,13 @@ export default function DSRPage() {
                     </Badge>
                   </HStack>
                   <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Follow-ups
+                    Follow-up Calls
                   </Text>
                   <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.followUpsHandled} / {stats.totalFollowUps}
+                    {stats.followupCallsCount}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    Follow-up calls / Total due
+                    Follow-up calls (Calls Page)
                   </Text>
                 </CardBody>
               </Card>
@@ -750,15 +750,15 @@ export default function DSRPage() {
                     {stats.totalCalls}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    Calls made on selected date
+                    All calls (Calls Page)
                   </Text>
                 </CardBody>
               </Card>
             </Box>
           </Tooltip>
 
-          {/* Overdue Card */}
-          <Tooltip label={`${stats.overdueFollowUps} overdue follow-ups`} placement="top">
+          {/* Overdue Calls Handled Card */}
+          <Tooltip label={`${stats.overdueCallsHandled} overdue calls handled on ${formatDate(new Date(selectedDate))}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -778,13 +778,13 @@ export default function DSRPage() {
                     </Badge>
                   </HStack>
                   <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Overdue
+                    Overdue Calls Handled
                   </Text>
                   <Heading size="lg" color="red.600">
-                    {stats.overdueFollowUps}
+                    {stats.overdueCallsHandled}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    Overdue follow-ups
+                    Overdue handled (Calls Page)
                   </Text>
                 </CardBody>
               </Card>
@@ -818,7 +818,7 @@ export default function DSRPage() {
                     {stats.unqualified}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    Marked on selected date
+                    Marked (Leads Outcome)
                   </Text>
                 </CardBody>
               </Card>
@@ -852,7 +852,7 @@ export default function DSRPage() {
                     {stats.unreachable}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    Marked on selected date
+                    Marked (Leads Outcome)
                   </Text>
                 </CardBody>
               </Card>
@@ -886,7 +886,7 @@ export default function DSRPage() {
                     {stats.won}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    Closed on selected date
+                    Closed (Leads Outcome)
                   </Text>
                 </CardBody>
               </Card>
@@ -920,7 +920,7 @@ export default function DSRPage() {
                     {stats.lost}
                   </Heading>
                   <Text fontSize="xs" color="gray.600" mt={2}>
-                    Lost on selected date
+                    Lost (Leads Outcome)
                   </Text>
                 </CardBody>
               </Card>
@@ -936,9 +936,9 @@ export default function DSRPage() {
             <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap={2}>
               <Heading size={{ base: 'sm', md: 'md' }} color="white" textAlign={{ base: 'center', sm: 'left' }}>
                 {activeCard ? (
-                  activeCard === 'newLeads' ? 'New Leads' :
-                  activeCard === 'followUps' ? 'Follow-ups' :
-                  activeCard === 'overdue' ? 'Overdue Follow-ups' :
+                  activeCard === 'newLeads' ? 'New Calls' :
+                  activeCard === 'followUps' ? 'Follow-up Calls' :
+                  activeCard === 'overdue' ? 'Overdue Calls Handled' :
                   activeCard === 'unqualified' ? 'Unqualified Leads' :
                   activeCard === 'unreachable' ? 'Unreachable Leads' :
                   activeCard === 'won' ? 'Won Deals' :
