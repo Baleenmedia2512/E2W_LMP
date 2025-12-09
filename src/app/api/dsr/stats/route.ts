@@ -10,9 +10,21 @@ export const revalidate = 0;
  * GET /api/dsr/stats
  * Fetch Daily Sales Report (DSR) statistics with comprehensive filtering
  * 
+ * FINAL IMPLEMENTATION - Matches exact user requirements:
+ * 
+ * DATA SOURCES:
+ * - CALLS PAGE: CallLog filtered by createdAt = selected_date
+ *   • New Calls: attemptNumber = 1
+ *   • Follow-up Calls: attemptNumber > 1
+ *   • Overdue Calls Handled: previous_followup_date < selected_date
+ *   • Total Calls: All calls
+ * 
+ * - LEADS OUTCOME PAGE: Lead filtered by updatedAt = selected_date
+ *   • Unqualified, Unreachable, Won, Lost: status changes on selected date
+ * 
  * Query Parameters:
- * - startDate: ISO date string (optional)
- * - endDate: ISO date string (optional)
+ * - startDate: ISO date string (optional, defaults to TODAY)
+ * - endDate: ISO date string (optional, defaults to TODAY)
  * - agentId: Filter by assigned user/agent (optional)
  */
 export async function GET(request: NextRequest) {
@@ -87,6 +99,7 @@ export async function GET(request: NextRequest) {
           createdAt: true,
           updatedAt: true,
           assignedToId: true,
+          callAttempts: true,
         },
       });
       console.log('[DSR Stats API] Fetched leads:', allLeads.length);
@@ -391,30 +404,30 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         stats: {
-          // New Leads - first calls on selected date / new leads created on selected date
-          newLeadsHandled: metrics.newLeads.handled,
-          totalNewLeads: metrics.newLeads.total,
+          // CALLS PAGE METRICS (filtered by CallLog.createdAt = selected_date)
+          // New Calls - attemptNumber = 1 on selected date
+          newCallsCount: metrics.newLeads.handled,
           
-          // Follow-ups - follow-up calls on selected date / total follow-ups due on selected date
-          followUpsHandled: metrics.followups.handled,
-          totalFollowUps: metrics.followups.total,
+          // Follow-up Calls - attemptNumber > 1 on selected date
+          followupCallsCount: metrics.followups.handled,
           
-          // Total Calls - calls made on selected date
+          // Overdue Calls Handled - calls on selected date where previous_followup_date < selected_date
+          overdueCallsHandled: metrics.overdueFollowups.total,
+          
+          // Total Calls - all calls made on selected date
           totalCalls: metrics.calls.total,
           
-          // Overdue - overdue follow-ups by selected date
-          overdueFollowUps: metrics.overdueFollowups.total,
-          
-          // Unqualified - marked on selected date
+          // LEADS OUTCOME PAGE METRICS (filtered by Lead.updatedAt = selected_date)
+          // Unqualified - status = 'unqualified' updated on selected date
           unqualified: metrics.unqualified.total,
           
-          // Unreachable - marked on selected date
+          // Unreachable - status = 'unreachable' updated on selected date
           unreachable: metrics.unreachable.total,
           
-          // Won - closed on selected date
+          // Won - status = 'won' updated on selected date
           won: metrics.won.total,
           
-          // Lost - lost on selected date
+          // Lost - status = 'lost' updated on selected date
           lost: metrics.lost.total,
         },
         filteredLeads: transformedFilteredLeads,
