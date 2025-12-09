@@ -103,6 +103,7 @@ interface Lead {
     statusChangedToday: boolean;
     isNewLead: boolean;
     isFollowup: boolean;
+    isOverdue: boolean;
   };
 }
 
@@ -117,6 +118,7 @@ interface AgentPerformance {
   won: number;
   lost: number;
   unreachable: number;
+  unqualified: number;
   overdue: number;
 }
 
@@ -141,7 +143,7 @@ export default function DSRPage() {
   const [apiLeads, setApiLeads] = useState<Lead[]>([]);
   const [agentPerformanceData, setAgentPerformanceData] = useState<AgentPerformance[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [callLogs, setCallLogs] = useState<any[]>([]);
+  const [callLogs, setCallLogs] = useState<any[]>([]); // For Total Calls filter
   
   // Filter state - DEFAULT TO TODAY (single date selection)
   const [selectedDate, setSelectedDate] = useState(todayString);
@@ -151,7 +153,6 @@ export default function DSRPage() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [callLogsPage, setCallLogsPage] = useState(1);
   const itemsPerPage = 50;
   
   // Sorting state
@@ -191,21 +192,6 @@ export default function DSRPage() {
       } else {
         throw new Error(result.error || 'Failed to fetch data');
       }
-      
-      // Fetch call logs separately
-      const callLogsParams = new URLSearchParams();
-      callLogsParams.append('date', selectedDate);
-      callLogsParams.append('page', callLogsPage.toString());
-      callLogsParams.append('limit', '50');
-      if (selectedAgentId !== 'all') callLogsParams.append('agentId', selectedAgentId);
-      
-      const callLogsResponse = await fetch(`/api/dsr/call-logs?${callLogsParams.toString()}`);
-      if (callLogsResponse.ok) {
-        const callLogsResult = await callLogsResponse.json();
-        if (callLogsResult.success) {
-          setCallLogs(callLogsResult.data.callLogs);
-        }
-      }
     } catch (err) {
       console.error('Error fetching DSR data:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -220,7 +206,7 @@ export default function DSRPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, selectedAgentId, callLogsPage, toast]);
+  }, [selectedDate, selectedAgentId, toast]);
 
   // Fetch data on component mount and when filters change
   useEffect(() => {
@@ -228,17 +214,45 @@ export default function DSRPage() {
   }, [fetchDSRData]);
 
   // Handle card click - filter leads in the current page
-  const handleCardClick = (type: string) => {
+  const handleCardClick = async (type: string) => {
     // Toggle the active card - if same card clicked, deactivate it
     if (activeCard === type) {
       setActiveCard(null);
+      setCallLogs([]); // Clear call logs when deactivating
     } else {
       setActiveCard(type);
+      
+      // Fetch call logs if Total Calls is clicked
+      if (type === 'totalCalls') {
+        try {
+          const params = new URLSearchParams();
+          params.append('date', selectedDate);
+          params.append('limit', '1000'); // Get all calls, not just first 50
+          if (selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
+          
+          const response = await fetch(`/api/dsr/call-logs?${params.toString()}`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setCallLogs(result.data.callLogs || []);
+              console.log(`[DSR Filter] Total Calls: Fetched ${result.data.callLogs?.length || 0} call logs`);
+            }
+          }
+        } catch (error) {
+          console.error('[DSR Filter] Error fetching call logs:', error);
+        }
+      } else {
+        setCallLogs([]); // Clear call logs for other filters
+      }
     }
+    
+    // Reset to first page when filter changes
+    setCurrentPage(1);
     
     const cardLabels: Record<string, string> = {
       newLeads: 'New Calls',
       followUps: 'Follow-up Calls',
+      totalCalls: 'Total Calls',
       overdue: 'Overdue Calls Handled',
       unqualified: 'Unqualified',
       unreachable: 'Unreachable',
@@ -251,7 +265,7 @@ export default function DSRPage() {
     if (activeCard === type) {
       toast({
         title: 'Filter Cleared',
-        description: 'Showing all leads',
+        description: 'Showing all leads with activity on selected date',
         status: 'info',
         duration: 2000,
         isClosable: true,
@@ -260,7 +274,7 @@ export default function DSRPage() {
     } else {
       toast({
         title: `${label} Filter Applied`,
-        description: `Showing ${label.toLowerCase()} only`,
+        description: `Showing only ${label.toLowerCase()}`,
         status: 'info',
         duration: 2000,
         isClosable: true,
@@ -327,6 +341,7 @@ export default function DSRPage() {
       Won: agent.won,
       Lost: agent.lost,
       Unreachable: agent.unreachable,
+      Unqualified: agent.unqualified || 0,
       Overdue: agent.overdue,
     }));
     exportToCSV(exportData, 'agent_performance');
@@ -388,46 +403,114 @@ export default function DSRPage() {
   };
 
   // Filter leads for the table based on active card and search
+  // This MUST match the exact KPI logic to ensure card count = table row count
+  // SPECIAL CASE: For Total Calls, we show call logs instead of leads
   const filteredLeads = useMemo(() => {
     if (!apiLeads) return [];
     
+    // Special handling for Total Calls - show call logs, not leads
+    if (activeCard === 'totalCalls' && callLogs.length > 0) {
+      // Transform call logs to look like leads for table display
+      const transformedCallLogs = callLogs.map(call => ({
+        id: call.id,
+        name: call.Lead?.name || 'Unknown',
+        phone: call.Lead?.phone || '',
+        email: call.Lead?.email || '',
+        status: 'call_log', // Special status to identify call logs
+        source: call.Lead?.source || '',
+        campaign: call.Lead?.campaign || '',
+        assignedTo: call.User || { name: 'Unknown' },
+        createdAt: call.createdAt,
+        callAttempts: call.attemptNumber,
+        callStatus: call.callStatus,
+        duration: call.duration,
+        activityFlags: { hadCallToday: true },
+      }));
+      
+      // Apply search filter if needed
+      if (debouncedSearch.trim()) {
+        const query = debouncedSearch.toLowerCase();
+        return transformedCallLogs.filter(log => 
+          log.name.toLowerCase().includes(query) ||
+          log.phone.includes(query) ||
+          (log.email && log.email.toLowerCase().includes(query))
+        );
+      }
+      
+      console.log(`[DSR Filter] Total Calls: Showing ${transformedCallLogs.length} call logs`);
+      return transformedCallLogs;
+    }
+    
     let filtered = [...apiLeads];
 
-    // Apply card-based filters - only show leads relevant to that specific KPI
+    // Apply card-based filters - EXACT match to KPI logic
     if (activeCard === 'newLeads') {
+      // New Calls: CallLog.createdAt = selected_date AND Lead.callAttempts = 1
       // Show ONLY leads where first call (attemptNumber=1) was made on selected date
       filtered = filtered.filter(lead => 
-        lead.activityFlags?.isNewLead && lead.activityFlags?.hadCallToday
+        lead.activityFlags?.isNewLead === true
       );
+      console.log(`[DSR Filter] New Calls: ${filtered.length} leads`);
+      
     } else if (activeCard === 'followUps') {
+      // Follow-Up Calls: CallLog.createdAt = selected_date AND Lead.callAttempts > 1
       // Show ONLY leads that had follow-up calls (attemptNumber > 1) on selected date
       filtered = filtered.filter(lead => 
         lead.activityFlags?.isFollowup === true
       );
+      console.log(`[DSR Filter] Follow-Up Calls: ${filtered.length} leads`);
+      
+    } else if (activeCard === 'totalCalls') {
+      // Total Calls: CallLog.createdAt = selected_date (all calls)
+      // Show ALL leads that had ANY call on selected date
+      filtered = filtered.filter(lead => 
+        lead.activityFlags?.hadCallToday === true
+      );
+      console.log(`[DSR Filter] Total Calls: ${filtered.length} leads`);
+      
+    } else if (activeCard === 'overdue') {
+      // Overdue Calls Handled: CallLog.createdAt = selected_date AND FollowUp.scheduledAt < selected_date
+      // Show ONLY leads with overdue calls handled on selected date
+      filtered = filtered.filter(lead => 
+        lead.activityFlags?.isOverdue === true
+      );
+      console.log(`[DSR Filter] Overdue Calls: ${filtered.length} leads`);
+      
     } else if (activeCard === 'unqualified') {
-      // Show ONLY leads with unqualified status (preferably changed today)
+      // Unqualified: Lead.status = 'unqualified' AND Lead.updatedAt = selected_date
+      // Show ONLY leads with unqualified status changed on selected date
       filtered = filtered.filter(lead => 
         lead.status === 'unqualified' &&
-        (lead.activityFlags?.statusChangedToday || true)
+        lead.activityFlags?.statusChangedToday === true
       );
+      console.log(`[DSR Filter] Unqualified: ${filtered.length} leads`);
+      
     } else if (activeCard === 'unreachable') {
-      // Show ONLY leads with unreachable status
+      // Unreachable: Lead.status = 'unreach' AND Lead.updatedAt = selected_date
+      // Show ONLY leads with unreachable status changed on selected date
       filtered = filtered.filter(lead => 
         lead.status === 'unreach' &&
-        (lead.activityFlags?.statusChangedToday || true)
+        lead.activityFlags?.statusChangedToday === true
       );
+      console.log(`[DSR Filter] Unreachable: ${filtered.length} leads`);
+      
     } else if (activeCard === 'won') {
-      // Show ONLY leads with won status
+      // Won: Lead.status = 'won' AND Lead.updatedAt = selected_date
+      // Show ONLY leads with won status changed on selected date
       filtered = filtered.filter(lead => 
         lead.status === 'won' &&
-        (lead.activityFlags?.statusChangedToday || true)
+        lead.activityFlags?.statusChangedToday === true
       );
+      console.log(`[DSR Filter] Won: ${filtered.length} leads`);
+      
     } else if (activeCard === 'lost') {
-      // Show ONLY leads with lost status
+      // Lost: Lead.status = 'lost' AND Lead.updatedAt = selected_date
+      // Show ONLY leads with lost status changed on selected date
       filtered = filtered.filter(lead => 
         lead.status === 'lost' &&
-        (lead.activityFlags?.statusChangedToday || true)
+        lead.activityFlags?.statusChangedToday === true
       );
+      console.log(`[DSR Filter] Lost: ${filtered.length} leads`);
     }
     // If no card is active, show all leads with activity on selected date
 
@@ -442,7 +525,7 @@ export default function DSRPage() {
     }
 
     return filtered;
-  }, [apiLeads, activeCard, debouncedSearch]);
+  }, [apiLeads, activeCard, debouncedSearch, callLogs]);
   
   // Paginated leads
   const paginatedLeads = useMemo(() => {
@@ -731,17 +814,24 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Total Calls Card */}
-          <Tooltip label={`${stats.totalCalls} calls made on ${formatDate(new Date(selectedDate))}`} placement="top">
+          <Tooltip label={`${stats.totalCalls} total calls made on ${formatDate(new Date(selectedDate))}`} placement="top">
             <Box>
               <Card
-                boxShadow="md"
+                cursor="pointer"
+                onClick={() => handleCardClick('totalCalls')}
+                boxShadow={activeCard === 'totalCalls' ? 'xl' : 'md'}
+                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                transition="all 0.2s"
                 borderTop="4px"
                 borderColor={THEME_COLORS.accent}
-                bg="white"
+                bg={activeCard === 'totalCalls' ? `${THEME_COLORS.accent}10` : 'white'}
               >
                 <CardBody>
                   <HStack justify="space-between" mb={2}>
                     <Icon as={HiPhone} boxSize={6} color={THEME_COLORS.accent} />
+                    <Badge colorScheme={activeCard === 'totalCalls' ? 'teal' : 'gray'} fontSize="xs">
+                      {activeCard === 'totalCalls' ? 'Active' : 'Click to filter'}
+                    </Badge>
                   </HStack>
                   <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
                     Total Calls
@@ -938,6 +1028,7 @@ export default function DSRPage() {
                 {activeCard ? (
                   activeCard === 'newLeads' ? 'New Calls' :
                   activeCard === 'followUps' ? 'Follow-up Calls' :
+                  activeCard === 'totalCalls' ? 'Total Calls' :
                   activeCard === 'overdue' ? 'Overdue Calls Handled' :
                   activeCard === 'unqualified' ? 'Unqualified Leads' :
                   activeCard === 'unreachable' ? 'Unreachable Leads' :
@@ -953,7 +1044,7 @@ export default function DSRPage() {
                 px={3}
                 py={1}
               >
-                {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''} (Page {currentPage} of {totalPages || 1})
+                {filteredLeads.length} {activeCard === 'totalCalls' ? 'call' : 'lead'}{filteredLeads.length !== 1 ? 's' : ''} (Page {currentPage} of {totalPages || 1})
               </Badge>
             </Flex>
             {activeCard && (
@@ -984,14 +1075,27 @@ export default function DSRPage() {
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead bg="gray.50">
                 <Tr>
+                  {activeCard === 'totalCalls' && (
+                    <Th color={THEME_COLORS.dark}>Time</Th>
+                  )}
                   <Th color={THEME_COLORS.dark}>Lead Name</Th>
                   <Th color={THEME_COLORS.dark}>Phone</Th>
                   <Th color={THEME_COLORS.dark} display={{ base: 'none', md: 'table-cell' }}>Email</Th>
-                  <Th color={THEME_COLORS.dark}>Status</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Source</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Assigned To</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', sm: 'table-cell' }}>Created Date</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', xl: 'table-cell' }}>Campaign</Th>
+                  {activeCard === 'totalCalls' ? (
+                    <>
+                      <Th color={THEME_COLORS.dark}>Call Status</Th>
+                      <Th color={THEME_COLORS.dark} isNumeric>Attempt #</Th>
+                      <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Duration</Th>
+                    </>
+                  ) : (
+                    <>
+                      <Th color={THEME_COLORS.dark}>Status</Th>
+                      <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Source</Th>
+                      <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Assigned To</Th>
+                      <Th color={THEME_COLORS.dark} display={{ base: 'none', sm: 'table-cell' }}>Created Date</Th>
+                      <Th color={THEME_COLORS.dark} display={{ base: 'none', xl: 'table-cell' }}>Campaign</Th>
+                    </>
+                  )}
                 </Tr>
               </Thead>
               <Tbody>
@@ -1002,53 +1106,92 @@ export default function DSRPage() {
                       _hover={{ bg: `${THEME_COLORS.light}20` }}
                       transition="all 0.2s"
                     >
+                      {activeCard === 'totalCalls' && (
+                        <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
+                          {new Date(lead.createdAt).toLocaleTimeString('en-IN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </Td>
+                      )}
                       <Td fontWeight="medium" color={THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
                         {lead.name}
                       </Td>
                       <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">{formatPhoneForDisplay(lead.phone)}</Td>
                       <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', md: 'table-cell' }}>{lead.email || '-'}</Td>
-                      <Td>
-                        <Badge
-                          bg={
-                            lead.status === 'new' ? THEME_COLORS.primary :
-                            lead.status === 'followup' ? THEME_COLORS.medium :
-                            lead.status === 'qualified' ? THEME_COLORS.accent :
-                            lead.status === 'won' ? THEME_COLORS.accent :
-                            lead.status === 'lost' ? THEME_COLORS.dark :
-                            THEME_COLORS.light
-                          }
-                          color="white"
-                          fontSize={{ base: 'xs', md: 'sm' }}
-                        >
-                          {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status.toUpperCase()}
-                        </Badge>
-                      </Td>
-                      <Td display={{ base: 'none', lg: 'table-cell' }}>
-                        <Badge 
-                          bg={THEME_COLORS.accent}
-                          color="white"
-                          variant="subtle"
-                          fontSize={{ base: 'xs', md: 'sm' }}
-                        >
-                          {lead.source}
-                        </Badge>
-                      </Td>
-                      <Td color={THEME_COLORS.medium} fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
-                        {lead.assignedTo?.name || 'Unassigned'}
-                      </Td>
-                      <Td whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', sm: 'table-cell' }}>
-                        {formatDate(new Date(lead.createdAt))}
-                      </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
-                        {lead.campaign || '-'}
-                      </Td>
+                      {activeCard === 'totalCalls' ? (
+                        <>
+                          <Td>
+                            <Badge
+                              bg={
+                                lead.callStatus === 'completed' || lead.callStatus === 'answer' ? 'green.500' :
+                                lead.callStatus === 'no_answer' ? 'orange.500' :
+                                lead.callStatus === 'busy' ? 'yellow.500' :
+                                lead.callStatus === 'unreachable' ? 'red.500' :
+                                THEME_COLORS.light
+                              }
+                              color="white"
+                              fontSize={{ base: 'xs', md: 'sm' }}
+                            >
+                              {lead.callStatus || 'N/A'}
+                            </Badge>
+                          </Td>
+                          <Td isNumeric>
+                            <Badge bg={lead.callAttempts === 1 ? THEME_COLORS.primary : THEME_COLORS.medium} color="white">
+                              {lead.callAttempts}
+                            </Badge>
+                          </Td>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
+                            {lead.duration ? `${lead.duration}s` : '-'}
+                          </Td>
+                        </>
+                      ) : (
+                        <>
+                          <Td>
+                            <Badge
+                              bg={
+                                lead.status === 'new' ? THEME_COLORS.primary :
+                                lead.status === 'followup' ? THEME_COLORS.medium :
+                                lead.status === 'qualified' ? THEME_COLORS.accent :
+                                lead.status === 'won' ? THEME_COLORS.accent :
+                                lead.status === 'lost' ? THEME_COLORS.dark :
+                                THEME_COLORS.light
+                              }
+                              color="white"
+                              fontSize={{ base: 'xs', md: 'sm' }}
+                            >
+                              {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status?.toUpperCase()}
+                            </Badge>
+                          </Td>
+                          <Td display={{ base: 'none', lg: 'table-cell' }}>
+                            <Badge 
+                              bg={THEME_COLORS.accent}
+                              color="white"
+                              variant="subtle"
+                              fontSize={{ base: 'xs', md: 'sm' }}
+                            >
+                              {lead.source}
+                            </Badge>
+                          </Td>
+                          <Td color={THEME_COLORS.medium} fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
+                            {lead.assignedTo?.name || 'Unassigned'}
+                          </Td>
+                          <Td whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', sm: 'table-cell' }}>
+                            {formatDate(new Date(lead.createdAt))}
+                          </Td>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
+                            {lead.campaign || '-'}
+                          </Td>
+                        </>
+                      )}
                     </Tr>
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={8} textAlign="center" py={8}>
+                    <Td colSpan={activeCard === 'totalCalls' ? 7 : 8} textAlign="center" py={8}>
                       <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
-                        No leads found for the selected filters
+                        No {activeCard === 'totalCalls' ? 'calls' : 'leads'} found for the selected filters
                       </Text>
                     </Td>
                   </Tr>
@@ -1079,122 +1222,6 @@ export default function DSRPage() {
               />
             </Flex>
           )}
-        </CardBody>
-      </Card>
-
-      {/* Call Logs Table */}
-      <Card boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.accent} mb={{ base: 4, md: 6 }}>
-        <CardBody p={0}>
-          <Box p={{ base: 3, md: 4 }} bg={THEME_COLORS.accent} bgGradient={`linear(to-r, ${THEME_COLORS.accent}, ${THEME_COLORS.medium})`} borderTopRadius="lg">
-            <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap={2}>
-              <Heading size={{ base: 'sm', md: 'md' }} color="white" textAlign={{ base: 'center', sm: 'left' }}>
-                Call Logs
-              </Heading>
-              <Badge 
-                bg="white" 
-                color={THEME_COLORS.accent}
-                fontSize={{ base: 'sm', md: 'md' }}
-                px={3}
-                py={1}
-              >
-                {callLogs.length} call{callLogs.length !== 1 ? 's' : ''}
-              </Badge>
-            </Flex>
-            <Text fontSize={{ base: 'xs', md: 'sm' }} color="white" mt={2}>
-              All calls made on {formatDate(new Date(selectedDate))}
-            </Text>
-          </Box>
-
-          <Box 
-            overflowX="auto"
-            css={{
-              '&::-webkit-scrollbar': {
-                height: '8px',
-              },
-              '&::-webkit-scrollbar-track': {
-                background: '#f1f1f1',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                background: THEME_COLORS.light,
-                borderRadius: '4px',
-              },
-              '&::-webkit-scrollbar-thumb:hover': {
-                background: THEME_COLORS.medium,
-              },
-            }}
-          >
-            <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
-              <Thead bg="gray.50">
-                <Tr>
-                  <Th color={THEME_COLORS.dark}>Time</Th>
-                  <Th color={THEME_COLORS.dark}>Lead Name</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', md: 'table-cell' }}>Phone</Th>
-                  <Th color={THEME_COLORS.dark}>Status</Th>
-                  <Th color={THEME_COLORS.dark} isNumeric>Attempt #</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Duration</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Agent</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {callLogs.length > 0 ? (
-                  callLogs.map((call) => (
-                    <Tr 
-                      key={call.id} 
-                      _hover={{ bg: `${THEME_COLORS.accent}20` }}
-                      transition="all 0.2s"
-                    >
-                      <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
-                        {new Date(call.createdAt).toLocaleTimeString('en-IN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true
-                        })}
-                      </Td>
-                      <Td fontWeight="medium" color={THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }}>
-                        {call.Lead?.name || 'Unknown'}
-                      </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', md: 'table-cell' }}>
-                        {call.Lead?.phone ? formatPhoneForDisplay(call.Lead.phone) : '-'}
-                      </Td>
-                      <Td>
-                        <Badge
-                          bg={
-                            call.callStatus === 'completed' ? 'green.500' :
-                            call.callStatus === 'no_answer' ? 'orange.500' :
-                            call.callStatus === 'unreachable' ? 'red.500' :
-                            THEME_COLORS.light
-                          }
-                          color="white"
-                          fontSize={{ base: 'xs', md: 'sm' }}
-                        >
-                          {call.callStatus || 'N/A'}
-                        </Badge>
-                      </Td>
-                      <Td isNumeric>
-                        <Badge bg={call.attemptNumber === 1 ? THEME_COLORS.primary : THEME_COLORS.medium} color="white">
-                          {call.attemptNumber}
-                        </Badge>
-                      </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
-                        {call.duration || '-'}
-                      </Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
-                        {call.User?.name || 'Unknown'}
-                      </Td>
-                    </Tr>
-                  ))
-                ) : (
-                  <Tr>
-                    <Td colSpan={7} textAlign="center" py={8}>
-                      <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
-                        No call logs found for the selected date
-                      </Text>
-                    </Td>
-                  </Tr>
-                )}
-              </Tbody>
-            </Table>
-          </Box>
         </CardBody>
       </Card>
 
@@ -1343,6 +1370,20 @@ export default function DSRPage() {
                     color={THEME_COLORS.dark} 
                     isNumeric
                     cursor="pointer"
+                    onClick={() => handleSort('unqualified')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <Flex align="center" gap={1} justify="flex-end">
+                      Unqualified
+                      {sortColumn === 'unqualified' && (
+                        <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th 
+                    color={THEME_COLORS.dark} 
+                    isNumeric
+                    cursor="pointer"
                     onClick={() => handleSort('overdue')}
                     _hover={{ bg: 'gray.100' }}
                   >
@@ -1397,6 +1438,11 @@ export default function DSRPage() {
                         </Badge>
                       </Td>
                       <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
+                        <Badge bg="orange.500" color="white">
+                          {row.unqualified || 0}
+                        </Badge>
+                      </Td>
+                      <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
                         <Badge bg={row.overdue > 0 ? "red.500" : "gray.300"} color="white">
                           {row.overdue}
                         </Badge>
@@ -1405,7 +1451,7 @@ export default function DSRPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={8} textAlign="center" py={8}>
+                    <Td colSpan={9} textAlign="center" py={8}>
                       <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
                         No agent performance data available for the selected date
                       </Text>
