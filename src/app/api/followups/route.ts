@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
-import { notifyFollowUpDue } from '@/shared/lib/utils/notification-service';
+import { notifyFollowUpDue, notifyLeadFollowUpStageChange } from '@/shared/lib/utils/notification-service';
 import { randomUUID } from 'crypto';
 
 // GET follow-ups with optional filters
@@ -192,15 +192,32 @@ export async function POST(request: NextRequest) {
     // Update lead status to 'followup' if it's not already won, lost, or unqualified
     const currentLead = await prisma.lead.findUnique({
       where: { id: body.leadId },
-      select: { status: true },
+      select: { status: true, assignedToId: true, name: true },
     });
 
     const nonUpdatableStatuses = ['won', 'lost', 'unqualified'];
     if (currentLead && !nonUpdatableStatuses.includes(currentLead.status)) {
+      const oldStatus = currentLead.status;
+      
       await prisma.lead.update({
         where: { id: body.leadId },
         data: { status: 'followup' },
       });
+
+      // Send notification if status changed and lead is assigned
+      if (oldStatus !== 'followup' && currentLead.assignedToId) {
+        try {
+          await notifyLeadFollowUpStageChange(
+            body.leadId,
+            currentLead.name,
+            currentLead.assignedToId,
+            oldStatus,
+            'followup'
+          );
+        } catch (notificationError) {
+          console.error('Failed to send lead follow-up stage change notification:', notificationError);
+        }
+      }
     }
 
     // Log activity
