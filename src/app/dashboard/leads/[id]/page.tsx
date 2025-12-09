@@ -826,7 +826,7 @@ export default function LeadDetailPage() {
                             </Text>
                           </HStack>
                           <Text fontSize="sm" color="gray.600">
-                            By: {activity.user?.name || 'System'}
+                            By: {activity.User?.name || 'System'}
                           </Text>
                           {activity.fieldName && (
                             <Text fontSize="xs" color="gray.500" mt={1}>
