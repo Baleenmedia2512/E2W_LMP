@@ -478,25 +478,40 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   }
   
   // CALLS PAGE METRICS - Based on calls made today + Lead's callAttempts field
-  // Filter calls made on selected date
-  const callsOnDate = calls.filter(call => {
-    const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
-    
-    if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
-      return isToday(call.createdAt, timezone);
-    }
-    
-    const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
-    const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
-    
-    if (start) start.setHours(0, 0, 0, 0);
-    if (end) end.setHours(23, 59, 59, 999);
-    
-    if (start && end) return callDate >= start && callDate <= end;
-    if (start) return callDate >= start;
-    if (end) return callDate <= end;
-    return false;
-  });
+  // IMPORTANT: If dateRange is provided, calls array is ALREADY filtered at DB level
+  // So we should NOT re-filter to avoid discrepancies
+  
+  // Check if calls are pre-filtered (if dateRange exists, assume DB pre-filtered)
+  const callsArePreFiltered = !!(dateRange && (dateRange.startDate || dateRange.endDate));
+  
+  let callsOnDate: typeof calls;
+  
+  if (callsArePreFiltered) {
+    // Calls are already filtered at DB level - use them directly
+    callsOnDate = calls;
+    console.log('[DSR Metrics] Using pre-filtered calls from DB:', callsOnDate.length);
+  } else {
+    // Filter calls made on selected date (legacy path for when no dateRange provided)
+    callsOnDate = calls.filter(call => {
+      const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
+      
+      if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
+        return isToday(call.createdAt, timezone);
+      }
+      
+      const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
+      const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
+      
+      if (start) start.setHours(0, 0, 0, 0);
+      if (end) end.setHours(23, 59, 59, 999);
+      
+      if (start && end) return callDate >= start && callDate <= end;
+      if (start) return callDate >= start;
+      if (end) return callDate <= end;
+      return false;
+    });
+    console.log('[DSR Metrics] Filtered calls in JS:', callsOnDate.length);
+  }
   
   // Get unique lead IDs that had calls today
   const leadsWithCallsToday = new Set(callsOnDate.map(c => c.leadId));

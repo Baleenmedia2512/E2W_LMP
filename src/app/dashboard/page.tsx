@@ -229,6 +229,7 @@ export default function DashboardPage() {
     newLeads: 0,
     wonLeads: 0,
     lostLeads: 0,
+    unqualifiedLeads: 0,
     followUpsDue: 0,
     overdue: 0,
     conversations: 0,
@@ -406,7 +407,7 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 6 }} spacing={{ base: 4, md: 6 }}>
+      <SimpleGrid columns={{ base: 1, sm: 2, lg: 7 }} spacing={{ base: 4, md: 6 }}>
         <StatCard
           label="Total Leads"
           value={stats.totalLeadsForDashboard}
@@ -437,6 +438,14 @@ export default function DashboardPage() {
           icon={FiAlertCircle}
           colorScheme="red"
           onClick={() => router.push('/dashboard/leads?filter=overdue')}
+        />
+        <StatCard
+          label={getLabel('Unqualified')}
+          value={stats.unqualifiedLeads}
+          helpText="Not interested"
+          icon={FiXCircle}
+          colorScheme="yellow"
+          onClick={() => handleCardClick('unqualified')}
         />
         <StatCard
           label={getLabel('Won')}

@@ -131,10 +131,17 @@ export async function GET(request: NextRequest) {
 
     try {
       // 3. Fetch all calls with attemptNumber and callStatus
+      // IMPORTANT: Apply date filter here to avoid counting calls outside selected date
+      const callsWhere: any = {};
+      if (Object.keys(dateFilter).length > 0) {
+        callsWhere.createdAt = dateFilter;
+      }
+      if (agentId) {
+        callsWhere.callerId = agentId;
+      }
+      
       allCalls = await prisma.callLog.findMany({
-        where: agentId ? {
-          callerId: agentId,
-        } : {},
+        where: callsWhere,
         select: {
           id: true,
           leadId: true,
@@ -143,7 +150,11 @@ export async function GET(request: NextRequest) {
           callStatus: true,
         },
       });
-      console.log('[DSR Stats API] Fetched calls:', allCalls.length);
+      console.log('[DSR Stats API] ===== TOTAL CALLS COUNT =====');
+      console.log('[DSR Stats API] Fetched calls for date range:', allCalls.length);
+      console.log('[DSR Stats API] Date filter:', dateFilter);
+      console.log('[DSR Stats API] Agent filter:', agentId || 'None');
+      console.log('[DSR Stats API] ================================');
     } catch (error) {
       console.error('[DSR Stats API] Error fetching calls:', error);
       throw new Error('Failed to fetch calls');
@@ -167,11 +178,12 @@ export async function GET(request: NextRequest) {
       callsOnDate = await prisma.callLog.findMany({
         where: {
           createdAt: dateFilter,
-          ...(agentId && { Lead: { assignedToId: agentId } }),
+          ...(agentId && { callerId: agentId }), // Use callerId for consistency
         },
         select: { 
           leadId: true,
           attemptNumber: true,
+          createdAt: true,
         },
       });
 
@@ -256,21 +268,69 @@ export async function GET(request: NextRequest) {
       agents: agents.length
     });
 
+    // Build a map of leadId -> most recent scheduled follow-up date for overdue detection
+    const leadFollowupMap = new Map<string, Date>();
+    allFollowups.forEach(followup => {
+      const scheduledDate = typeof followup.scheduledAt === 'string' 
+        ? new Date(followup.scheduledAt) 
+        : followup.scheduledAt;
+      
+      const existing = leadFollowupMap.get(followup.leadId);
+      if (!existing || scheduledDate > existing) {
+        leadFollowupMap.set(followup.leadId, scheduledDate);
+      }
+    });
+
     // Transform filteredLeads to match frontend expectations and add activity metadata
+    // CRITICAL: These flags MUST match the exact KPI logic for perfect count matching
     const transformedFilteredLeads = filteredLeads.map(lead => {
       const wasCreatedToday = Object.keys(dateFilter).length > 0 && 
         leadsCreatedOnDate.some(l => l.id === lead.id);
       const hadCallToday = callsOnDate.some(c => c.leadId === lead.id);
       const wasUpdatedToday = leadsUpdatedOnDate.some(l => l.id === lead.id);
       
-      // Check if this lead had its FIRST call on the selected date
-      const firstCallToday = lead.CallLog && lead.CallLog.length > 0 && 
-        lead.CallLog[0].attemptNumber === 1;
+      // Get all calls for this lead on the selected date
+      const leadsCallsToday = callsOnDate.filter(c => c.leadId === lead.id);
       
-      // Check if this lead had FOLLOW-UP calls (attemptNumber > 1) on selected date
-      const hadFollowupCallToday = callsOnDate.some(c => 
-        c.leadId === lead.id && c.attemptNumber > 1
-      );
+      // ===== EXACT KPI LOGIC IMPLEMENTATION =====
+      
+      // 1️⃣ New Calls: CallLog.createdAt = selected_date AND Lead.callAttempts = 1
+      // A lead is "New Call" if it had a call today AND its callAttempts field = 1
+      const isNewCall = hadCallToday && (lead.callAttempts || 0) === 1;
+      
+      // 2️⃣ Follow-Up Calls: CallLog.createdAt = selected_date AND Lead.callAttempts > 1
+      // A lead is "Follow-Up" if it had a call today AND its callAttempts field > 1
+      const isFollowupCall = hadCallToday && (lead.callAttempts || 0) > 1;
+      
+      // 3️⃣ Total Calls: CallLog.createdAt = selected_date
+      // Any lead that had a call today (already captured in hadCallToday)
+      
+      // 4️⃣ Overdue Calls Handled: CallLog.createdAt = selected_date AND FollowUp.scheduledAt < selected_date
+      // A lead had an overdue call if it had a call today AND there was a follow-up scheduled before today
+      const hadOverdueCallToday = hadCallToday && (() => {
+        // Determine reference date (end of selected date or current time)
+        let referenceDate: Date;
+        if (endDateParam) {
+          referenceDate = new Date(endDateParam);
+          referenceDate.setHours(23, 59, 59, 999);
+        } else {
+          referenceDate = new Date();
+        }
+        
+        // Check if this lead had a follow-up scheduled before the reference date
+        const scheduledFollowup = leadFollowupMap.get(lead.id);
+        if (!scheduledFollowup) return false;
+        
+        return scheduledFollowup < referenceDate;
+      })();
+      
+      // 5️⃣-8️⃣ Status-based outcomes: Lead.status = X AND Lead.updatedAt = selected_date
+      // These are already captured in wasUpdatedToday flag + lead.status
+      
+      // Debug logging
+      if (hadCallToday) {
+        console.log(`[DSR Transform] Lead ${lead.name}: callAttempts=${lead.callAttempts}, isNew=${isNewCall}, isFollowup=${isFollowupCall}, isOverdue=${hadOverdueCallToday}`);
+      }
       
       return {
         ...lead,
@@ -278,24 +338,43 @@ export async function GET(request: NextRequest) {
         createdBy: lead.User_Lead_createdByIdToUser,
         User_Lead_assignedToIdToUser: undefined,
         User_Lead_createdByIdToUser: undefined,
-        CallLog: undefined, // Remove CallLog from response
-        // Activity flags for frontend filtering
+        CallLog: undefined,
+        // Activity flags matching EXACT KPI logic
         activityFlags: {
           createdToday: wasCreatedToday,
-          hadCallToday: hadCallToday,
-          statusChangedToday: wasUpdatedToday,
-          isNewLead: firstCallToday, // First call made on selected date
-          isFollowup: hadFollowupCallToday, // Follow-up call (attemptNumber > 1) made on selected date
+          hadCallToday: hadCallToday,                // For Total Calls filter
+          statusChangedToday: wasUpdatedToday,       // For outcome filters (won, lost, etc.)
+          isNewLead: isNewCall,                      // CallLog today + callAttempts = 1
+          isFollowup: isFollowupCall,                // CallLog today + callAttempts > 1
+          isOverdue: hadOverdueCallToday,            // CallLog today + scheduled followup < today
         },
       };
     });
 
+    // Debug: Count leads by category
+    const debugCounts = {
+      total: transformedFilteredLeads.length,
+      newLeads: transformedFilteredLeads.filter(l => l.activityFlags.isNewLead).length,
+      followups: transformedFilteredLeads.filter(l => l.activityFlags.isFollowup).length,
+      overdue: transformedFilteredLeads.filter(l => l.activityFlags.isOverdue).length,
+      statusChanged: transformedFilteredLeads.filter(l => l.activityFlags.statusChangedToday).length,
+    };
+    console.log('[DSR Stats API] ===== LEAD CATEGORIZATION COUNTS =====');
+    console.log('[DSR Stats API] Total leads returned:', debugCounts.total);
+    console.log('[DSR Stats API] Leads with isNewLead=true:', debugCounts.newLeads);
+    console.log('[DSR Stats API] Leads with isFollowup=true:', debugCounts.followups);
+    console.log('[DSR Stats API] Leads with isOverdue=true:', debugCounts.overdue);
+    console.log('[DSR Stats API] =====================================');
+
     // Calculate DSR metrics using the new service
+    // NOTE: allCalls is already filtered by date at DB level
+    // Pass dateRange for consistency in metrics calculation
     console.log('[DSR Stats API] Calculating metrics...');
+    console.log('[DSR Stats API] Input counts: leads=' + allLeads.length + ', calls=' + allCalls.length + ', followups=' + allFollowups.length);
     const metrics = calculateDSRMetrics({
       leads: allLeads,
       followups: allFollowups,
-      calls: allCalls,
+      calls: allCalls, // Already date-filtered at DB level
       agentId: agentId || null,
       dateRange: (startDateParam || endDateParam) ? {
         startDate: startDateParam || undefined,
@@ -303,42 +382,110 @@ export async function GET(request: NextRequest) {
       } : undefined,
     });
 
-    console.log('[DSR Stats API] Metrics calculated successfully');
+    console.log('[DSR Stats API] Metrics calculated. Total Calls from DB-filtered data:', metrics.calls.total);
 
     // Calculate agent performance data with all required metrics
+    // IMPORTANT: Use EXACT same logic as DSR KPIs but grouped by agent
     console.log('[DSR Stats API] Calculating agent performance...');
     const agentPerformanceData = await Promise.all(
       (agentId ? agents.filter(a => a.id === agentId) : agents).map(async (agent) => {
-        // Fetch calls made on leads assigned to this agent in the date range
+        console.log(`[DSR Stats API] Calculating metrics for agent: ${agent.name}`);
+        
+        // 1️⃣ Fetch calls made BY this agent (callerId) on selected date
+        const agentCallsWhere: any = {
+          callerId: agent.id, // ← Use callerId, not Lead.assignedToId
+        };
+        if (Object.keys(dateFilter).length > 0) {
+          agentCallsWhere.createdAt = dateFilter;
+        }
+        
         const agentCalls = await prisma.callLog.findMany({
+          where: agentCallsWhere,
+          select: {
+            id: true,
+            leadId: true,
+            attemptNumber: true,
+            createdAt: true,
+          },
+        });
+
+        // Get unique lead IDs from agent's calls
+        const agentLeadIds = new Set(agentCalls.map(c => c.leadId));
+
+        // 2️⃣ Fetch full lead data for these leads to check callAttempts
+        const agentLeads = await prisma.lead.findMany({
           where: {
-            Lead: {
-              assignedToId: agent.id,
-            },
-            ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+            id: { in: Array.from(agentLeadIds) },
+          },
+          select: {
+            id: true,
+            callAttempts: true,
+            status: true,
+            updatedAt: true,
+          },
+        });
+
+        // Create a map of leadId -> Lead for quick lookup
+        const leadMap = new Map(agentLeads.map(l => [l.id, l]));
+
+        // 3️⃣ New Calls: Leads that had calls today AND callAttempts = 1
+        const newLeads = agentLeads.filter(lead => 
+          agentLeadIds.has(lead.id) && (lead.callAttempts || 0) === 1
+        ).length;
+
+        // 4️⃣ Follow-up Calls: Leads that had calls today AND callAttempts > 1
+        const followUps = agentLeads.filter(lead => 
+          agentLeadIds.has(lead.id) && (lead.callAttempts || 0) > 1
+        ).length;
+
+        // 5️⃣ Total Calls: All calls made by this agent on selected date
+        const totalCalls = agentCalls.length;
+
+        // 6️⃣ Fetch follow-ups for leads called by this agent
+        const agentFollowups = await prisma.followUp.findMany({
+          where: {
+            leadId: { in: Array.from(agentLeadIds) },
           },
           select: {
             leadId: true,
-            attemptNumber: true,
+            scheduledAt: true,
           },
         });
 
-        // Count unique leads with first calls (attemptNumber = 1)
-        const newLeadsSet = new Set<string>();
-        agentCalls.forEach(call => {
-          if (call.attemptNumber === 1) {
-            newLeadsSet.add(call.leadId);
+        // Build map of leadId -> most recent scheduled follow-up date
+        const leadFollowupMap = new Map<string, Date>();
+        agentFollowups.forEach(followup => {
+          const scheduledDate = typeof followup.scheduledAt === 'string' 
+            ? new Date(followup.scheduledAt) 
+            : followup.scheduledAt;
+          
+          const existing = leadFollowupMap.get(followup.leadId);
+          if (!existing || scheduledDate > existing) {
+            leadFollowupMap.set(followup.leadId, scheduledDate);
           }
         });
-        const newLeads = newLeadsSet.size;
 
-        // Count follow-up calls (attemptNumber > 1)
-        const followUps = agentCalls.filter(call => call.attemptNumber > 1).length;
+        // 7️⃣ Overdue Calls Handled: Leads with calls on selected date where followup was overdue
+        const overdueLeads = agentLeads.filter(lead => {
+          if (!agentLeadIds.has(lead.id)) return false;
+          
+          const scheduledFollowup = leadFollowupMap.get(lead.id);
+          if (!scheduledFollowup) return false;
+          
+          // Determine reference date
+          let refDate: Date;
+          if (endDateParam) {
+            refDate = new Date(endDateParam);
+            refDate.setHours(23, 59, 59, 999);
+          } else {
+            refDate = new Date();
+          }
+          
+          return scheduledFollowup < refDate;
+        }).length;
 
-        // Total calls for this agent
-        const totalCalls = agentCalls.length;
-
-        const [won, lost, unreachable, overdue] = await Promise.all([
+        // 8️⃣ Lead Outcome Metrics - Use assignedToId for outcomes
+        const [won, lost, unreachable, unqualified] = await Promise.all([
           // Won - leads marked won by agent in date range
           prisma.lead.count({
             where: {
@@ -366,21 +513,17 @@ export async function GET(request: NextRequest) {
             },
           }),
           
-          // Overdue - follow-ups that are overdue relative to selected date
-          prisma.followUp.count({
+          // Unqualified - leads marked unqualified by agent in date range
+          prisma.lead.count({
             where: {
-              Lead: {
-                assignedToId: agent.id,
-              },
-              scheduledAt: {
-                lt: referenceDate,
-              },
-              status: {
-                not: 'completed',
-              },
+              assignedToId: agent.id,
+              status: 'unqualified',
+              ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
             },
           }),
         ]);
+
+        console.log(`[DSR Stats API] Agent ${agent.name}: newLeads=${newLeads}, followUps=${followUps}, totalCalls=${totalCalls}, overdue=${overdueLeads}`);
 
         return {
           agentId: agent.id,
@@ -393,7 +536,8 @@ export async function GET(request: NextRequest) {
           won,
           lost,
           unreachable,
-          overdue,
+          unqualified,
+          overdue: overdueLeads,
         };
       })
     );

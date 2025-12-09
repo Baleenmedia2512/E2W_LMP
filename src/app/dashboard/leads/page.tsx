@@ -428,9 +428,9 @@ export default function LeadsPage() {
     
     // Apply status filter for overdue/scheduled/today categories
     if (statusFilter === 'overdue') {
-      return { overdue: categorized.overdue, newLeads: [], future: [] };
+      return { overdue: categorized.overdue, newLeads: [], future: [], statusFiltered: [] };
     } else if (statusFilter === 'scheduled') {
-      return { overdue: [], newLeads: [], future: categorized.future };
+      return { overdue: [], newLeads: [], future: categorized.future, statusFiltered: [] };
     } else if (statusFilter === 'today') {
       // Filter future to show only TODAY's follow-ups
       const now = new Date();
@@ -443,12 +443,20 @@ export default function LeadsPage() {
         return scheduledDate >= todayStart && scheduledDate <= todayEnd && scheduledDate >= now;
       });
       
-      return { overdue: [], newLeads: [], future: todayFollowUps };
+      return { overdue: [], newLeads: [], future: todayFollowUps, statusFiltered: [] };
     } else if (statusFilter === 'new') {
-      return { overdue: [], newLeads: categorized.newLeads, future: [] };
+      return { overdue: [], newLeads: categorized.newLeads, future: [], statusFiltered: [] };
+    } else if (statusFilter !== 'all' && ['qualified', 'unqualified', 'won', 'lost', 'unreach'].includes(statusFilter)) {
+      // For specific status filters, show all filtered leads in a separate section
+      return { 
+        overdue: [], 
+        newLeads: [], 
+        future: [], 
+        statusFiltered: filteredLeads.map(lead => ({ lead, followUp: getNextFollowUpForLead(lead.id) }))
+      };
     }
     
-    return categorized;
+    return { ...categorized, statusFiltered: [] };
   }, [filteredLeads, followUps, currentTime, statusFilter]); // Re-calculate when time updates
 
   const getStatusColor = (status: string) => {
@@ -539,6 +547,11 @@ export default function LeadsPage() {
               <option value="today">Follow-up Today</option>
               <option value="overdue">Overdue</option>
               <option value="scheduled">Scheduled Follow-up</option>
+              <option value="qualified">Qualified</option>
+              <option value="unqualified">Unqualified</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+              <option value="unreach">Unreachable</option>
             </Select>
 
             <Select
@@ -1282,6 +1295,241 @@ export default function LeadsPage() {
               </Box>
             )}
           </Box>
+
+          {/* Status Filtered Leads - For specific status filters like unqualified, won, lost, etc. */}
+          {categorizedLeads.statusFiltered && categorizedLeads.statusFiltered.length > 0 && (
+            <Box>
+              <Flex
+                align="center"
+                mb={4}
+                p={{ base: 2, md: 3 }}
+                bg="gray.50"
+                borderRadius="md"
+                borderLeft="4px"
+                borderColor={
+                  statusFilter === 'unqualified' ? 'purple.500' :
+                  statusFilter === 'won' ? 'green.500' :
+                  statusFilter === 'lost' ? 'red.500' :
+                  statusFilter === 'qualified' ? 'cyan.500' :
+                  statusFilter === 'unreach' ? 'pink.500' :
+                  'gray.500'
+                }
+                flexWrap="wrap"
+                gap={2}
+              >
+                <Icon 
+                  as={
+                    statusFilter === 'unqualified' ? HiX :
+                    statusFilter === 'won' ? HiPlus :
+                    statusFilter === 'lost' ? HiBan :
+                    HiViewBoards
+                  } 
+                  boxSize={6} 
+                  color={
+                    statusFilter === 'unqualified' ? 'purple.600' :
+                    statusFilter === 'won' ? 'green.600' :
+                    statusFilter === 'lost' ? 'red.600' :
+                    statusFilter === 'qualified' ? 'cyan.600' :
+                    statusFilter === 'unreach' ? 'pink.600' :
+                    'gray.600'
+                  }
+                />
+                <Heading size={{ base: 'sm', md: 'md' }} ml={2} color={
+                  statusFilter === 'unqualified' ? 'purple.700' :
+                  statusFilter === 'won' ? 'green.700' :
+                  statusFilter === 'lost' ? 'red.700' :
+                  statusFilter === 'qualified' ? 'cyan.700' :
+                  statusFilter === 'unreach' ? 'pink.700' :
+                  'gray.700'
+                }>
+                  {getStatusLabel(statusFilter)} Leads
+                </Heading>
+                <Badge ml={3} colorScheme={
+                  statusFilter === 'unqualified' ? 'purple' :
+                  statusFilter === 'won' ? 'green' :
+                  statusFilter === 'lost' ? 'red' :
+                  statusFilter === 'qualified' ? 'cyan' :
+                  statusFilter === 'unreach' ? 'pink' :
+                  'gray'
+                } fontSize={{ base: 'sm', md: 'md' }}>
+                  {categorizedLeads.statusFiltered.length}
+                </Badge>
+              </Flex>
+              
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
+                {categorizedLeads.statusFiltered.map(({ lead, followUp }) => {
+                  const dueDate = followUp?.scheduledAt;
+                  const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
+                  const lastCall = getLastCallForLead(lead.id);
+                  
+                  return (
+                    <Box
+                      key={lead.id}
+                      bg="white"
+                      borderRadius="lg"
+                      boxShadow="sm"
+                      p={{ base: 3, md: 4 }}
+                      borderLeft="6px"
+                      borderColor={
+                        statusFilter === 'unqualified' ? 'purple.400' :
+                        statusFilter === 'won' ? 'green.400' :
+                        statusFilter === 'lost' ? 'red.400' :
+                        statusFilter === 'qualified' ? 'cyan.400' :
+                        statusFilter === 'unreach' ? 'pink.400' :
+                        'gray.400'
+                      }
+                      _hover={{ boxShadow: 'md' }}
+                      transition="all 0.2s"
+                    >
+                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={3} direction={{ base: 'column', lg: 'row' }}>
+                        <Box flex="1" minW={{ base: 'full', lg: '300px' }}>
+                          <Text
+                            fontWeight="bold"
+                            fontSize={{ base: 'md', md: 'lg' }}
+                            color="blue.600"
+                            cursor="pointer"
+                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                            _hover={{ textDecoration: 'underline' }}
+                            mb={2}
+                          >
+                            {lead.name}
+                          </Text>
+                          
+                          <VStack align="stretch" spacing={2}>
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Email:</Text>
+                              <Text fontSize="sm" color="gray.700">{lead.email || '-'}</Text>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Phone:</Text>
+                              <Text fontSize="sm" color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Source:</Text>
+                              <Text fontSize="sm" color="gray.700">{lead.source || '-'}</Text>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
+                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Status:</Text>
+                              <HStack>
+                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize="sm">
+                                  {getStatusLabel(lead.status)}
+                                </Badge>
+                                {lead.callAttempts > 0 && (
+                                  <Badge colorScheme={lead.callAttempts > 6 ? 'red' : lead.callAttempts > 3 ? 'orange' : 'blue'} fontSize="xs">
+                                    Calls: {lead.callAttempts}
+                                  </Badge>
+                                )}
+                              </HStack>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Lead Age:</Text>
+                              <LeadAge createdAt={lead.createdAt} />
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Assigned To:</Text>
+                              <HStack spacing={1}>
+                                <Text fontSize="sm" color="gray.700">{lead.assignedTo?.name || 'Unassigned'}</Text>
+                                <IconButton
+                                  aria-label="Change assignment"
+                                  icon={<HiPencil />}
+                                  size="xs"
+                                  variant="ghost"
+                                  colorScheme="blue"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLeadToAssign({
+                                      id: lead.id,
+                                      name: lead.name,
+                                      currentAssignee: lead.assignedTo?.name ?? undefined
+                                    });
+                                    onAssignOpen();
+                                  }}
+                                />
+                              </HStack>
+                            </HStack>
+                            
+                            <HStack spacing={2} flexWrap="wrap">
+                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Origin:</Text>
+                              <Text fontSize="sm" color="gray.700">{formatDateTime(lead.createdAt)}</Text>
+                            </HStack>
+                            
+                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
+                              <HStack spacing={2} flexWrap="wrap">
+                                <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Last Edit:</Text>
+                                <Text fontSize="sm" color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
+                              </HStack>
+                            )}
+                          </VStack>
+                        </Box>
+
+                        <HStack spacing={2} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-end', lg: 'flex-start' }}>
+                          <Button
+                            size={{ base: 'xs', sm: 'sm' }}
+                            leftIcon={<HiPhone />}
+                            colorScheme="green"
+                            onClick={() => {
+                              setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                              onCallDialerOpen();
+                            }}
+                          >
+                            Call
+                          </Button>
+                          <Tooltip 
+                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
+                            placement="top"
+                          >
+                            <IconButton
+                              aria-label="Send WhatsApp"
+                              icon={<FaWhatsapp />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="whatsapp"
+                              variant="outline"
+                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
+                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                              _hover={{ transform: 'scale(1.05)' }}
+                              transition="all 0.2s"
+                            />
+                          </Tooltip>
+                          <IconButton
+                            aria-label="Assign lead"
+                            icon={<HiUserAdd />}
+                            size="sm"
+                            colorScheme="blue"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLeadToAssign({
+                                id: lead.id,
+                                name: lead.name,
+                                currentAssignee: lead.assignedTo?.name ?? undefined
+                              });
+                              onAssignOpen();
+                            }}
+                          />
+                          <IconButton
+                            aria-label="View details"
+                            icon={<HiEye />}
+                            size="sm"
+                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                          />
+                        </HStack>
+                      </Flex>
+                    </Box>
+                  );
+                })}
+              </SimpleGrid>
+            </Box>
+          )}
         </VStack>
 
       {/* Conversion Modals */}

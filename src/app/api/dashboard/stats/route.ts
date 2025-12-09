@@ -78,13 +78,19 @@ export async function GET(request: NextRequest) {
       lostLeadsWhere.updatedAt = dateFilter;
     }
 
-    // 5. TOTAL LEADS - updated (last edited) in date range
+    // 5. UNQUALIFIED LEADS - marked as unqualified (by updatedAt) in date range
+    const unqualifiedLeadsWhere: any = { status: 'unqualified', ...userFilter };
+    if (hasDateFilter) {
+      unqualifiedLeadsWhere.updatedAt = dateFilter;
+    }
+
+    // 6. TOTAL LEADS - updated (last edited) in date range
     const totalLeadsWhere: any = { ...userFilter };
     if (hasDateFilter) {
       totalLeadsWhere.updatedAt = dateFilter;
     }
 
-    // 6. CALLS/CONVERSATIONS - made in date range
+    // 7. CALLS/CONVERSATIONS - made in date range
     const callsWhere: any = {};
     if (hasDateFilter) {
       callsWhere.createdAt = dateFilter;
@@ -100,6 +106,7 @@ export async function GET(request: NextRequest) {
       newLeadsCount,
       wonLeadsCount,
       lostLeadsCount,
+      unqualifiedLeadsCount,
       totalLeadsCount,
       conversationsCount,
       followUpsScheduled,
@@ -116,19 +123,22 @@ export async function GET(request: NextRequest) {
       // 3. Lost leads in date range
       prisma.lead.count({ where: lostLeadsWhere }),
 
-      // 4. Total leads (created or updated in date range)
+      // 4. Unqualified leads in date range
+      prisma.lead.count({ where: unqualifiedLeadsWhere }),
+
+      // 5. Total leads (created or updated in date range)
       prisma.lead.count({ where: totalLeadsWhere }),
 
-      // 5. Conversations/Calls in date range
+      // 6. Conversations/Calls in date range
       prisma.callLog.count({ where: callsWhere }),
 
-      // 6. Follow-ups scheduled in date range - get all to count unique leads
+      // 7. Follow-ups scheduled in date range - get all to count unique leads
       prisma.followUp.findMany({ 
         where: followUpsScheduledWhere,
         select: { leadId: true, scheduledAt: true }
       }),
 
-      // 7. All pending follow-ups (for overdue calculation) - CRITICAL: only for ACTIVE leads
+      // 8. All pending follow-ups (for overdue calculation) - CRITICAL: only for ACTIVE leads
       // This matches the lead categorization logic which filters by active statuses
       prisma.followUp.findMany({
         where: {
@@ -142,7 +152,7 @@ export async function GET(request: NextRequest) {
         orderBy: { scheduledAt: 'desc' },
       }),
 
-      // 8. Recent leads (from date range)
+      // 9. Recent leads (from date range)
       prisma.lead.findMany({
         where: newLeadsWhere,
         include: {
@@ -153,7 +163,7 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
 
-      // 9. Upcoming follow-ups for display - CRITICAL: only for ACTIVE leads
+      // 10. Upcoming follow-ups for display - CRITICAL: only for ACTIVE leads
       prisma.followUp.findMany({
         where: {
           Lead: {
@@ -358,6 +368,7 @@ export async function GET(request: NextRequest) {
           totalLeadsForDashboard, // New + Overdue + Today Follow-ups
           wonLeads: wonLeadsCount,
           lostLeads: lostLeadsCount,
+          unqualifiedLeads: unqualifiedLeadsCount,
           conversations: conversationsCount,
           conversionRate,
           winRate,
