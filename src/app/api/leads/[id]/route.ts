@@ -6,6 +6,7 @@ import {
   notifyDealWon, 
   notifyLeadUnreachable, 
   notifyLeadUnqualified,
+  notifyLeadLost,
   notifyLeadFollowUpStageChange
 } from '@/shared/lib/utils/notification-service';
 import { randomUUID } from 'crypto';
@@ -168,6 +169,10 @@ export async function PUT(
           } else if (body.status === 'unqualified') {
             notificationPromises.push(
               notifyLeadUnqualified(params.id, lead.name, assignedToId)
+            );
+          } else if (body.status === 'lost') {
+            notificationPromises.push(
+              notifyLeadLost(params.id, lead.name, assignedToId)
             );
           }
 

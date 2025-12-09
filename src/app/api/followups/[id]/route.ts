@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
-import { notifyFollowUpStatusChange } from '@/shared/lib/utils/notification-service';
+import { notifyFollowUpStatusChange, notifyFollowUpRescheduled } from '@/shared/lib/utils/notification-service';
 import { 
   shouldNotifyFollowUpStatusChange,
   determineFollowUpStatus,
@@ -109,6 +109,24 @@ export async function PUT(
       } catch (notificationError) {
         console.error('Failed to send follow-up status change notification:', notificationError);
         // Don't fail the update if notification fails
+      }
+    }
+
+    // Check for schedule change (reschedule) and send notification
+    const oldScheduledAt = existingFollowUp.scheduledAt;
+    const newScheduledAt = followUp.scheduledAt;
+    
+    if (body.scheduledAt && oldScheduledAt.getTime() !== newScheduledAt.getTime() && existingFollowUp.Lead.assignedToId) {
+      try {
+        await notifyFollowUpRescheduled(
+          existingFollowUp.Lead.id,
+          existingFollowUp.Lead.name,
+          existingFollowUp.Lead.assignedToId,
+          newScheduledAt
+        );
+        console.log('Follow-up reschedule notification sent successfully');
+      } catch (notificationError) {
+        console.error('Failed to send follow-up reschedule notification:', notificationError);
       }
     }
 

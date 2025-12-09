@@ -133,14 +133,14 @@ export default function NotificationBell() {
 
   return (
     <Menu closeOnSelect={false}>
-      <MenuButton
-        as={IconButton}
-        icon={<FiBell />}
-        variant="ghost"
-        position="relative"
-        aria-label="Notifications"
-        size="md"
-      >
+      <Box position="relative">
+        <MenuButton
+          as={IconButton}
+          icon={<FiBell />}
+          variant="ghost"
+          aria-label="Notifications"
+          size="md"
+        />
         {unreadCount > 0 && (
           <Badge
             position="absolute"
@@ -152,11 +152,12 @@ export default function NotificationBell() {
             px={1.5}
             minW="20px"
             textAlign="center"
+            zIndex={1}
           >
             {displayCount}
           </Badge>
         )}
-      </MenuButton>
+      </Box>
       <MenuList maxH="500px" overflowY="auto" minW="350px" maxW="400px">
         {/* Header */}
         <Box px={4} py={3} borderBottomWidth="1px">

@@ -96,6 +96,20 @@ export async function notifyLeadUnqualified(leadId: string, leadName: string, as
 }
 
 /**
+ * Create notification for status change to Lost
+ */
+export async function notifyLeadLost(leadId: string, leadName: string, assignedToId: string) {
+  return createNotification({
+    userId: assignedToId,
+    type: 'warning',
+    title: '📝 Lead Marked Lost',
+    message: `Lead "${leadName}" has been marked as lost.`,
+    relatedLeadId: leadId,
+    metadata: { action: 'LEAD_LOST' },
+  });
+}
+
+/**
  * Create notification for follow-up due soon
  */
 export async function notifyFollowUpDue(
@@ -104,15 +118,34 @@ export async function notifyFollowUpDue(
   assignedToId: string,
   scheduledAt: Date
 ) {
+  const now = new Date();
+  const hoursUntilDue = (scheduledAt.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const isTomorrow = scheduledAt.toDateString() === new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString();
+  
+  let title, message;
+  
+  if (isTomorrow) {
+    title = '📅 Follow-up Scheduled for Tomorrow';
+    message = `Follow-up with "${leadName}" is scheduled for tomorrow at ${scheduledAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}.`;
+  } else if (hoursUntilDue <= 1) {
+    title = '🔔 Follow-up Due Soon';
+    message = `You have a follow-up scheduled with "${leadName}" in less than 1 hour.`;
+  } else {
+    title = '⏰ Follow-up Due';
+    message = `You have a follow-up scheduled with "${leadName}".`;
+  }
+
   return createNotification({
     userId: assignedToId,
     type: 'info',
-    title: '⏰ Follow-up Due',
-    message: `You have a follow-up scheduled with "${leadName}".`,
+    title,
+    message,
     relatedLeadId: leadId,
     metadata: { 
       action: 'FOLLOWUP_DUE',
       scheduledAt: scheduledAt.toISOString(),
+      hoursUntilDue: Math.round(hoursUntilDue * 10) / 10, // Round to 1 decimal place
+      isTomorrow,
     },
   });
 }
@@ -135,6 +168,39 @@ export async function notifyFollowUpOverdue(
     metadata: { 
       action: 'FOLLOWUP_OVERDUE',
       priority,
+    },
+  });
+}
+
+/**
+ * Create notification for follow-up rescheduled
+ */
+export async function notifyFollowUpRescheduled(
+  leadId: string,
+  leadName: string,
+  assignedToId: string,
+  newScheduledAt: Date
+) {
+  const formattedDate = newScheduledAt.toLocaleDateString('en-GB', { 
+    day: '2-digit', 
+    month: 'short', 
+    year: '2-digit' 
+  }).replace(/\//g, '-');
+  const formattedTime = newScheduledAt.toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+
+  return createNotification({
+    userId: assignedToId,
+    type: 'info',
+    title: '📅 Follow-up Rescheduled',
+    message: `Follow-up with "${leadName}" has been rescheduled to ${formattedDate} at ${formattedTime}.`,
+    relatedLeadId: leadId,
+    metadata: { 
+      action: 'FOLLOWUP_RESCHEDULED',
+      newScheduledAt: newScheduledAt.toISOString(),
     },
   });
 }
