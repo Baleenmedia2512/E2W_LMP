@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
-import { notifyFollowUpStatusChange, notifyFollowUpRescheduled } from '@/shared/lib/utils/notification-service';
+import { notifyFollowUpStatusChange, notifyFollowUpRescheduled, notifyFollowUpUpdated } from '@/shared/lib/utils/notification-service';
 import { 
   shouldNotifyFollowUpStatusChange,
   determineFollowUpStatus,
@@ -127,6 +127,33 @@ export async function PUT(
         console.log('Follow-up reschedule notification sent successfully');
       } catch (notificationError) {
         console.error('Failed to send follow-up reschedule notification:', notificationError);
+      }
+    }
+
+    // Check for other changes and send general update notification
+    const hasOtherChanges = 
+      (body.customerRequirement !== undefined && body.customerRequirement !== existingFollowUp.customerRequirement) ||
+      (body.notes !== undefined && body.notes !== existingFollowUp.notes);
+
+    if (hasOtherChanges && existingFollowUp.Lead.assignedToId && body.updatedById) {
+      try {
+        let changesSummary = '';
+        if (body.customerRequirement !== undefined && body.customerRequirement !== existingFollowUp.customerRequirement) {
+          changesSummary += 'Customer requirement updated. ';
+        }
+        if (body.notes !== undefined && body.notes !== existingFollowUp.notes) {
+          changesSummary += 'Notes updated.';
+        }
+
+        await notifyFollowUpUpdated(
+          existingFollowUp.Lead.id,
+          existingFollowUp.Lead.name,
+          existingFollowUp.Lead.assignedToId,
+          changesSummary.trim()
+        );
+        console.log('Follow-up updated notification sent successfully');
+      } catch (notificationError) {
+        console.error('Failed to send follow-up updated notification:', notificationError);
       }
     }
 

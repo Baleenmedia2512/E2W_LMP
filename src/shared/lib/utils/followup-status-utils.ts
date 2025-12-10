@@ -1,1 +1,178 @@
-/**\n * Follow-up Status Management Utilities\n * \n * This module provides utilities for managing follow-up status changes\n * and determining when to trigger notifications.\n */\n\nexport type FollowUpStatus = 'pending' | 'completed' | 'overdue' | 'cancelled';\nexport type LeadStatus = 'new' | 'followup' | 'qualified' | 'unreach' | 'unqualified' | 'won' | 'lost';\n\nexport interface FollowUpStatusChange {\n  oldStatus: FollowUpStatus;\n  newStatus: FollowUpStatus;\n  shouldNotify: boolean;\n  notificationType: 'info' | 'success' | 'warning' | 'error';\n}\n\nexport interface LeadStageChange {\n  oldStage: LeadStatus;\n  newStage: LeadStatus;\n  isFollowUpRelated: boolean;\n  shouldNotify: boolean;\n  notificationType: 'info' | 'success' | 'warning' | 'error';\n}\n\n/**\n * Determines if a follow-up status change should trigger a notification\n */\nexport function shouldNotifyFollowUpStatusChange(\n  oldStatus: FollowUpStatus,\n  newStatus: FollowUpStatus\n): FollowUpStatusChange {\n  const change: FollowUpStatusChange = {\n    oldStatus,\n    newStatus,\n    shouldNotify: false,\n    notificationType: 'info',\n  };\n\n  // Don't notify if status hasn't changed\n  if (oldStatus === newStatus) {\n    return change;\n  }\n\n  // Define notification-worthy status changes\n  const notificationRules: Record<string, { notify: boolean; type: 'info' | 'success' | 'warning' | 'error' }> = {\n    'pending_to_completed': { notify: true, type: 'success' },\n    'pending_to_overdue': { notify: true, type: 'warning' },\n    'pending_to_cancelled': { notify: true, type: 'info' },\n    'overdue_to_completed': { notify: true, type: 'success' },\n    'overdue_to_pending': { notify: true, type: 'info' },\n    'overdue_to_cancelled': { notify: true, type: 'info' },\n    'completed_to_pending': { notify: true, type: 'info' },\n    'completed_to_overdue': { notify: true, type: 'warning' },\n    'cancelled_to_pending': { notify: true, type: 'info' },\n    'cancelled_to_completed': { notify: true, type: 'success' },\n  };\n\n  const ruleKey = `${oldStatus}_to_${newStatus}`;\n  const rule = notificationRules[ruleKey];\n\n  if (rule) {\n    change.shouldNotify = rule.notify;\n    change.notificationType = rule.type;\n  }\n\n  return change;\n}\n\n/**\n * Determines if a lead stage change should trigger a notification\n */\nexport function shouldNotifyLeadStageChange(\n  oldStage: LeadStatus,\n  newStage: LeadStatus\n): LeadStageChange {\n  const change: LeadStageChange = {\n    oldStage,\n    newStage,\n    isFollowUpRelated: false,\n    shouldNotify: false,\n    notificationType: 'info',\n  };\n\n  // Don't notify if stage hasn't changed\n  if (oldStage === newStage) {\n    return change;\n  }\n\n  // Check if this is a follow-up related change\n  const followUpRelatedStages: LeadStatus[] = ['new', 'followup', 'qualified', 'won', 'lost', 'unqualified', 'unreach'];\n  change.isFollowUpRelated = \n    followUpRelatedStages.includes(oldStage) && \n    followUpRelatedStages.includes(newStage) &&\n    (oldStage === 'followup' || newStage === 'followup' || \n     (oldStage === 'new' && newStage === 'followup'));\n\n  if (!change.isFollowUpRelated) {\n    return change;\n  }\n\n  // Define notification-worthy stage changes\n  const notificationRules: Record<string, { notify: boolean; type: 'info' | 'success' | 'warning' | 'error' }> = {\n    'new_to_followup': { notify: true, type: 'info' },\n    'followup_to_qualified': { notify: true, type: 'success' },\n    'followup_to_won': { notify: true, type: 'success' },\n    'followup_to_lost': { notify: true, type: 'warning' },\n    'followup_to_unqualified': { notify: true, type: 'warning' },\n    'followup_to_unreach': { notify: true, type: 'warning' },\n    'qualified_to_followup': { notify: true, type: 'info' },\n    'new_to_qualified': { notify: false, type: 'info' }, // Not follow-up related\n    'qualified_to_won': { notify: false, type: 'success' }, // Not follow-up related\n    'qualified_to_lost': { notify: false, type: 'warning' }, // Not follow-up related\n  };\n\n  const ruleKey = `${oldStage}_to_${newStage}`;\n  const rule = notificationRules[ruleKey];\n\n  if (rule) {\n    change.shouldNotify = rule.notify;\n    change.notificationType = rule.type;\n  }\n\n  return change;\n}\n\n/**\n * Determines the appropriate follow-up status based on scheduled date\n */\nexport function determineFollowUpStatus(\n  scheduledAt: Date,\n  completedAt?: Date | null,\n  currentStatus?: FollowUpStatus\n): FollowUpStatus {\n  // If completed, return completed\n  if (completedAt) {\n    return 'completed';\n  }\n\n  // If explicitly cancelled\n  if (currentStatus === 'cancelled') {\n    return 'cancelled';\n  }\n\n  const now = new Date();\n  \n  // If scheduled time has passed, mark as overdue\n  if (scheduledAt < now) {\n    return 'overdue';\n  }\n\n  // Otherwise, it's pending\n  return 'pending';\n}\n\n/**\n * Formats status change message for activity logs\n */\nexport function formatStatusChangeMessage(\n  entityType: 'followup' | 'lead',\n  fieldName: string,\n  oldValue: string,\n  newValue: string,\n  entityName?: string\n): string {\n  const entity = entityType === 'followup' ? 'Follow-up' : 'Lead';\n  const nameContext = entityName ? ` for ${entityName}` : '';\n  \n  return `${entity} ${fieldName} changed from ${oldValue} to ${newValue}${nameContext}`;\n}\n\n/**\n * Check if a follow-up is overdue based on its scheduled date\n */\nexport function isFollowUpOverdue(scheduledAt: Date): boolean {\n  return new Date() > scheduledAt;\n}\n\n/**\n * Calculate how many days a follow-up is overdue\n */\nexport function calculateOverdueDays(scheduledAt: Date): number {\n  const now = new Date();\n  const diffTime = now.getTime() - scheduledAt.getTime();\n  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));\n  return Math.max(0, diffDays);\n}
+/**
+ * Follow-up Status Management Utilities
+ * 
+ * This module provides utilities for managing follow-up status changes
+ * and determining when to trigger notifications.
+ */
+
+export type FollowUpStatus = 'pending' | 'completed' | 'overdue' | 'cancelled';
+export type LeadStatus = 'new' | 'followup' | 'qualified' | 'unreach' | 'unqualified' | 'won' | 'lost';
+
+export interface FollowUpStatusChange {
+  oldStatus: FollowUpStatus;
+  newStatus: FollowUpStatus;
+  shouldNotify: boolean;
+  notificationType: 'info' | 'success' | 'warning' | 'error';
+}
+
+export interface LeadStageChange {
+  oldStage: LeadStatus;
+  newStage: LeadStatus;
+  isFollowUpRelated: boolean;
+  shouldNotify: boolean;
+  notificationType: 'info' | 'success' | 'warning' | 'error';
+}
+
+/**
+ * Determines if a follow-up status change should trigger a notification
+ */
+export function shouldNotifyFollowUpStatusChange(
+  oldStatus: FollowUpStatus,
+  newStatus: FollowUpStatus
+): FollowUpStatusChange {
+  const change: FollowUpStatusChange = {
+    oldStatus,
+    newStatus,
+    shouldNotify: false,
+    notificationType: 'info',
+  };
+
+  if (oldStatus === newStatus) {
+    return change;
+  }
+
+  const notificationRules: Record<string, { notify: boolean; type: 'info' | 'success' | 'warning' | 'error' }> = {
+    'pending_to_completed': { notify: true, type: 'success' },
+    'pending_to_overdue': { notify: true, type: 'warning' },
+    'pending_to_cancelled': { notify: true, type: 'info' },
+    'overdue_to_completed': { notify: true, type: 'success' },
+    'overdue_to_pending': { notify: true, type: 'info' },
+    'overdue_to_cancelled': { notify: true, type: 'info' },
+    'completed_to_pending': { notify: true, type: 'info' },
+    'completed_to_overdue': { notify: true, type: 'warning' },
+    'cancelled_to_pending': { notify: true, type: 'info' },
+    'cancelled_to_completed': { notify: true, type: 'success' },
+  };
+
+  const ruleKey = `${oldStatus}_to_${newStatus}`;
+  const rule = notificationRules[ruleKey];
+
+  if (rule) {
+    change.shouldNotify = rule.notify;
+    change.notificationType = rule.type;
+  }
+
+  return change;
+}
+
+/**
+ * Determines if a lead stage change should trigger a notification
+ */
+export function shouldNotifyLeadStageChange(
+  oldStage: LeadStatus,
+  newStage: LeadStatus
+): LeadStageChange {
+  const change: LeadStageChange = {
+    oldStage,
+    newStage,
+    isFollowUpRelated: false,
+    shouldNotify: false,
+    notificationType: 'info',
+  };
+
+  if (oldStage === newStage) {
+    return change;
+  }
+
+  const followUpRelatedStages: LeadStatus[] = ['new', 'followup', 'qualified', 'won', 'lost', 'unqualified', 'unreach'];
+  change.isFollowUpRelated = 
+    followUpRelatedStages.includes(oldStage) && 
+    followUpRelatedStages.includes(newStage) &&
+    (oldStage === 'followup' || newStage === 'followup' || 
+     (oldStage === 'new' && newStage === 'followup'));
+
+  if (!change.isFollowUpRelated) {
+    return change;
+  }
+
+  const notificationRules: Record<string, { notify: boolean; type: 'info' | 'success' | 'warning' | 'error' }> = {
+    'new_to_followup': { notify: true, type: 'info' },
+    'followup_to_qualified': { notify: true, type: 'success' },
+    'followup_to_won': { notify: true, type: 'success' },
+    'followup_to_lost': { notify: true, type: 'warning' },
+    'followup_to_unqualified': { notify: true, type: 'warning' },
+    'followup_to_unreach': { notify: true, type: 'warning' },
+    'qualified_to_followup': { notify: true, type: 'info' },
+    'new_to_qualified': { notify: false, type: 'info' },
+    'qualified_to_won': { notify: false, type: 'success' },
+    'qualified_to_lost': { notify: false, type: 'warning' },
+  };
+
+  const ruleKey = `${oldStage}_to_${newStage}`;
+  const rule = notificationRules[ruleKey];
+
+  if (rule) {
+    change.shouldNotify = rule.notify;
+    change.notificationType = rule.type;
+  }
+
+  return change;
+}
+
+/**
+ * Determines the appropriate follow-up status based on scheduled date
+ */
+export function determineFollowUpStatus(
+  scheduledAt: Date,
+  completedAt?: Date | null,
+  currentStatus?: FollowUpStatus
+): FollowUpStatus {
+  if (completedAt) {
+    return 'completed';
+  }
+
+  if (currentStatus === 'cancelled') {
+    return 'cancelled';
+  }
+
+  const now = new Date();
+  
+  if (scheduledAt < now) {
+    return 'overdue';
+  }
+
+  return 'pending';
+}
+
+/**
+ * Formats status change message for activity logs
+ */
+export function formatStatusChangeMessage(
+  entityType: 'followup' | 'lead',
+  fieldName: string,
+  oldValue: string,
+  newValue: string,
+  entityName?: string
+): string {
+  const entity = entityType === 'followup' ? 'Follow-up' : 'Lead';
+  const nameContext = entityName ? ` for ${entityName}` : '';
+  
+  return `${entity} ${fieldName} changed from ${oldValue} to ${newValue}${nameContext}`;
+}
+
+/**
+ * Check if a follow-up is overdue based on its scheduled date
+ */
+export function isFollowUpOverdue(scheduledAt: Date): boolean {
+  return new Date() > scheduledAt;
+}
+
+/**
+ * Calculate how many days a follow-up is overdue
+ */
+export function calculateOverdueDays(scheduledAt: Date): number {
+  const now = new Date();
+  const diffTime = now.getTime() - scheduledAt.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+}
