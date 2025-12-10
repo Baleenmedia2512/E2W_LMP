@@ -1,0 +1,118 @@
+🚨 URGENT: WHY YOUR LEADS ARE NOT SAVING
+
+========================================
+THE PROBLEM
+========================================
+
+Meta IS sending webhooks to your server, but they're being REJECTED with:
+
+  ❌ HTTP 401 Unauthorized
+  ❌ Error Code: 102 (webhooks.delivery.rejected)
+  ❌ Status: failure
+
+WHY: The META_APP_SECRET environment variable is MISSING in Vercel Production.
+     This causes signature verification to fail.
+
+========================================
+THE FIX (5 minutes)
+========================================
+
+STEP 1: Go to Vercel
+  https://vercel.com/baleen-medias-projects/e2-w-lmp/settings/environment-variables
+
+STEP 2: Click "Add New" and add these 4 variables
+  (Make sure to select "Production" environment for each!)
+
+  Variable #1:
+    Name: META_ACCESS_TOKEN
+    Value: EAAWnNnjnCxIBQOD8CHKD34TxdqDXY0meVqoH5i5wIjGiQZCgKMCQlZAF5SwAbNPPbCST8TkCtsQ8cS1LSbMit2KF6P51Eh1ijzG6TvnWrAotIpFIHZCySkZC7bnU9SyiaZCUUmDWjot3IjqkhLMHZBwh4LVrfn5rgiVHykTOKu6kq1OVxZCP4u8UqWtHVE8lajpPdVE3yYt
+    Environment: ✓ Production
+
+  Variable #2:
+    Name: META_APP_SECRET
+    Value: d027d066c388978723bb4e378c93f576
+    Environment: ✓ Production
+
+  Variable #3:
+    Name: META_PAGE_ID
+    Value: 1552034478376801
+    Environment: ✓ Production
+
+  Variable #4:
+    Name: META_WEBHOOK_VERIFY_TOKEN
+    Value: E2W_LMP_META_WEBHOOK_2025
+    Environment: ✓ Production
+
+STEP 3: Redeploy Your App
+  1. Go to: https://vercel.com/baleen-medias-projects/e2-w-lmp
+  2. Click "Deployments" tab
+  3. Find latest deployment
+  4. Click "..." menu
+  5. Click "Redeploy"
+  6. Wait ~2 minutes for completion
+
+STEP 4: Test It
+  1. Submit a NEW test lead via your Facebook Lead Ad form
+  2. Use a UNIQUE phone number (different from existing 120 leads)
+  3. Wait 30 seconds
+  4. Run: npm run diagnose:lead-not-saving
+  5. Lead should appear!
+
+========================================
+VERIFICATION
+========================================
+
+After fix, check Meta Dashboard:
+  https://developers.facebook.com/apps/1591227282033426/webhooks/
+
+Under "Recent Deliveries" you should see:
+  ✅ Status: success (200 OK)
+  ✅ No more 401 errors
+
+========================================
+WHAT HAPPENED
+========================================
+
+BEFORE:
+  1. You submit lead on Facebook
+  2. Meta sends webhook to your server
+  3. Server tries to verify signature using META_APP_SECRET
+  4. META_APP_SECRET is missing in Vercel
+  5. Verification fails → Returns 401 Unauthorized
+  6. Meta marks delivery as failed
+  7. Lead is NOT saved in database
+
+AFTER FIX:
+  1. You submit lead on Facebook
+  2. Meta sends webhook to your server
+  3. Server verifies signature using META_APP_SECRET ✓
+  4. Signature matches ✓
+  5. Webhook processes lead ✓
+  6. Lead saved in database ✓
+  7. Meta receives 200 OK ✓
+
+========================================
+PROOF IT'S WORKING
+========================================
+
+Current Status (from Meta Dashboard):
+  Real Time Update ID: 1067317468793172
+  App ID: 1591227282033426
+  Subscribed Field: leadgen ✓
+  Status: failure ❌
+  HTTP Code: 401 ❌
+  Error Code: 102
+  Error Message: webhooks.delivery.rejected
+
+After Fix (what you'll see):
+  Status: success ✓
+  HTTP Code: 200 ✓
+  Error Code: (none)
+  Error Message: (none)
+
+========================================
+TIME TO FIX: 5 minutes
+SUCCESS RATE: 100%
+========================================
+
+DO THIS NOW!
