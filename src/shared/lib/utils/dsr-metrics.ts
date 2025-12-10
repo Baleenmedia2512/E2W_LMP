@@ -7,9 +7,10 @@
  * 
  * 📌 CALLS PAGE → CallLog table filtered by createdAt = selected_date
  *    - New Calls: call_attempts (attemptNumber) = 1
- *    - Follow-up Calls: call_attempts (attemptNumber) > 1
+ *    - Follow-up Calls: call_attempts (attemptNumber) > 1 AND NOT overdue
  *    - Overdue Calls Handled: Calls made where previous_followup_date < selected_date
  *    - Total Calls: All calls made on selected_date
+ *    NOTE: Follow-up and Overdue calls are mutually exclusive
  * 
  * 📌 LEADS OUTCOME PAGE → Lead table filtered by updatedAt = selected_date
  *    - Unqualified: status = 'unqualified' updated on selected_date
@@ -451,9 +452,10 @@ function getNewLeadsToday(
  * 
  * CALLS PAGE (CallLog filtered by createdAt = selected_date):
  * - New Calls: attemptNumber = 1 on selected date
- * - Follow-up Calls: attemptNumber > 1 on selected date
+ * - Follow-up Calls: attemptNumber > 1 on selected date AND NOT overdue
  * - Overdue Calls Handled: Calls made on selected date where previous_followup_date < selected_date
  * - Total Calls: All calls made on selected date
+ * NOTE: Follow-up and Overdue calls are mutually exclusive
  * 
  * LEADS OUTCOME PAGE (Lead filtered by updatedAt = selected_date):
  * - Unqualified: status = 'unqualified' updated on selected date
@@ -521,11 +523,6 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     leadsWithCallsToday.has(lead.id) && (lead.callAttempts || 0) === 1
   ).length;
   
-  // Follow-up Calls: Leads that had calls today AND have callAttempts > 1 (not 1)
-  const followupCallsCount = leads.filter(lead => 
-    leadsWithCallsToday.has(lead.id) && (lead.callAttempts || 0) > 1
-  ).length;
-  
   // Overdue Calls Handled: Leads with calls today AND had follow-up scheduled BEFORE today (overdue)
   const overdueCallsHandled = leads.filter(lead => {
     // Must have had a call today
@@ -549,6 +546,36 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
       return scheduledDate < referenceDate; // Scheduled before now = overdue
     });
   }).length;
+  
+  // Get set of leads with overdue calls
+  const leadsWithOverdueCalls = new Set<string>();
+  leads.forEach(lead => {
+    if (!leadsWithCallsToday.has(lead.id)) return;
+    
+    let referenceDate: Date;
+    if (dateRange?.endDate) {
+      referenceDate = typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate;
+      referenceDate.setHours(23, 59, 59, 999);
+    } else {
+      referenceDate = new Date();
+    }
+    
+    const leadFollowups = followups.filter(f => f.leadId === lead.id);
+    const hasOverdue = leadFollowups.some(f => {
+      const scheduledDate = typeof f.scheduledAt === 'string' ? new Date(f.scheduledAt) : f.scheduledAt;
+      return scheduledDate < referenceDate;
+    });
+    
+    if (hasOverdue) {
+      leadsWithOverdueCalls.add(lead.id);
+    }
+  });
+  
+  // Follow-up Calls: Leads that had calls today AND have callAttempts > 1 (not 1) AND NOT overdue
+  // This ensures follow-up and overdue are mutually exclusive
+  const followupCallsCount = leads.filter(lead => 
+    leadsWithCallsToday.has(lead.id) && (lead.callAttempts || 0) > 1 && !leadsWithOverdueCalls.has(lead.id)
+  ).length;
   
   // Total Calls: All calls on selected date
   const totalCalls = callsOnDate.length;
