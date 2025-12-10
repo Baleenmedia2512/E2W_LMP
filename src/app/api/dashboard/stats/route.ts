@@ -3,6 +3,7 @@ import prisma from '@/shared/lib/db/prisma';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const runtime = 'nodejs';
 
 /**
  * GET /api/dashboard/stats
