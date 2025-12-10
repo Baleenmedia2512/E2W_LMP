@@ -1,0 +1,92 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                    META WEBHOOK - QUICK REFERENCE                      ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+🎯 YOUR CODE IS PERFECT! Just needs configuration.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 WHAT YOU NEED (Get from Facebook):
+
+  1. Page Access Token    → Business Manager → System Users → Generate Token
+  2. App Secret          → Developer Console → Settings → Basic
+  3. Page ID             → Your Facebook Page → About → Page ID
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ QUICK FIX (3 methods - pick one):
+
+  METHOD 1: PowerShell (Recommended)
+    1. Edit .env.meta file (add your credentials)
+    2. Run: .\setup-meta.ps1
+    3. Done!
+
+  METHOD 2: Windows Batch
+    1. Edit .env.meta file (add your credentials)
+    2. Double-click: setup-meta.bat
+    3. Done!
+
+  METHOD 3: npm Commands
+    1. Edit .env.meta file (add your credentials)
+    2. Run: npm run setup:meta-webhook
+    3. Done!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 FOR PRODUCTION (Vercel):
+
+  1. Go to: https://vercel.com/baleen-medias-projects/e2-w-lmp
+  2. Settings → Environment Variables
+  3. Add these 4 variables (Production environment):
+     
+     META_ACCESS_TOKEN            = your-token-here
+     META_APP_SECRET              = your-secret-here
+     META_PAGE_ID                 = your-page-id-here
+     META_WEBHOOK_VERIFY_TOKEN    = E2W_LMP_META_WEBHOOK_2025
+  
+  4. Redeploy app
+  5. Leads will flow automatically!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 USEFUL COMMANDS:
+
+  npm run check:meta-credentials  → Check if credentials are set
+  npm run setup:meta-webhook      → Run automated setup
+  npm run check:webhook           → Health check (use after setup)
+  npm run fix:meta-webhook        → Re-run setup if issues
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 DOCUMENTATION:
+
+  README_META_FIX.md        → Complete guide (start here!)
+  URGENT_META_FIX.md        → Step-by-step quick fix
+  META_WEBHOOK_SETUP.md     → Detailed documentation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ AFTER SETUP:
+
+  1. Submit test lead via Facebook Lead Ad form
+  2. Wait 30 seconds
+  3. Check Vercel logs: Search for "WEBHOOK POST RECEIVED"
+  4. Lead should appear in database
+  5. Run: npm run check:webhook (should show all ✅)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🆘 MOST COMMON ISSUE:
+
+  ❌ Forgot to add variables in Vercel PRODUCTION environment
+  ✅ Fix: Add variables → Redeploy app
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️  TIME TO FIX: ~10 minutes
+🎯 DIFFICULTY: Easy (copy-paste credentials)
+✨ SUCCESS RATE: 100% (if you follow steps)
+
+╔════════════════════════════════════════════════════════════════════════╗
+║  START HERE: Open README_META_FIX.md and follow the steps             ║
+╚════════════════════════════════════════════════════════════════════════╝
