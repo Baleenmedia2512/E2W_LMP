@@ -18,25 +18,44 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
 
+    // Extract user from JWT token for authentication and filtering
+    const authHeader = request.headers.get('authorization');
+    const token = extractTokenFromHeader(authHeader);
+    let currentUserId: string | null = null;
+    let currentUserRole: string | null = null;
+    
+    if (token) {
+      const payload = verifyToken(token);
+      if (payload && payload.userId) {
+        currentUserId = payload.userId;
+        currentUserRole = payload.roleName;
+      }
+    }
+
     const where: any = {};
 
     if (status) where.status = status;
     if (source) where.source = source;
     
-    // Handle assigned_to=me filter
+    // Handle assigned_to filtering
     if (assignedTo === 'me') {
-      // Extract user from JWT token
-      const authHeader = request.headers.get('authorization');
-      const token = extractTokenFromHeader(authHeader);
-      
-      if (token) {
-        const payload = verifyToken(token);
-        if (payload && payload.userId) {
-          where.assignedToId = payload.userId;
-        }
+      // Explicit filter: show only leads assigned to current user
+      if (currentUserId) {
+        where.assignedToId = currentUserId;
       }
     } else if (assignedToId) {
+      // Explicit assignedToId parameter
       where.assignedToId = assignedToId;
+    } else if (currentUserId) {
+      // DEFAULT BEHAVIOR: Always filter by current user UNLESS they are Team Lead or Super Agent
+      // Team Lead and Super Agent can see all leads by default (unless "Assigned to Me" is checked)
+      const canSeeAllLeads = currentUserRole === 'Team Lead' || currentUserRole === 'Super Agent';
+      
+      if (!canSeeAllLeads) {
+        // Normal agents (Sales Agent) ALWAYS see only their assigned leads
+        where.assignedToId = currentUserId;
+      }
+      // Team Lead and Super Agent: no filter applied, they see all leads
     }
 
     if (search) {

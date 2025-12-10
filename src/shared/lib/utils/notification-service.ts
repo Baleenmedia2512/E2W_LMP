@@ -115,9 +115,17 @@ export async function createNotification(params: CreateNotificationParams) {
  * Create notification for new lead assignment
  */
 export async function notifyLeadAssigned(leadId: string, leadName: string, assignedToId: string, assignedByName?: string) {
+  // Fetch the assigned user's name to include in the message
+  const assignedToUser = await prisma.user.findUnique({
+    where: { id: assignedToId },
+    select: { name: true },
+  });
+  
+  const assignedToName = assignedToUser?.name || 'Unknown User';
+  
   const message = assignedByName 
-    ? `${assignedByName} assigned you to lead "${leadName}"`
-    : `A new lead "${leadName}" has been assigned to you.`;
+    ? `${assignedByName} assigned ${leadName} to ${assignedToName}`
+    : `Lead "${leadName}" has been assigned to ${assignedToName}.`;
   
   return createNotification({
     userId: assignedToId,
@@ -125,7 +133,7 @@ export async function notifyLeadAssigned(leadId: string, leadName: string, assig
     title: '📋 New Lead Assigned',
     message,
     relatedLeadId: leadId,
-    metadata: { action: 'LEAD_ASSIGNED', assignedBy: assignedByName },
+    metadata: { action: 'LEAD_ASSIGNED', assignedBy: assignedByName, assignedTo: assignedToName },
   });
 }
 
