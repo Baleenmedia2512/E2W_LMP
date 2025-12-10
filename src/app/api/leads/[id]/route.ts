@@ -7,7 +7,10 @@ import {
   notifyLeadUnreachable, 
   notifyLeadUnqualified,
   notifyLeadLost,
-  notifyLeadFollowUpStageChange
+  notifyLeadFollowUpStageChange,
+  notifyLeadInfoUpdated,
+  notifyNoteAdded,
+  notifyStatusChange
 } from '@/shared/lib/utils/notification-service';
 import { randomUUID } from 'crypto';
 
@@ -135,10 +138,59 @@ export async function PUT(
       },
     });
 
+    // Send notifications for status changes (regardless of updatedById)
+    const notificationPromises = [];
+    if (oldLead && oldLead.status !== body.status && body.status) {
+      const assignedToId = lead.assignedToId;
+      if (assignedToId) {
+        // Send universal status change notification for ALL status changes
+        notificationPromises.push(
+          notifyStatusChange(params.id, lead.name, assignedToId, oldLead.status, body.status)
+        );
+
+        // Send specific notifications for important status changes
+        if (body.status === 'won') {
+          notificationPromises.push(
+            notifyDealWon(params.id, lead.name, assignedToId)
+          );
+        } else if (body.status === 'unreach') {
+          notificationPromises.push(
+            notifyLeadUnreachable(params.id, lead.name, assignedToId)
+          );
+        } else if (body.status === 'unqualified') {
+          notificationPromises.push(
+            notifyLeadUnqualified(params.id, lead.name, assignedToId)
+          );
+        } else if (body.status === 'lost') {
+          notificationPromises.push(
+            notifyLeadLost(params.id, lead.name, assignedToId)
+          );
+        }
+
+        // Check for follow-up related stage changes
+        const followupRelatedStatuses = ['new', 'followup', 'qualified', 'won', 'lost', 'unqualified', 'unreach'];
+        const oldStatusInFollowupFlow = followupRelatedStatuses.includes(oldLead.status);
+        const newStatusInFollowupFlow = followupRelatedStatuses.includes(body.status);
+
+        if (oldStatusInFollowupFlow && newStatusInFollowupFlow && 
+            (oldLead.status === 'followup' || body.status === 'followup' || 
+             oldLead.status === 'new' && body.status === 'followup')) {
+          notificationPromises.push(
+            notifyLeadFollowUpStageChange(
+              params.id,
+              lead.name,
+              assignedToId,
+              oldLead.status,
+              body.status
+            )
+          );
+        }
+      }
+    }
+
     // Log activities for changed fields (only if userId is provided)
     if (oldLead && body.updatedById) {
       const activityPromises = [];
-      const notificationPromises = [];
 
       if (oldLead.status !== body.status && body.status) {
         activityPromises.push(
@@ -155,50 +207,10 @@ export async function PUT(
             },
           })
         );
-
-        // Send notifications based on status change
-        const assignedToId = lead.assignedToId;
-        if (assignedToId) {
-          if (body.status === 'won') {
-            notificationPromises.push(
-              notifyDealWon(params.id, lead.name, assignedToId)
-            );
-          } else if (body.status === 'unreach') {
-            notificationPromises.push(
-              notifyLeadUnreachable(params.id, lead.name, assignedToId)
-            );
-          } else if (body.status === 'unqualified') {
-            notificationPromises.push(
-              notifyLeadUnqualified(params.id, lead.name, assignedToId)
-            );
-          } else if (body.status === 'lost') {
-            notificationPromises.push(
-              notifyLeadLost(params.id, lead.name, assignedToId)
-            );
-          }
-
-          // Check for follow-up related stage changes
-          const followupRelatedStatuses = ['new', 'followup', 'qualified', 'won', 'lost', 'unqualified', 'unreach'];
-          const oldStatusInFollowupFlow = followupRelatedStatuses.includes(oldLead.status);
-          const newStatusInFollowupFlow = followupRelatedStatuses.includes(body.status);
-
-          if (oldStatusInFollowupFlow && newStatusInFollowupFlow && 
-              (oldLead.status === 'followup' || body.status === 'followup' || 
-               oldLead.status === 'new' && body.status === 'followup')) {
-            notificationPromises.push(
-              notifyLeadFollowUpStageChange(
-                params.id,
-                lead.name,
-                assignedToId,
-                oldLead.status,
-                body.status
-              )
-            );
-          }
-        }
       }
 
-      if (oldLead.assignedToId !== body.assignedToId && body.assignedToId !== undefined) {
+      // Check if assignedToId is actually changing (not just a status update)
+      if (body.assignedToId !== undefined && oldLead.assignedToId !== body.assignedToId) {
         const previousAssignee = oldLead.assignedToId ? 
           (await prisma.user.findUnique({ where: { id: oldLead.assignedToId } }))?.name : 'Unassigned';
         const newAssignee = body.assignedToId ? 
@@ -224,10 +236,13 @@ export async function PUT(
           })
         );
 
-        // Send notification for new assignment
-        if (body.assignedToId && body.assignedToId !== oldLead.assignedToId) {
+        // Send notification ONLY when assignedToId is explicitly being changed to a new user
+        // Don't send notification if unassigning (body.assignedToId is null/empty)
+        if (body.assignedToId) {
+          const assignerName = body.updatedById ? 
+            (await prisma.user.findUnique({ where: { id: body.updatedById } }))?.name : undefined;
           notificationPromises.push(
-            notifyLeadAssigned(params.id, lead.name, body.assignedToId)
+            notifyLeadAssigned(params.id, lead.name, body.assignedToId, assignerName)
           );
         }
       }
@@ -248,6 +263,13 @@ export async function PUT(
             },
           })
         );
+
+        // Send notification for phone update
+        if (lead.assignedToId) {
+          notificationPromises.push(
+            notifyLeadInfoUpdated(params.id, lead.name, lead.assignedToId, 'phone', oldLead.phone, body.phone)
+          );
+        }
       }
 
       if (oldLead.email !== body.email && body.email !== undefined) {
@@ -265,19 +287,76 @@ export async function PUT(
             },
           })
         );
+
+        // Send notification for email update
+        if (lead.assignedToId && body.email) {
+          notificationPromises.push(
+            notifyLeadInfoUpdated(params.id, lead.name, lead.assignedToId, 'email', oldLead.email || 'none', body.email)
+          );
+        }
+      }
+
+      // Track customer requirement changes
+      if (oldLead.customerRequirement !== body.customerRequirement && body.customerRequirement !== undefined) {
+        activityPromises.push(
+          prisma.activityHistory.create({
+            data: {
+              id: randomUUID(),
+              leadId: params.id,
+              userId: body.updatedById,
+              action: 'updated',
+              fieldName: 'customerRequirement',
+              oldValue: oldLead.customerRequirement || 'none',
+              newValue: body.customerRequirement || 'none',
+              description: `Customer requirement ${body.customerRequirement ? 'updated' : 'removed'}`,
+            },
+          })
+        );
+
+        // Send notification for customer requirement update
+        if (lead.assignedToId && body.customerRequirement) {
+          notificationPromises.push(
+            notifyLeadInfoUpdated(params.id, lead.name, lead.assignedToId, 'customerRequirement', oldLead.customerRequirement || 'none', body.customerRequirement)
+          );
+        }
+      }
+
+      // Track notes changes
+      if (oldLead.notes !== body.notes && body.notes !== undefined && body.notes) {
+        activityPromises.push(
+          prisma.activityHistory.create({
+            data: {
+              id: randomUUID(),
+              leadId: params.id,
+              userId: body.updatedById,
+              action: 'updated',
+              fieldName: 'notes',
+              oldValue: oldLead.notes || 'none',
+              newValue: body.notes,
+              description: `Notes ${oldLead.notes ? 'updated' : 'added'}`,
+            },
+          })
+        );
+
+        // Send notification for notes added/updated
+        if (lead.assignedToId) {
+          notificationPromises.push(
+            notifyNoteAdded(params.id, lead.name, lead.assignedToId, body.notes)
+          );
+        }
       }
 
       // Execute all activity logs
       if (activityPromises.length > 0) {
         await Promise.all(activityPromises);
       }
+    }
 
-      // Execute all notifications (non-blocking)
-      if (notificationPromises.length > 0) {
-        Promise.all(notificationPromises).catch(error => {
-          console.error('Failed to send notifications:', error);
-        });
-      }
+    // Execute all notifications (non-blocking) - moved outside updatedById check
+    if (notificationPromises.length > 0) {
+      Promise.all(notificationPromises).catch(error => {
+        console.error('Failed to send notifications:', error);
+      });
     }
 
     // Transform the response to match frontend expectations

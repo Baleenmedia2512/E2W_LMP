@@ -192,7 +192,9 @@ export async function POST(request: NextRequest) {
       // Send notification if lead is assigned
       if (assignedToId) {
         try {
-          await notifyLeadAssigned(lead.id, lead.name, assignedToId);
+          const assignerName = body.createdById ? 
+            (await prisma.user.findUnique({ where: { id: body.createdById } }))?.name : undefined;
+          await notifyLeadAssigned(lead.id, lead.name, assignedToId, assignerName);
         } catch (error) {
           console.error('Failed to send lead assignment notification:', error);
         }

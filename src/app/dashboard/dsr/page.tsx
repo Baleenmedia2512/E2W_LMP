@@ -50,6 +50,7 @@ import {
   HiChevronDown,
   HiChevronLeft,
   HiChevronRight,
+  HiX,
 } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
@@ -399,7 +400,31 @@ export default function DSRPage() {
     
     setSelectedDate(targetDate.toISOString().split('T')[0]);
     setCurrentPage(1);
-    setCallLogsPage(1);
+  };
+
+  // Reset all filters to default state
+  const handleResetFilters = () => {
+    // Reset to today's date
+    setSelectedDate(todayString);
+    // Reset agent filter to all
+    setSelectedAgentId('all');
+    // Clear active card filter
+    setActiveCard(null);
+    // Clear search query
+    setSearchQuery('');
+    // Clear call logs
+    setCallLogs([]);
+    // Reset pagination
+    setCurrentPage(1);
+    
+    toast({
+      title: 'Filters Reset',
+      description: 'All filters have been reset to default values',
+      status: 'success',
+      duration: 2000,
+      isClosable: true,
+      position: 'top-right',
+    });
   };
 
   // Filter leads for the table based on active card and search
@@ -593,6 +618,17 @@ export default function DSRPage() {
           Daily Sales Report (DSR)
         </Heading>
         <HStack spacing={2}>
+          <Tooltip label="Reset all filters">
+            <Button
+              leftIcon={<HiX />}
+              onClick={handleResetFilters}
+              colorScheme="gray"
+              variant="outline"
+              size={{ base: 'sm', md: 'md' }}
+            >
+              Reset Filters
+            </Button>
+          </Tooltip>
           <Tooltip label="Refresh data">
             <IconButton
               aria-label="Refresh"

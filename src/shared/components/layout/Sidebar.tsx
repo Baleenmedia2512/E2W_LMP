@@ -14,7 +14,6 @@ import {
   FiUsers,
   FiFileText,
   FiBarChart2,
-  FiSettings,
   FiPhone,
   FiClock,
   FiBell,
@@ -35,7 +34,6 @@ const navItems: NavItem[] = [
   { name: 'Calls', href: '/dashboard/calls', icon: FiPhone, permission: 'canLogCall' },
   { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, permission: 'canViewDSR' },
   { name: 'Reports', href: '/dashboard/reports', icon: FiFileText, permission: 'canViewTeamReport' },
-  { name: 'Settings', href: '/dashboard/settings', icon: FiSettings, permission: 'canManageOwnSettings' },
 ];
 
 export default function Sidebar({ onNavigate }: SidebarProps) {

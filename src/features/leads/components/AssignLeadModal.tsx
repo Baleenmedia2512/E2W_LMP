@@ -211,13 +211,14 @@ export default function AssignLeadModal({
 
       // Create notification for assigned user
       try {
+        const assignerName = user?.name || 'Super Agent';
         await fetch('/api/notifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipientId: selectedUserId,
             title: 'Lead Assigned',
-            message: `Lead "${leadName}" has been assigned to you${reason ? ` - ${reason}` : ''}`,
+            message: `${assignerName} assigned you to lead "${leadName}"${reason ? ` - ${reason}` : ''}`,
             type: 'LEAD_ASSIGNED',
             relatedLeadId: leadId,
           }),

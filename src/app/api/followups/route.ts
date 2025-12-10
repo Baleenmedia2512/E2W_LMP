@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
-import { notifyFollowUpDue, notifyLeadFollowUpStageChange, notifyFollowUpRescheduled } from '@/shared/lib/utils/notification-service';
+import { notifyFollowUpDue, notifyLeadFollowUpStageChange, notifyFollowUpRescheduled, notifyFollowUpAdded } from '@/shared/lib/utils/notification-service';
 import { randomUUID } from 'crypto';
 
 // GET follow-ups with optional filters
@@ -255,20 +255,34 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Get lead data for notifications
+    const leadData = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { assignedToId: true, name: true },
+    });
+
+    const notificationRecipient = leadData?.assignedToId || createdById;
+
+    // Send notification for follow-up added
+    if (notificationRecipient) {
+      try {
+        await notifyFollowUpAdded(
+          body.leadId,
+          leadData?.name || 'Lead',
+          notificationRecipient,
+          scheduledDateTime
+        );
+        console.log('Follow-up added notification sent successfully to:', notificationRecipient);
+      } catch (error) {
+        console.error('Failed to send follow-up added notification:', error);
+      }
+    }
+
     // Send notification if follow-up is due within 24 hours OR scheduled for tomorrow
     const hoursUntilDue = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
     const isTomorrow = scheduledDateTime.toDateString() === new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString();
     
     if ((hoursUntilDue <= 24 || isTomorrow) && followUp.Lead) {
-      const leadData = await prisma.lead.findUnique({
-        where: { id: body.leadId },
-        select: { assignedToId: true, name: true },
-      });
-
-      // Determine who should receive the notification
-      // Priority: 1. Lead assignee, 2. Follow-up creator
-      const notificationRecipient = leadData?.assignedToId || createdById;
-
       console.log('Follow-up notification check:', {
         leadId: body.leadId,
         leadName: leadData?.name,
@@ -288,15 +302,15 @@ export async function POST(request: NextRequest) {
             notificationRecipient,
             scheduledDateTime
           );
-          console.log('Follow-up notification sent successfully to:', notificationRecipient);
+          console.log('Follow-up due notification sent successfully to:', notificationRecipient);
         } catch (error) {
-          console.error('Failed to send follow-up notification:', error);
+          console.error('Failed to send follow-up due notification:', error);
         }
       } else {
         console.warn('No recipient found for follow-up notification - lead not assigned and no creator ID');
       }
     } else {
-      console.log('Follow-up notification skipped:', {
+      console.log('Follow-up due notification skipped:', {
         hoursUntilDue,
         isTomorrow,
         hasLead: !!followUp.Lead,

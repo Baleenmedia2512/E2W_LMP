@@ -128,3 +128,45 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+// DELETE notification(s)
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { notificationId, userId, action } = body;
+
+    if (action === 'clear-all' && userId) {
+      // Clear all notifications for user
+      const result = await prisma.notification.deleteMany({
+        where: { userId },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `${result.count} notifications cleared`,
+        data: { count: result.count },
+      });
+    } else if (notificationId) {
+      // Delete single notification
+      await prisma.notification.delete({
+        where: { id: notificationId },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Notification deleted',
+      });
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Missing required parameters' },
+        { status: 400 }
+      );
+    }
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete notification' },
+      { status: 500 }
+    );
+  }
+}

@@ -28,6 +28,7 @@ interface Notification {
   title: string;
   message: string;
   isRead: boolean;
+  readAt: string | null;
   createdAt: string;
 }
 
@@ -36,6 +37,7 @@ export default function NotificationBell() {
   const toast = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isPolling, setIsPolling] = useState(true);
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -45,6 +47,30 @@ export default function NotificationBell() {
         const data = await res.json();
         
         const notificationsList = Array.isArray(data) ? data : data.data || [];
+        
+        // Check if there are new unread notifications
+        const prevUnreadCount = notifications.filter(n => !n.isRead).length;
+        const newUnreadCount = notificationsList.filter((n: Notification) => !n.isRead).length;
+        
+        // Show toast for new notifications (only if we had notifications before)
+        if (notifications.length > 0 && newUnreadCount > prevUnreadCount) {
+          const newNotifications = notificationsList.filter(
+            (n: Notification) => !n.isRead && !notifications.find(old => old.id === n.id)
+          );
+          
+          if (newNotifications.length > 0) {
+            const latestNotification = newNotifications[0];
+            toast({
+              title: latestNotification.title,
+              description: latestNotification.message,
+              status: latestNotification.type as any,
+              duration: 5000,
+              isClosable: true,
+              position: 'top-right',
+            });
+          }
+        }
+        
         setNotifications(notificationsList);
       } catch (error) {
         console.error('Failed to load notifications:', error);
@@ -55,9 +81,24 @@ export default function NotificationBell() {
 
     fetchNotifications();
 
-    // Refresh notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
+    // Real-time polling: Check every 10 seconds for new notifications
+    const interval = setInterval(() => {
+      if (isPolling) {
+        fetchNotifications();
+      }
+    }, 10000);
+
     return () => clearInterval(interval);
+  }, [toast, isPolling, notifications.length]);
+
+  // Pause polling when page is not visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsPolling(!document.hidden);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const unreadNotifications = notifications.filter(n => !n.isRead);
@@ -85,9 +126,10 @@ export default function NotificationBell() {
         body: JSON.stringify({ action: 'mark-read', notificationId }),
       });
 
-      // Update local state
+      // Update local state with readAt timestamp
+      const now = new Date().toISOString();
       setNotifications(prev =>
-        prev.map(n => (n.id === notificationId ? { ...n, isRead: true } : n))
+        prev.map(n => (n.id === notificationId ? { ...n, isRead: true, readAt: now } : n))
       );
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
@@ -99,14 +141,23 @@ export default function NotificationBell() {
       const userId = notifications[0]?.userId;
       if (!userId) return;
 
-      await fetch('/api/notifications', {
+      const response = await fetch('/api/notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'mark-all-read', userId }),
       });
 
-      // Update local state
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      if (!response.ok) {
+        throw new Error('Failed to mark all as read');
+      }
+
+      // Update local state with readAt timestamp
+      const now = new Date().toISOString();
+      setNotifications(prev => prev.map(n => ({ 
+        ...n, 
+        isRead: true,
+        readAt: now
+      })));
       
       toast({
         title: 'Success',
@@ -120,6 +171,39 @@ export default function NotificationBell() {
       toast({
         title: 'Error',
         description: 'Failed to mark notifications as read',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      const userId = notifications[0]?.userId;
+      if (!userId) return;
+
+      await fetch('/api/notifications', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear-all', userId }),
+      });
+
+      // Update local state
+      setNotifications([]);
+      
+      toast({
+        title: 'Success',
+        description: 'All notifications cleared',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear notifications',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -165,16 +249,28 @@ export default function NotificationBell() {
             <Text fontWeight="bold" fontSize="md">
               Notifications
             </Text>
-            {unreadCount > 0 && (
-              <Button
-                size="xs"
-                variant="ghost"
-                colorScheme="blue"
-                onClick={handleMarkAllAsRead}
-              >
-                Mark all as read
-              </Button>
-            )}
+            <HStack spacing={1}>
+              {unreadCount > 0 && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="blue"
+                  onClick={handleMarkAllAsRead}
+                >
+                  Mark all read
+                </Button>
+              )}
+              {notifications.length > 0 && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="red"
+                  onClick={handleClearAll}
+                >
+                  Clear all
+                </Button>
+              )}
+            </HStack>
           </HStack>
         </Box>
 
