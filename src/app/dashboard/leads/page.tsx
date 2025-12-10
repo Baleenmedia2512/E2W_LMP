@@ -242,8 +242,11 @@ export default function LeadsPage() {
   };
   
   useEffect(() => {
-    fetchData();
-  }, []);
+    // Only fetch data once token is available
+    if (token) {
+      fetchData();
+    }
+  }, [token]);
   
   // Refresh data when assignedToMe filter changes
   useEffect(() => {
@@ -278,6 +281,16 @@ export default function LeadsPage() {
   // Handler to refresh data after status changes
   const handleRefreshLeads = () => {
     fetchData();
+  };
+
+  // Handler to reset all filters
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setSourceFilter('all');
+    setDateRangeFilter('all');
+    setAttemptsFilter('all');
+    setAssignedToMe(false);
   };
   
   // Update current time every minute for visual updates
@@ -407,9 +420,11 @@ export default function LeadsPage() {
       filtered = filtered.filter(lead => lead.status === statusFilter);
     }
 
-    // Source filter
+    // Source filter (case-insensitive)
     if (sourceFilter !== 'all') {
-      filtered = filtered.filter(lead => lead.source === sourceFilter);
+      filtered = filtered.filter(lead => 
+        lead.source?.toLowerCase() === sourceFilter.toLowerCase()
+      );
     }
 
     // Date range filter
@@ -612,6 +627,19 @@ export default function LeadsPage() {
               <option value="4-6">4-6 Attempts</option>
               <option value="7+">7+ Attempts</option>
             </Select>
+
+            {/* Reset Filters Button */}
+            <Button
+              leftIcon={<HiX />}
+              onClick={handleResetFilters}
+              size={{ base: 'sm', md: 'md' }}
+              variant="outline"
+              colorScheme="red"
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+              isDisabled={searchQuery === '' && statusFilter === 'all' && sourceFilter === 'all' && attemptsFilter === 'all' && !assignedToMe}
+            >
+              Reset Filters
+            </Button>
           </Flex>
 
           {/* Assigned to Me Filter - Only for Team Lead and Super Agent */}
