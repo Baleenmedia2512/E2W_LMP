@@ -780,7 +780,7 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Follow-up Calls Card */}
-          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1) made on ${formatDate(new Date(selectedDate))}`} placement="top">
+          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1 AND NOT overdue) made on ${formatDate(new Date(selectedDate))}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"

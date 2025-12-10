@@ -32,13 +32,16 @@ Lead.callAttempts = 1
 ```sql
 CallLog.createdAt = selected_date
 Lead.callAttempts > 1
+AND NOT overdue (FollowUp.scheduledAt >= selected_date OR no scheduled followup)
 ```
 
 **When Card Clicked:**
 - Shows ONLY leads where `activityFlags.isFollowup = true`
-- Backend sets `isFollowup = true` when: `hadCallToday && lead.callAttempts > 1`
+- Backend sets `isFollowup = true` when: `hadCallToday && lead.callAttempts > 1 && !hadOverdueCallToday`
 
-**Result:** Leads that received a **follow-up call** (2nd, 3rd, etc.) on the selected date.
+**Result:** Leads that received a **follow-up call** (2nd, 3rd, etc.) on the selected date that were **NOT overdue**.
+
+**Note:** Follow-up and Overdue calls are **mutually exclusive** - a call is either a regular follow-up OR an overdue call, never both.
 
 ---
 

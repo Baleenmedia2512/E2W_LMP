@@ -15,9 +15,10 @@ export const revalidate = 0;
  * DATA SOURCES:
  * - CALLS PAGE: CallLog filtered by createdAt = selected_date
  *   • New Calls: attemptNumber = 1
- *   • Follow-up Calls: attemptNumber > 1
+ *   • Follow-up Calls: attemptNumber > 1 AND NOT overdue
  *   • Overdue Calls Handled: previous_followup_date < selected_date
  *   • Total Calls: All calls
+ *   NOTE: Follow-up and Overdue calls are mutually exclusive
  * 
  * - LEADS OUTCOME PAGE: Lead filtered by updatedAt = selected_date
  *   • Unqualified, Unreachable, Won, Lost: status changes on selected date
@@ -298,13 +299,6 @@ export async function GET(request: NextRequest) {
       // A lead is "New Call" if it had a call today AND its callAttempts field = 1
       const isNewCall = hadCallToday && (lead.callAttempts || 0) === 1;
       
-      // 2️⃣ Follow-Up Calls: CallLog.createdAt = selected_date AND Lead.callAttempts > 1
-      // A lead is "Follow-Up" if it had a call today AND its callAttempts field > 1
-      const isFollowupCall = hadCallToday && (lead.callAttempts || 0) > 1;
-      
-      // 3️⃣ Total Calls: CallLog.createdAt = selected_date
-      // Any lead that had a call today (already captured in hadCallToday)
-      
       // 4️⃣ Overdue Calls Handled: CallLog.createdAt = selected_date AND FollowUp.scheduledAt < selected_date
       // A lead had an overdue call if it had a call today AND there was a follow-up scheduled before today
       const hadOverdueCallToday = hadCallToday && (() => {
@@ -323,6 +317,14 @@ export async function GET(request: NextRequest) {
         
         return scheduledFollowup < referenceDate;
       })();
+      
+      // 2️⃣ Follow-Up Calls: CallLog.createdAt = selected_date AND Lead.callAttempts > 1 AND NOT overdue
+      // A lead is "Follow-Up" if it had a call today AND its callAttempts field > 1 AND it's NOT an overdue call
+      // This ensures follow-up and overdue are mutually exclusive
+      const isFollowupCall = hadCallToday && (lead.callAttempts || 0) > 1 && !hadOverdueCallToday;
+      
+      // 3️⃣ Total Calls: CallLog.createdAt = selected_date
+      // Any lead that had a call today (already captured in hadCallToday)
       
       // 5️⃣-8️⃣ Status-based outcomes: Lead.status = X AND Lead.updatedAt = selected_date
       // These are already captured in wasUpdatedToday flag + lead.status
@@ -433,11 +435,6 @@ export async function GET(request: NextRequest) {
           agentLeadIds.has(lead.id) && (lead.callAttempts || 0) === 1
         ).length;
 
-        // 4️⃣ Follow-up Calls: Leads that had calls today AND callAttempts > 1
-        const followUps = agentLeads.filter(lead => 
-          agentLeadIds.has(lead.id) && (lead.callAttempts || 0) > 1
-        ).length;
-
         // 5️⃣ Total Calls: All calls made by this agent on selected date
         const totalCalls = agentCalls.length;
 
@@ -483,6 +480,33 @@ export async function GET(request: NextRequest) {
           
           return scheduledFollowup < refDate;
         }).length;
+
+        // Get set of overdue lead IDs
+        const overdueLeadIds = new Set<string>();
+        agentLeads.forEach(lead => {
+          if (!agentLeadIds.has(lead.id)) return;
+          
+          const scheduledFollowup = leadFollowupMap.get(lead.id);
+          if (!scheduledFollowup) return;
+          
+          let refDate: Date;
+          if (endDateParam) {
+            refDate = new Date(endDateParam);
+            refDate.setHours(23, 59, 59, 999);
+          } else {
+            refDate = new Date();
+          }
+          
+          if (scheduledFollowup < refDate) {
+            overdueLeadIds.add(lead.id);
+          }
+        });
+
+        // 4️⃣ Follow-up Calls: Leads that had calls today AND callAttempts > 1 AND NOT overdue
+        // This ensures follow-up and overdue are mutually exclusive
+        const followUps = agentLeads.filter(lead => 
+          agentLeadIds.has(lead.id) && (lead.callAttempts || 0) > 1 && !overdueLeadIds.has(lead.id)
+        ).length;
 
         // 8️⃣ Lead Outcome Metrics - Use assignedToId for outcomes
         const [won, lost, unreachable, unqualified] = await Promise.all([
