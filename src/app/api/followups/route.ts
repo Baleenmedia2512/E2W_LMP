@@ -222,7 +222,10 @@ export async function POST(request: NextRequest) {
       
       await prisma.lead.update({
         where: { id: body.leadId },
-        data: { status: 'followup' },
+        data: { 
+          status: 'followup',
+          updatedAt: new Date(),
+        },
       });
 
       // Send notification if status changed and lead is assigned
