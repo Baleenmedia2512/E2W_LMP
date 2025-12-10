@@ -30,12 +30,24 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
 
     // Build date filter for the selected range
+    // CRITICAL: Handle timezone correctly - dates come as YYYY-MM-DD in local timezone
     const dateFilter: any = {};
     if (startDateParam && endDateParam) {
-      const startDate = new Date(startDateParam);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(endDateParam);
-      endDate.setHours(23, 59, 59, 999);
+      // Parse date strings as local dates (not UTC)
+      const [startYear, startMonth, startDay] = startDateParam.split('-').map(Number);
+      const [endYear, endMonth, endDay] = endDateParam.split('-').map(Number);
+      
+      const startDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+      const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+      
+      console.log('[Dashboard Stats] Date filter:', {
+        startDateParam,
+        endDateParam,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        localStart: startDate.toString(),
+        localEnd: endDate.toString()
+      });
       
       dateFilter.gte = startDate;
       dateFilter.lte = endDate;
@@ -99,7 +111,19 @@ export async function GET(request: NextRequest) {
       callsWhere.callerId = userId;
     }
 
+    // CRITICAL: Use consistent timezone handling for accurate date/time comparisons
+    // All calculations should use the server's local timezone (configured via TZ env var)
     const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    
+    console.log('[Dashboard Stats] Server timezone info:', {
+      serverTime: now.toISOString(),
+      serverLocalTime: now.toString(),
+      timezone: process.env.TZ || 'default',
+      todayStart: todayStart.toISOString(),
+      todayEnd: todayEnd.toISOString()
+    });
 
     // Fetch all stats in parallel for optimal performance
     const [
@@ -186,9 +210,11 @@ export async function GET(request: NextRequest) {
     // Prefer FUTURE follow-ups over past ones when determining the "next" follow-up
     const leadFollowUpMap = new Map<string, any>();
     
-    // Define today's date range
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    console.log('[Dashboard Stats] Today range for follow-up calculation:', {
+      start: todayStart.toISOString(),
+      end: todayEnd.toISOString(),
+      currentTime: now.toISOString()
+    });
     
     // Group all follow-ups by lead
     const followUpsByLeadForToday = new Map<string, any[]>();
@@ -229,9 +255,16 @@ export async function GET(request: NextRequest) {
       const scheduledDate = new Date(followUp.scheduledAt);
       // Count only TODAY's follow-ups that are in the FUTURE (time not passed yet)
       if (scheduledDate >= now && scheduledDate >= todayStart && scheduledDate <= todayEnd) {
+        console.log('[Dashboard Stats] Follow-up counted for today:', {
+          leadId: followUp.leadId,
+          scheduledAt: scheduledDate.toISOString(),
+          now: now.toISOString(),
+          isFuture: scheduledDate >= now
+        });
         followUpsDueCount++;
       }
     }
+    console.log('[Dashboard Stats] Total follow-ups due today:', followUpsDueCount);
 
     // Calculate OVERDUE LEADS (count unique leads with overdue follow-ups)
     // CRITICAL: Must match lead-categorization.ts logic exactly
