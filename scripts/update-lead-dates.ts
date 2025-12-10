@@ -10,8 +10,8 @@ async function updateLeadDates() {
     const result = await prisma.lead.updateMany({
       where: {
         OR: [
-          { name: { contains: 'yasheer test', mode: 'insensitive' } },
-          { name: { contains: 'dummy', mode: 'insensitive' } },
+          { name: { contains: 'yasheer test' } },
+          { name: { contains: 'dummy' } },
         ],
         phone: {
           in: ['7878787876', '8281018138'],
@@ -29,8 +29,8 @@ async function updateLeadDates() {
     const updatedLeads = await prisma.lead.findMany({
       where: {
         OR: [
-          { name: { contains: 'yasheer test', mode: 'insensitive' } },
-          { name: { contains: 'dummy', mode: 'insensitive' } },
+          { name: { contains: 'yasheer test' } },
+          { name: { contains: 'dummy' } },
         ],
         phone: {
           in: ['7878787876', '8281018138'],

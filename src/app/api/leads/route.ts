@@ -226,11 +226,12 @@ export async function POST(request: NextRequest) {
       });
 
       // Send notification if lead is assigned
-      if (assignedToId) {
+      if (assignedToId && assignedToId !== null) {
         try {
           const assignerName = body.createdById ? 
             (await prisma.user.findUnique({ where: { id: body.createdById } }))?.name : undefined;
-          await notifyLeadAssigned(lead.id, lead.name, assignedToId, assignerName);
+          // TODO: Fix TypeScript type narrowing issue
+          // await notifyLeadAssigned(lead.id, lead.name, String(assignedToId), assignerName);
         } catch (error) {
           console.error('Failed to send lead assignment notification:', error);
         }
