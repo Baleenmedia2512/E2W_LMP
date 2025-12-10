@@ -511,8 +511,11 @@ export default function DSRPage() {
         lead.activityFlags?.statusChangedToday === true
       );
       console.log(`[DSR Filter] Lost: ${filtered.length} leads`);
+    } else {
+      // If no card is active, show nothing
+      filtered = [];
+      console.log(`[DSR Filter] No filter active: Showing empty list`);
     }
-    // If no card is active, show all leads with activity on selected date
 
     // Apply search filter using debounced value
     if (debouncedSearch.trim()) {

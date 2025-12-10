@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
       callAttempts: {
         increment: 1,
       },
+      updatedAt: new Date(), // Always update the timestamp
     };
 
     // Status is managed separately through lead updates

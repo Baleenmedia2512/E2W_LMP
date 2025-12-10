@@ -118,6 +118,7 @@ export async function PUT(
       status: body.status || undefined,
       notes: body.notes !== undefined ? body.notes : undefined,
       assignedToId: body.assignedToId !== undefined ? body.assignedToId : undefined,
+      updatedAt: new Date(), // Always update the updatedAt timestamp
     };
 
     // Reset call attempts when lead status changes to won or lost (US-9 requirement)
