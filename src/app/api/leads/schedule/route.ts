@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/leads/schedule
  * Optimized endpoint for fetching unqualified leads with follow-ups
