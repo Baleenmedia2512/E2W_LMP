@@ -12,11 +12,11 @@
   "crons": [
     {
       "path": "/api/cron/check-overdue-followups",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/check-upcoming-followups",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 12 * * *"
     }
   ],
   "headers": [
