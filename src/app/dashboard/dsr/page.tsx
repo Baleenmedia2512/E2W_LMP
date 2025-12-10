@@ -227,7 +227,7 @@ export default function DSRPage() {
       if (type === 'totalCalls') {
         try {
           const params = new URLSearchParams();
-          params.append('date', selectedDate);
+          if (selectedDate) params.append('date', selectedDate);
           params.append('limit', '1000'); // Get all calls, not just first 50
           if (selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
           
@@ -768,7 +768,7 @@ export default function DSRPage() {
             <Box>
               <Divider my={2} borderColor={THEME_COLORS.light} />
               <Text fontSize={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.medium}>
-                Showing results for <strong>{formatDate(new Date(selectedDate))}</strong>
+                Showing results for <strong>{selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}</strong>
                 {selectedAgentId !== 'all' && agents.find(a => a.id === selectedAgentId) && (
                   <> • Agent: <strong>{agents.find(a => a.id === selectedAgentId)?.name}</strong></>
                 )}
@@ -785,7 +785,7 @@ export default function DSRPage() {
       {stats && (
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
           {/* New Calls Card */}
-          <Tooltip label={`${stats.newCallsCount} new calls (attemptNumber = 1) made on ${formatDate(new Date(selectedDate))}`} placement="top">
+          <Tooltip label={`${stats.newCallsCount} new calls (attemptNumber = 1) made on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -819,7 +819,7 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Follow-up Calls Card */}
-          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1 AND NOT overdue) made on ${formatDate(new Date(selectedDate))}`} placement="top">
+          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1 AND NOT overdue) made on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -853,7 +853,7 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Total Calls Card */}
-          <Tooltip label={`${stats.totalCalls} total calls made on ${formatDate(new Date(selectedDate))}`} placement="top">
+          <Tooltip label={`${stats.totalCalls} total calls made on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -887,7 +887,7 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Overdue Calls Handled Card */}
-          <Tooltip label={`${stats.overdueCallsHandled} overdue calls handled on ${formatDate(new Date(selectedDate))}`} placement="top">
+          <Tooltip label={`${stats.overdueCallsHandled} overdue calls handled on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -1164,25 +1164,25 @@ export default function DSRPage() {
                           <Td>
                             <Badge
                               bg={
-                                lead.callStatus === 'completed' || lead.callStatus === 'answer' ? 'green.500' :
-                                lead.callStatus === 'no_answer' ? 'orange.500' :
-                                lead.callStatus === 'busy' ? 'yellow.500' :
-                                lead.callStatus === 'unreachable' ? 'red.500' :
+                                (lead as any).callStatus === 'completed' || (lead as any).callStatus === 'answer' ? 'green.500' :
+                                (lead as any).callStatus === 'no_answer' ? 'orange.500' :
+                                (lead as any).callStatus === 'busy' ? 'yellow.500' :
+                                (lead as any).callStatus === 'unreachable' ? 'red.500' :
                                 THEME_COLORS.light
                               }
                               color="white"
                               fontSize={{ base: 'xs', md: 'sm' }}
                             >
-                              {lead.callStatus || 'N/A'}
+                              {(lead as any).callStatus || 'N/A'}
                             </Badge>
                           </Td>
                           <Td isNumeric>
-                            <Badge bg={lead.callAttempts === 1 ? THEME_COLORS.primary : THEME_COLORS.medium} color="white">
-                              {lead.callAttempts}
+                            <Badge bg={(lead as any).callAttempts === 1 ? THEME_COLORS.primary : THEME_COLORS.medium} color="white">
+                              {(lead as any).callAttempts}
                             </Badge>
                           </Td>
                           <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
-                            {lead.duration ? `${lead.duration}s` : '-'}
+                            {(lead as any).duration ? `${(lead as any).duration}s` : '-'}
                           </Td>
                         </>
                       ) : (
@@ -1283,7 +1283,7 @@ export default function DSRPage() {
               </Badge>
             </Flex>
             <Text fontSize={{ base: 'xs', md: 'sm' }} color="white" mt={2}>
-              Performance metrics for {formatDate(new Date(selectedDate))}
+              Performance metrics for {selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}
             </Text>
           </Box>
 
