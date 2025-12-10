@@ -29,6 +29,7 @@ import {
   SimpleGrid,
   useToast,
   Tooltip,
+  Checkbox,
 } from '@chakra-ui/react';
 import {
   HiPlus,
@@ -55,6 +56,7 @@ import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils
 import type { CallLog } from '@/shared/types';
 import { openWhatsApp, isValidWhatsAppPhone } from '@/shared/utils/whatsapp';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 
 
@@ -146,6 +148,7 @@ export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
+  const { user, token } = useAuth();
   
   // Get filter from URL if present
   const urlFilter = searchParams.get('filter');
@@ -171,6 +174,7 @@ export default function LeadsPage() {
     return 'all';
   });
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
+  const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
     id: string;
@@ -194,8 +198,26 @@ export default function LeadsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      
+      // Build query parameters for leads API
+      const leadsParams = new URLSearchParams({ limit: '100' });
+      if (assignedToMe) {
+        leadsParams.append('assigned_to', 'me');
+      }
+      
+      // Prepare headers with authorization token
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const [leadsRes, followUpsRes] = await Promise.all([
-        fetch('/api/leads?limit=100', { cache: 'no-store' }),
+        fetch(`/api/leads?${leadsParams.toString()}`, { 
+          cache: 'no-store',
+          headers,
+        }),
         fetch('/api/followups?limit=100', { cache: 'no-store' }),
       ]);
       
@@ -222,6 +244,13 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+  
+  // Refresh data when assignedToMe filter changes
+  useEffect(() => {
+    if (token) {
+      fetchData();
+    }
+  }, [assignedToMe]);
   
   // Refresh data when URL params change (e.g., after redirect with timestamp)
   useEffect(() => {
@@ -584,6 +613,20 @@ export default function LeadsPage() {
               <option value="7+">7+ Attempts</option>
             </Select>
           </Flex>
+
+          {/* Assigned to Me Filter - Only for Team Lead and Super Agent */}
+          {user && (user.role === 'Team Lead' || user.role === 'Super Agent') && (
+            <Box>
+              <Checkbox
+                isChecked={assignedToMe}
+                onChange={(e) => setAssignedToMe(e.target.checked)}
+                size={{ base: 'sm', md: 'md' }}
+                colorScheme="blue"
+              >
+                <Text fontSize={{ base: 'sm', md: 'md' }}>Assigned to Me</Text>
+              </Checkbox>
+            </Box>
+          )}
 
           {/* Results Count */}
           <Text fontSize="sm" fontWeight="medium" color="gray.700">

@@ -3,6 +3,7 @@ import prisma from '@/shared/lib/db/prisma';
 import { notifyLeadAssigned } from '@/shared/lib/utils/notification-service';
 import { normalizePhoneForStorage, isValidPhone, getPhoneValidationError } from '@/shared/utils/phone';
 import { randomUUID } from 'crypto';
+import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-utils';
 
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const source = searchParams.get('source');
+    const assignedTo = searchParams.get('assigned_to');
     const assignedToId = searchParams.get('assignedToId');
     const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
@@ -20,7 +22,22 @@ export async function GET(request: NextRequest) {
 
     if (status) where.status = status;
     if (source) where.source = source;
-    if (assignedToId) where.assignedToId = assignedToId;
+    
+    // Handle assigned_to=me filter
+    if (assignedTo === 'me') {
+      // Extract user from JWT token
+      const authHeader = request.headers.get('authorization');
+      const token = extractTokenFromHeader(authHeader);
+      
+      if (token) {
+        const payload = verifyToken(token);
+        if (payload && payload.userId) {
+          where.assignedToId = payload.userId;
+        }
+      }
+    } else if (assignedToId) {
+      where.assignedToId = assignedToId;
+    }
 
     if (search) {
       where.OR = [
