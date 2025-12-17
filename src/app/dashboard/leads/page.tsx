@@ -200,7 +200,8 @@ export default function LeadsPage() {
       setLoading(true);
       
       // Build query parameters for leads API
-      const leadsParams = new URLSearchParams({ limit: '100' });
+      // Increased limit to ensure all leads with followups are fetched
+      const leadsParams = new URLSearchParams({ limit: '500' });
       if (assignedToMe) {
         leadsParams.append('assigned_to', 'me');
       }
@@ -218,7 +219,7 @@ export default function LeadsPage() {
           cache: 'no-store',
           headers,
         }),
-        fetch('/api/followups?limit=100', { cache: 'no-store' }),
+        fetch('/api/followups?limit=500', { cache: 'no-store' }),
       ]);
       
       const leadsData = await leadsRes.json();
