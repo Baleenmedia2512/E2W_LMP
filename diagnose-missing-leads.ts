@@ -56,7 +56,7 @@ async function diagnoseMissingLeads() {
     ...lead,
     assignedTo: lead.User_Lead_assignedToIdToUser,
     createdBy: lead.User_Lead_createdByIdToUser,
-  }));
+  })) as any;
 
   // Run categorization
   console.log('\n=== RUNNING CATEGORIZATION ===');
