@@ -6,12 +6,8 @@
   "regions": ["sin1"],
   "build": {
     "env": {
-      "NEXT_TELEMETRY_DISABLED": "1",
-      "TZ": "Asia/Kolkata"
+      "NEXT_TELEMETRY_DISABLED": "1"
     }
-  },
-  "env": {
-    "TZ": "Asia/Kolkata"
   },
   "crons": [
     {
