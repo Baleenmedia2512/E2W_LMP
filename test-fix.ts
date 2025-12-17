@@ -47,7 +47,7 @@ async function testFixedQuery() {
     ...lead,
     assignedTo: lead.User_Lead_assignedToIdToUser,
     createdBy: lead.User_Lead_createdByIdToUser,
-  }));
+  })) as any;
 
   const categorized = categorizeAndSortLeads(transformedLeads, allFollowUps as any);
 

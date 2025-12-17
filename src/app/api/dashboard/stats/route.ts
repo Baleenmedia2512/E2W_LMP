@@ -38,8 +38,8 @@ export async function GET(request: NextRequest) {
       const [startYear, startMonth, startDay] = startDateParam.split('-').map(Number);
       const [endYear, endMonth, endDay] = endDateParam.split('-').map(Number);
       
-      const startDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
-      const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+      const startDate = new Date(startYear!, startMonth! - 1, startDay!, 0, 0, 0, 0);
+      const endDate = new Date(endYear!, endMonth! - 1, endDay!, 23, 59, 59, 999);
       
       console.log('[Dashboard Stats] Date filter:', {
         startDateParam,
