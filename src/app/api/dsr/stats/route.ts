@@ -334,10 +334,16 @@ export async function GET(request: NextRequest) {
         console.log(`[DSR Transform] Lead ${lead.name}: callAttempts=${lead.callAttempts}, isNew=${isNewCall}, isFollowup=${isFollowupCall}, isOverdue=${hadOverdueCallToday}`);
       }
       
+      // Get the most recent call log remarks from today's calls
+      const mostRecentCallRemarks = lead.CallLog && lead.CallLog.length > 0 
+        ? lead.CallLog[0].remarks 
+        : null;
+      
       return {
         ...lead,
         assignedTo: lead.User_Lead_assignedToIdToUser,
         createdBy: lead.User_Lead_createdByIdToUser,
+        callLogRemarks: mostRecentCallRemarks,  // Add call log remarks
         User_Lead_assignedToIdToUser: undefined,
         User_Lead_createdByIdToUser: undefined,
         CallLog: undefined,

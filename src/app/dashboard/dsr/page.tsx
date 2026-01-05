@@ -91,6 +91,8 @@ interface Lead {
   status: string;
   source: string;
   campaign?: string;
+  remarks?: string;
+  callLogRemarks?: string | null;
   createdAt: string;
   updatedAt: string;
   assignedTo?: {
@@ -357,6 +359,7 @@ export default function DSRPage() {
       Status: lead.status,
       Source: lead.source,
       Campaign: lead.campaign || '',
+      Remarks: lead.callLogRemarks || lead.remarks || '',
       'Assigned To': lead.assignedTo?.name || 'Unassigned',
       'Created Date': formatDate(new Date(lead.createdAt)),
     }));
@@ -1133,6 +1136,7 @@ export default function DSRPage() {
                       <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Assigned To</Th>
                       <Th color={THEME_COLORS.dark} display={{ base: 'none', sm: 'table-cell' }}>Created Date</Th>
                       <Th color={THEME_COLORS.dark} display={{ base: 'none', xl: 'table-cell' }}>Campaign</Th>
+                      <Th color={THEME_COLORS.dark} display={{ base: 'none', xl: 'table-cell' }}>Remarks</Th>
                     </>
                   )}
                 </Tr>
@@ -1222,13 +1226,16 @@ export default function DSRPage() {
                           <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
                             {lead.campaign || '-'}
                           </Td>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
+                            {lead.callLogRemarks || lead.remarks || '-'}
+                          </Td>
                         </>
                       )}
                     </Tr>
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={activeCard === 'totalCalls' ? 7 : 8} textAlign="center" py={8}>
+                    <Td colSpan={activeCard === 'totalCalls' ? 7 : 9} textAlign="center" py={8}>
                       <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
                         No {activeCard === 'totalCalls' ? 'calls' : 'leads'} found for the selected filters
                       </Text>
