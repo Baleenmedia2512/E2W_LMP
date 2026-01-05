@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
             followUp.Lead.assignedToId,
             'pending',
             'overdue'
-          ).catch(error => {
+          ).catch((error: any) => {
             console.error(`Failed to send status change notification for follow-up ${followUp.id}:`, error);
           })
         );
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
             followUp.Lead.name,
             followUp.Lead.assignedToId,
             followUp.Lead.priority || 'medium'
-          ).catch(error => {
+          ).catch((error: any) => {
             console.error(`Failed to send overdue notification for follow-up ${followUp.id}:`, error);
           })
         );
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
               trigger: 'cron_job',
             }),
           },
-        }).catch(error => {
+        }).catch((error: any) => {
           console.error(`Failed to create activity log for follow-up ${followUp.id}:`, error);
         })
       );

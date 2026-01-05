@@ -116,7 +116,7 @@ export function useFormValidation(): UseFormValidationReturn {
     const newErrors: FormErrors = {};
     let isValid = true;
 
-    Object.keys(config).forEach((fieldName) => {
+    Object.keys(config).forEach((fieldName: any) => {
       const fieldRules = config[fieldName];
       if (fieldRules) {
         const error = validateField(fieldName, data[fieldName], fieldRules);

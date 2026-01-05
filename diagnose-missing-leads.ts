@@ -30,20 +30,20 @@ async function diagnoseMissingLeads() {
   console.log('Total followups fetched:', allFollowUps.length);
 
   // Find the 3 specific leads
-  const targetLeads = allLeads.filter(lead => 
+  const targetLeads = allLeads.filter((lead: any) => 
     phoneNumbers.some(phone => lead.phone.includes(phone.replace('+', '').replace(/[^0-9]/g, '')))
   );
 
   console.log('\n=== TARGET LEADS FOUND ===');
-  targetLeads.forEach(lead => {
+  targetLeads.forEach((lead: any) => {
     console.log(`\nLead: ${lead.name} (${lead.phone})`);
     console.log('  ID:', lead.id);
     console.log('  Status:', lead.status);
     console.log('  Created:', lead.createdAt);
     
-    const leadFollowUps = allFollowUps.filter(f => f.leadId === lead.id);
+    const leadFollowUps = allFollowUps.filter((f: any) => f.leadId === lead.id);
     console.log('  Followups count:', leadFollowUps.length);
-    leadFollowUps.forEach(fu => {
+    leadFollowUps.forEach((fu: any) => {
       const scheduledDate = new Date(fu.scheduledAt);
       const now = new Date();
       const isFuture = scheduledDate >= now;
@@ -52,7 +52,7 @@ async function diagnoseMissingLeads() {
   });
 
   // Transform leads like frontend does
-  const transformedLeads = allLeads.map(lead => ({
+  const transformedLeads = allLeads.map((lead: any) => ({
     ...lead,
     assignedTo: lead.User_Lead_assignedToIdToUser,
     createdBy: lead.User_Lead_createdByIdToUser,
@@ -69,12 +69,12 @@ async function diagnoseMissingLeads() {
 
   // Check if target leads appear in any category
   console.log('\n=== CHECKING TARGET LEADS IN CATEGORIES ===');
-  phoneNumbers.forEach(phone => {
+  phoneNumbers.forEach((phone: string) => {
     const cleanPhone = phone.replace('+', '').replace(/[^0-9]/g, '');
     
-    const inOverdue = categorized.overdue.find(c => c.lead.phone.includes(cleanPhone));
-    const inNew = categorized.newLeads.find(c => c.lead.phone.includes(cleanPhone));
-    const inFuture = categorized.future.find(c => c.lead.phone.includes(cleanPhone));
+    const inOverdue = categorized.overdue.find((c: any) => c.lead.phone.includes(cleanPhone));
+    const inNew = categorized.newLeads.find((c: any) => c.lead.phone.includes(cleanPhone));
+    const inFuture = categorized.future.find((c: any) => c.lead.phone.includes(cleanPhone));
     
     console.log(`\nPhone: ${phone}`);
     console.log('  In Overdue:', !!inOverdue);
@@ -83,7 +83,7 @@ async function diagnoseMissingLeads() {
     
     if (!inOverdue && !inNew && !inFuture) {
       console.log('  ⚠️  NOT FOUND IN ANY CATEGORY!');
-      const targetLead = targetLeads.find(l => l.phone.includes(cleanPhone));
+      const targetLead = targetLeads.find((l: any) => l.phone.includes(cleanPhone));
       if (targetLead) {
         console.log('  Lead status:', targetLead.status);
         console.log('  Should be visible:', ['new', 'followup', 'qualified'].includes(targetLead.status));

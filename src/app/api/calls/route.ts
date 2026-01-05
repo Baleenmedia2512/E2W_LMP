@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Map the data to match frontend expectations (lead and caller instead of Lead and User)
-    const formattedCallLogs = callLogs.map(log => ({
+    const formattedCallLogs = callLogs.map((log: any) => ({
       ...log,
       lead: log.Lead,
       caller: log.User,

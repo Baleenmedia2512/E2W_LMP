@@ -96,9 +96,9 @@ export async function GET(request: NextRequest) {
   }
 
   // Overall status
-  const status = diagnostics.recommendations.filter(r => r.startsWith('❌')).length === 0
+  const status = diagnostics.recommendations.filter((r: any) => r.startsWith('❌')).length === 0
     ? 'healthy'
-    : diagnostics.recommendations.filter(r => r.startsWith('⚠️')).length > 0
+    : diagnostics.recommendations.filter((r: any) => r.startsWith('⚠️')).length > 0
     ? 'warning'
     : 'error';
 

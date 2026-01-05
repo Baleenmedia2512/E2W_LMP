@@ -32,10 +32,10 @@ export function calculateDSRStats(
   // Filter leads by agent
   const agentLeads = filters.selectedAgent === 'all' 
     ? leads 
-    : leads.filter(lead => lead.assignedTo?.name === filters.selectedAgent);
+    : leads.filter((lead: any) => lead.assignedTo?.name === filters.selectedAgent);
 
   // 1. New Leads Handled Today (within date range)
-  const newLeadsHandledToday = agentLeads.filter(lead => {
+  const newLeadsHandledToday = agentLeads.filter((lead: any) => {
     const leadDate = new Date(lead.createdAt);
     return leadDate >= start && leadDate <= end;
   }).length;
@@ -44,34 +44,34 @@ export function calculateDSRStats(
   const totalNewLeads = agentLeads.length;
 
   // 3. Follow-ups Handled Today (within date range)
-  const followUpsHandledToday = followUps.filter(followUp => {
+  const followUpsHandledToday = followUps.filter((followUp: any) => {
     const followUpDate = new Date(followUp.scheduledAt);
     const isInDateRange = followUpDate >= start && followUpDate <= end;
     
-    const lead = agentLeads.find(l => l.id === followUp.leadId);
+    const lead = agentLeads.find((l: any) => l.id === followUp.leadId);
     return isInDateRange && lead;
   }).length;
 
   // 4. Total Calls Handled Today (within date range)
-  const callsHandledToday = callLogs.filter(call => {
+  const callsHandledToday = callLogs.filter((call: any) => {
     const callDate = new Date(call.createdAt);
     const isInDateRange = callDate >= start && callDate <= end;
     
-    const lead = agentLeads.find(l => l.id === call.leadId);
+    const lead = agentLeads.find((l: any) => l.id === call.leadId);
     return isInDateRange && lead;
   }).length;
 
   // 5. Completed Calls Today
-  const completedCallsToday = callLogs.filter(call => {
+  const completedCallsToday = callLogs.filter((call: any) => {
     const callDate = new Date(call.createdAt);
     const isInDateRange = callDate >= start && callDate <= end;
-    const lead = agentLeads.find(l => l.id === call.leadId);
+    const lead = agentLeads.find((l: any) => l.id === call.leadId);
     return isInDateRange && lead && call.callStatus === 'completed';
   }).length;
 
   // 6. Total Follow-ups (all time)
-  const totalFollowUps = followUps.filter(followUp => {
-    const lead = agentLeads.find(l => l.id === followUp.leadId);
+  const totalFollowUps = followUps.filter((followUp: any) => {
+    const lead = agentLeads.find((l: any) => l.id === followUp.leadId);
     return lead !== undefined;
   }).length;
 
@@ -100,15 +100,15 @@ export function filterLeadsForDSR(
 
   let filtered = filters.selectedAgent === 'all' 
     ? [...leads] 
-    : leads.filter(lead => lead.assignedTo?.name === filters.selectedAgent);
+    : leads.filter((lead: any) => lead.assignedTo?.name === filters.selectedAgent);
 
   // Filter by date range (either created date or has follow-up in range)
-  filtered = filtered.filter(lead => {
+  filtered = filtered.filter((lead: any) => {
     const leadDate = new Date(lead.createdAt);
     const isLeadInRange = leadDate >= start && leadDate <= end;
 
     // Check if lead has follow-up in date range
-    const hasFollowUpInRange = followUps.some(followUp => {
+    const hasFollowUpInRange = followUps.some((followUp: any) => {
       const followUpDate = new Date(followUp.scheduledAt);
       return followUp.leadId === lead.id && 
              followUpDate >= start && 

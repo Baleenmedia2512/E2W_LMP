@@ -57,7 +57,7 @@ export async function PUT(
     };
 
     // Remove undefined values
-    Object.keys(updateData).forEach(key => {
+    Object.keys(updateData).forEach((key: any) => {
       if (updateData[key] === undefined) {
         delete updateData[key];
       }

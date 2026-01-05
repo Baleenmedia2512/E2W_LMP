@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      results.database.recentMetaLeads = recentMeta.map(lead => ({
+      results.database.recentMetaLeads = recentMeta.map((lead: any) => ({
         id: lead.id,
         name: lead.name,
         phone: lead.phone,

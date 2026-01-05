@@ -356,7 +356,7 @@ export async function PUT(
 
     // Execute all notifications (non-blocking) - moved outside updatedById check
     if (notificationPromises.length > 0) {
-      Promise.all(notificationPromises).catch(error => {
+      Promise.all(notificationPromises).catch((error: any) => {
         console.error('Failed to send notifications:', error);
       });
     }

@@ -47,7 +47,7 @@ export async function GET(
     });
 
     // Transform the data to match component expectations
-    const attempts = callLogs.map((log, index) => ({
+    const attempts = callLogs.map((log: any, index: number) => ({
       id: log.id,
       attemptNumber: index + 1,
       startedAt: log.createdAt.toISOString(),

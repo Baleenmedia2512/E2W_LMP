@@ -16,7 +16,7 @@ export function middleware(request: NextRequest) {
 
   // Allow all public routes and API routes to pass through
   // Client-side auth context handles actual protection
-  if (publicRoutes.some(route => pathname.startsWith(route)) || pathname.startsWith('/api')) {
+  if (publicRoutes.some((route: any) => pathname.startsWith(route)) || pathname.startsWith('/api')) {
     return NextResponse.next();
   }
 

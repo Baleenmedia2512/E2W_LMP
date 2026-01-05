@@ -228,8 +228,8 @@ export async function GET(request: NextRequest) {
     
     // Find the NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLeadForToday.entries()) {
-      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
-      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
@@ -286,19 +286,19 @@ export async function GET(request: NextRequest) {
     
     // Then, find NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLead.entries()) {
-      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
-      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
       if (futureFollowUps.length > 0) {
         // Prefer earliest future follow-up
-        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+        nextFollowUp = futureFollowUps.reduce((earliest: any, current: any) => {
           return new Date(current.scheduledAt) < new Date(earliest.scheduledAt) ? current : earliest;
         });
       } else if (pastFollowUps.length > 0) {
         // If no future, use most recent past
-        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+        nextFollowUp = pastFollowUps.reduce((latest: any, current: any) => {
           return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
         });
       }
@@ -333,19 +333,19 @@ export async function GET(request: NextRequest) {
     
     // Find the NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLeadForDisplay.entries()) {
-      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
-      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
       if (futureFollowUps.length > 0) {
         // Prefer earliest future follow-up
-        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+        nextFollowUp = futureFollowUps.reduce((earliest: any, current: any) => {
           return new Date(current.scheduledAt) < new Date(earliest.scheduledAt) ? current : earliest;
         });
       } else if (pastFollowUps.length > 0) {
         // If no future, use most recent past
-        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+        nextFollowUp = pastFollowUps.reduce((latest: any, current: any) => {
           return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
         });
       }
@@ -383,7 +383,7 @@ export async function GET(request: NextRequest) {
     const totalLeadsForDashboard = newLeadsCount + overdueCount + followUpsDueCount + wonLeadsCount;
 
     // Transform recentLeads to match frontend expectations
-    const transformedRecentLeads = recentLeads.map(lead => ({
+    const transformedRecentLeads = recentLeads.map((lead: any) => ({
       ...lead,
       assignedTo: lead.User_Lead_assignedToIdToUser,
       createdBy: lead.User_Lead_createdByIdToUser,

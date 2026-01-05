@@ -20,7 +20,7 @@ export async function findDuplicateLead(
     },
   });
 
-  const existingByMetaId = allMetaLeads.find((lead) => {
+  const existingByMetaId = allMetaLeads.find((lead: any) => {
     try {
       const metadata = typeof lead.metadata === 'string' 
         ? JSON.parse(lead.metadata) 
