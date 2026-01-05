@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       status: 'PASS',
       totalMetaLeads: await prisma.lead.count({ where: { source: 'Meta' } }),
       mostRecentLeadAt: recentLeads[0]?.createdAt || null,
-      recentLeads: recentLeads.map(lead => ({
+      recentLeads: recentLeads.map((lead: any) => ({
         id: lead.id,
         name: lead.name,
         phone: lead.phone,

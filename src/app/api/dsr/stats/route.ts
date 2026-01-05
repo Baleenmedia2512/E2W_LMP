@@ -198,9 +198,9 @@ export async function GET(request: NextRequest) {
 
       // Combine all lead IDs that had activity on the selected date
       const activeLeadIds = new Set([
-        ...leadsCreatedOnDate.map(l => l.id),
-        ...callsOnDate.map(c => c.leadId),
-        ...leadsUpdatedOnDate.map(l => l.id),
+        ...leadsCreatedOnDate.map((l: any) => l.id),
+        ...callsOnDate.map((c: any) => c.leadId),
+        ...leadsUpdatedOnDate.map((l: any) => l.id),
       ]);
 
       // Fetch full lead details for all active leads
@@ -271,7 +271,7 @@ export async function GET(request: NextRequest) {
 
     // Build a map of leadId -> most recent scheduled follow-up date for overdue detection
     const leadFollowupMap = new Map<string, Date>();
-    allFollowups.forEach(followup => {
+    allFollowups.forEach((followup: any) => {
       const scheduledDate = typeof followup.scheduledAt === 'string' 
         ? new Date(followup.scheduledAt) 
         : followup.scheduledAt;
@@ -284,14 +284,14 @@ export async function GET(request: NextRequest) {
 
     // Transform filteredLeads to match frontend expectations and add activity metadata
     // CRITICAL: These flags MUST match the exact KPI logic for perfect count matching
-    const transformedFilteredLeads = filteredLeads.map(lead => {
+    const transformedFilteredLeads = filteredLeads.map((lead: any) => {
       const wasCreatedToday = Object.keys(dateFilter).length > 0 && 
-        leadsCreatedOnDate.some(l => l.id === lead.id);
-      const hadCallToday = callsOnDate.some(c => c.leadId === lead.id);
-      const wasUpdatedToday = leadsUpdatedOnDate.some(l => l.id === lead.id);
+        leadsCreatedOnDate.some((l: any) => l.id === lead.id);
+      const hadCallToday = callsOnDate.some((c: any) => c.leadId === lead.id);
+      const wasUpdatedToday = leadsUpdatedOnDate.some((l: any) => l.id === lead.id);
       
       // Get all calls for this lead on the selected date
-      const leadsCallsToday = callsOnDate.filter(c => c.leadId === lead.id);
+      const leadsCallsToday = callsOnDate.filter((c: any) => c.leadId === lead.id);
       
       // ===== EXACT KPI LOGIC IMPLEMENTATION =====
       
@@ -356,10 +356,10 @@ export async function GET(request: NextRequest) {
     // Debug: Count leads by category
     const debugCounts = {
       total: transformedFilteredLeads.length,
-      newLeads: transformedFilteredLeads.filter(l => l.activityFlags.isNewLead).length,
-      followups: transformedFilteredLeads.filter(l => l.activityFlags.isFollowup).length,
-      overdue: transformedFilteredLeads.filter(l => l.activityFlags.isOverdue).length,
-      statusChanged: transformedFilteredLeads.filter(l => l.activityFlags.statusChangedToday).length,
+      newLeads: transformedFilteredLeads.filter((l: any) => l.activityFlags.isNewLead).length,
+      followups: transformedFilteredLeads.filter((l: any) => l.activityFlags.isFollowup).length,
+      overdue: transformedFilteredLeads.filter((l: any) => l.activityFlags.isOverdue).length,
+      statusChanged: transformedFilteredLeads.filter((l: any) => l.activityFlags.statusChangedToday).length,
     };
     console.log('[DSR Stats API] ===== LEAD CATEGORIZATION COUNTS =====');
     console.log('[DSR Stats API] Total leads returned:', debugCounts.total);
@@ -390,7 +390,7 @@ export async function GET(request: NextRequest) {
     // IMPORTANT: Use EXACT same logic as DSR KPIs but grouped by agent
     console.log('[DSR Stats API] Calculating agent performance...');
     const agentPerformanceData = await Promise.all(
-      (agentId ? agents.filter(a => a.id === agentId) : agents).map(async (agent) => {
+      (agentId ? agents.filter((a: any) => a.id === agentId) : agents).map(async (agent: any) => {
         console.log(`[DSR Stats API] Calculating metrics for agent: ${agent.name}`);
         
         // 1️⃣ Fetch calls made BY this agent (callerId) on selected date
@@ -412,7 +412,7 @@ export async function GET(request: NextRequest) {
         });
 
         // Get unique lead IDs from agent's calls
-        const agentLeadIds = new Set(agentCalls.map(c => c.leadId));
+        const agentLeadIds = new Set(agentCalls.map((c: any) => c.leadId));
 
         // 2️⃣ Fetch full lead data for these leads to check callAttempts
         const agentLeads = await prisma.lead.findMany({
@@ -428,10 +428,10 @@ export async function GET(request: NextRequest) {
         });
 
         // Create a map of leadId -> Lead for quick lookup
-        const leadMap = new Map(agentLeads.map(l => [l.id, l]));
+        const leadMap = new Map(agentLeads.map((l: any) => [l.id, l]));
 
         // 3️⃣ New Calls: Leads that had calls today AND callAttempts = 1
-        const newLeads = agentLeads.filter(lead => 
+        const newLeads = agentLeads.filter((lead: any) => 
           agentLeadIds.has(lead.id) && (lead.callAttempts || 0) === 1
         ).length;
 
@@ -451,7 +451,7 @@ export async function GET(request: NextRequest) {
 
         // Build map of leadId -> most recent scheduled follow-up date
         const leadFollowupMap = new Map<string, Date>();
-        agentFollowups.forEach(followup => {
+        agentFollowups.forEach((followup: any) => {
           const scheduledDate = typeof followup.scheduledAt === 'string' 
             ? new Date(followup.scheduledAt) 
             : followup.scheduledAt;
@@ -463,7 +463,7 @@ export async function GET(request: NextRequest) {
         });
 
         // 7️⃣ Overdue Calls Handled: Leads with calls on selected date where followup was overdue
-        const overdueLeads = agentLeads.filter(lead => {
+        const overdueLeads = agentLeads.filter((lead: any) => {
           if (!agentLeadIds.has(lead.id)) return false;
           
           const scheduledFollowup = leadFollowupMap.get(lead.id);
@@ -483,7 +483,7 @@ export async function GET(request: NextRequest) {
 
         // Get set of overdue lead IDs
         const overdueLeadIds = new Set<string>();
-        agentLeads.forEach(lead => {
+        agentLeads.forEach((lead: any) => {
           if (!agentLeadIds.has(lead.id)) return;
           
           const scheduledFollowup = leadFollowupMap.get(lead.id);
@@ -504,7 +504,7 @@ export async function GET(request: NextRequest) {
 
         // 4️⃣ Follow-up Calls: Leads that had calls today AND callAttempts > 1 AND NOT overdue
         // This ensures follow-up and overdue are mutually exclusive
-        const followUps = agentLeads.filter(lead => 
+        const followUps = agentLeads.filter((lead: any) => 
           agentLeadIds.has(lead.id) && (lead.callAttempts || 0) > 1 && !overdueLeadIds.has(lead.id)
         ).length;
 

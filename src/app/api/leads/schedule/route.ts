@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Process leads and sort by follow-up date, transform field names
-    const leadsWithFollowUps = leads.map(lead => ({
+    const leadsWithFollowUps = leads.map((lead: any) => ({
       ...lead,
       assignedTo: lead.User_Lead_assignedToIdToUser,
       User_Lead_assignedToIdToUser: undefined,
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     // Sort by nearest follow-up date (overdue first, then by date)
     const now = new Date();
-    leadsWithFollowUps.sort((a, b) => {
+    leadsWithFollowUps.sort((a: any, b: any) => {
       if (!a.nextFollowUp && !b.nextFollowUp) return 0;
       if (!a.nextFollowUp) return 1;
       if (!b.nextFollowUp) return -1;

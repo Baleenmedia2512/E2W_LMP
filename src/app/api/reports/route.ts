@@ -78,29 +78,29 @@ export async function GET(request: NextRequest) {
 
     // Calculate metrics server-side
     const totalLeads = leads.length;
-    const newLeads = leads.filter(l => l.status === 'new').length;
-    const wonDeals = leads.filter(l => l.status === 'won').length;
-    const lostDeals = leads.filter(l => l.status === 'lost').length;
+    const newLeads = leads.filter((l: any) => l.status === 'new').length;
+    const wonDeals = leads.filter((l: any) => l.status === 'won').length;
+    const lostDeals = leads.filter((l: any) => l.status === 'lost').length;
     
     // Correct conversion rate: Won / Total leads
     const conversionRate = totalLeads > 0 ? Math.round((wonDeals / totalLeads) * 100) : 0;
     
     // Calculate average call duration
-    const callsWithDuration = calls.filter(call => call.duration && call.duration > 0);
-    const totalCallDuration = callsWithDuration.reduce((sum, call) => sum + (call.duration || 0), 0);
+    const callsWithDuration = calls.filter((call: any) => call.duration && call.duration > 0);
+    const totalCallDuration = callsWithDuration.reduce((sum: any, call: any) => sum + (call.duration || 0), 0);
     const avgCallDuration = callsWithDuration.length > 0 
       ? Math.round(totalCallDuration / callsWithDuration.length) 
       : 0;
 
     // Calculate leads by source
     const leadsBySource: Record<string, number> = {};
-    leads.forEach(lead => {
+    leads.forEach((lead: any) => {
       leadsBySource[lead.source] = (leadsBySource[lead.source] || 0) + 1;
     });
 
     // Calculate leads by agent
     const agentMap: Record<string, number> = {};
-    leads.forEach(lead => {
+    leads.forEach((lead: any) => {
       const agentName = lead.User_Lead_assignedToIdToUser?.name || 'Unassigned';
       agentMap[agentName] = (agentMap[agentName] || 0) + 1;
     });
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate leads by status
     const leadsByStatus: Record<string, number> = {};
-    leads.forEach(lead => {
+    leads.forEach((lead: any) => {
       leadsByStatus[lead.status] = (leadsByStatus[lead.status] || 0) + 1;
     });
 
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
       '7+': 0,
     };
     
-    leads.forEach(lead => {
+    leads.forEach((lead: any) => {
       const attempts = lead.callAttempts || 0;
       if (attempts === 0) (leadsByAttempts['0'] as number)++;
       else if (attempts <= 3) (leadsByAttempts['1-3'] as number)++;
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate total call attempts
-    const totalCallAttempts = leads.reduce((sum, lead) => sum + (lead.callAttempts || 0), 0);
+    const totalCallAttempts = leads.reduce((sum: any, lead: any) => sum + (lead.callAttempts || 0), 0);
     const avgCallAttempts = totalLeads > 0 ? Math.round((totalCallAttempts / totalLeads) * 10) / 10 : 0;
 
     const reportsData = {

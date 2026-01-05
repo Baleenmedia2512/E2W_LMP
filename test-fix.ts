@@ -29,12 +29,12 @@ async function testFixedQuery() {
   console.log('Total followups fetched:', allFollowUps.length);
 
   // Find the 3 target leads
-  const targetLeads = allLeads.filter(lead => 
+  const targetLeads = allLeads.filter((lead: any) => 
     phoneNumbers.some(phone => lead.phone.includes(phone.replace('+', '').replace(/[^0-9]/g, '')))
   );
 
   console.log('\n=== TARGET LEADS IN FETCH ===');
-  targetLeads.forEach(lead => {
+  targetLeads.forEach((lead: any) => {
     console.log(`✓ ${lead.name} (${lead.phone}) - Created: ${lead.createdAt}`);
   });
 
@@ -43,7 +43,7 @@ async function testFixedQuery() {
   }
 
   // Transform and categorize
-  const transformedLeads = allLeads.map(lead => ({
+  const transformedLeads = allLeads.map((lead: any) => ({
     ...lead,
     assignedTo: lead.User_Lead_assignedToIdToUser,
     createdBy: lead.User_Lead_createdByIdToUser,
@@ -58,12 +58,12 @@ async function testFixedQuery() {
 
   // Check if all target leads appear
   console.log('\n=== TARGET LEADS IN CATEGORIES ===');
-  phoneNumbers.forEach(phone => {
+  phoneNumbers.forEach((phone: string) => {
     const cleanPhone = phone.replace('+', '').replace(/[^0-9]/g, '');
     
-    const inOverdue = categorized.overdue.find(c => c.lead.phone.includes(cleanPhone));
-    const inNew = categorized.newLeads.find(c => c.lead.phone.includes(cleanPhone));
-    const inFuture = categorized.future.find(c => c.lead.phone.includes(cleanPhone));
+    const inOverdue = categorized.overdue.find((c: any) => c.lead.phone.includes(cleanPhone));
+    const inNew = categorized.newLeads.find((c: any) => c.lead.phone.includes(cleanPhone));
+    const inFuture = categorized.future.find((c: any) => c.lead.phone.includes(cleanPhone));
     
     const found = inOverdue || inNew || inFuture;
     const category = inOverdue ? 'Overdue' : inNew ? 'New' : inFuture ? 'Future' : 'NOT FOUND';

@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Transform the response to match frontend expectations
-    const transformedLeads = leads.map(lead => ({
+    const transformedLeads = leads.map((lead: any) => ({
       ...lead,
       assignedTo: lead.User_Lead_assignedToIdToUser,
       createdBy: lead.User_Lead_createdByIdToUser,
@@ -147,7 +147,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
     }
 
     // Find current agent's index
-    const currentIndex = agents.findIndex(a => a.id === lastLead.assignedToId);
+    const currentIndex = agents.findIndex((a: any) => a.id === lastLead.assignedToId);
     
     // If agent not found or is last, start from beginning; otherwise next agent
     const nextIndex = currentIndex === -1 || currentIndex === agents.length - 1 

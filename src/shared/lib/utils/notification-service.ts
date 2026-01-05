@@ -651,8 +651,8 @@ export async function notifyTagUpdated(
   oldTags: string[],
   newTags: string[]
 ) {
-  const added = newTags.filter(tag => !oldTags.includes(tag));
-  const removed = oldTags.filter(tag => !newTags.includes(tag));
+  const added = newTags.filter((tag: any) => !oldTags.includes(tag));
+  const removed = oldTags.filter((tag: any) => !newTags.includes(tag));
   
   let message = `Tags updated for lead "${leadName}"`;
   if (added.length > 0) message += `. Added: ${added.join(', ')}`;

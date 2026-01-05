@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
               followUp.Lead.name,
               followUp.Lead.assignedToId,
               followUp.scheduledAt
-            ).catch(error => {
+            ).catch((error: any) => {
               console.error(`Failed to send upcoming notification for follow-up ${followUp.id}:`, error);
             })
           );

@@ -80,7 +80,7 @@ function getTotalByStatus(
   leads: DSRMetricsInput['leads'],
   statusName: string
 ): number {
-  return leads.filter(lead => lead.status.toLowerCase() === statusName.toLowerCase()).length;
+  return leads.filter((lead: any) => lead.status.toLowerCase() === statusName.toLowerCase()).length;
 }
 
 /**
@@ -93,7 +93,7 @@ function getStatusChangeToday(
   timezone: string = DEFAULT_TIMEZONE,
   dateRange?: { startDate?: Date | string; endDate?: Date | string }
 ): number {
-  return leads.filter(lead => {
+  return leads.filter((lead: any) => {
     const statusMatches = lead.status.toLowerCase() === statusName.toLowerCase();
     
     if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
@@ -130,14 +130,14 @@ function getFollowupsToday(
 ): number {
   if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
     // No date range - use today
-    return followups.filter(followup => {
+    return followups.filter((followup: any) => {
       const scheduledToday = isToday(followup.scheduledAt, timezone);
       return scheduledToday;
     }).length;
   }
   
   // Date range specified
-  return followups.filter(followup => {
+  return followups.filter((followup: any) => {
     const scheduledDate = typeof followup.scheduledAt === 'string' ? new Date(followup.scheduledAt) : followup.scheduledAt;
     const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
     const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
@@ -164,7 +164,7 @@ function getPendingFollowups(
   timezone: string = DEFAULT_TIMEZONE
 ): number {
   const now = new Date();
-  return followups.filter(followup => {
+  return followups.filter((followup: any) => {
     const scheduledDate = typeof followup.scheduledAt === 'string' 
       ? new Date(followup.scheduledAt) 
       : followup.scheduledAt;
@@ -191,7 +191,7 @@ function getOverdueFollowups(
     referenceDate.setHours(23, 59, 59, 999);
   }
   
-  return followups.filter(followup => {
+  return followups.filter((followup: any) => {
     const scheduledDate = typeof followup.scheduledAt === 'string' 
       ? new Date(followup.scheduledAt) 
       : followup.scheduledAt;
@@ -209,11 +209,11 @@ function getCallsToday(
 ): number {
   if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
     // No date range - use today
-    return calls.filter(call => isToday(call.createdAt, timezone)).length;
+    return calls.filter((call: any) => isToday(call.createdAt, timezone)).length;
   }
   
   // Date range specified
-  return calls.filter(call => {
+  return calls.filter((call: any) => {
     const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
     const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
     const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
@@ -240,7 +240,7 @@ function getNewLeadsHandledToday(
   // Get unique leads that had their first call today/in range
   const firstCallLeads = new Set<string>();
   
-  calls.forEach(call => {
+  calls.forEach((call: any) => {
     // Check if this is a first call (attemptNumber = 1)
     if (call.attemptNumber === 1) {
       // Check if call was made today or in date range
@@ -283,7 +283,7 @@ function getFollowUpCallsToday(
   timezone: string = DEFAULT_TIMEZONE,
   dateRange?: { startDate?: Date | string; endDate?: Date | string }
 ): number {
-  return calls.filter(call => {
+  return calls.filter((call: any) => {
     // Must not be a first call
     if (call.attemptNumber === 1) return false;
     
@@ -321,7 +321,7 @@ function getOverdueFollowupsHandledToday(
   // Build a map of leadId -> most recent scheduled follow-up date before the call
   const leadFollowupMap = new Map<string, Date>();
   
-  followups.forEach(followup => {
+  followups.forEach((followup: any) => {
     const scheduledDate = typeof followup.scheduledAt === 'string' 
       ? new Date(followup.scheduledAt) 
       : followup.scheduledAt;
@@ -333,7 +333,7 @@ function getOverdueFollowupsHandledToday(
   });
   
   // Count calls today that are NOT first calls and had an overdue follow-up
-  return calls.filter(call => {
+  return calls.filter((call: any) => {
     // Must not be a first call
     if (call.attemptNumber === 1) return false;
     
@@ -424,11 +424,11 @@ function getNewLeadsToday(
 ): number {
   if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
     // No date range - use today
-    return leads.filter(lead => isToday(lead.createdAt, timezone)).length;
+    return leads.filter((lead: any) => isToday(lead.createdAt, timezone)).length;
   }
   
   // Date range specified
-  return leads.filter(lead => {
+  return leads.filter((lead: any) => {
     const leadDate = typeof lead.createdAt === 'string' ? new Date(lead.createdAt) : lead.createdAt;
     const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
     const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
@@ -473,8 +473,8 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   let calls = input.calls;
   
   if (input.agentId) {
-    leads = leads.filter(lead => lead.assignedToId === input.agentId);
-    const leadIds = new Set(leads.map(l => l.id));
+    leads = leads.filter((lead: any) => lead.assignedToId === input.agentId);
+    const leadIds = new Set(leads.map((l: any) => l.id));
     followups = followups.filter(f => leadIds.has(f.leadId));
     calls = calls.filter(c => leadIds.has(c.leadId));
   }
@@ -494,7 +494,7 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     console.log('[DSR Metrics] Using pre-filtered calls from DB:', callsOnDate.length);
   } else {
     // Filter calls made on selected date (legacy path for when no dateRange provided)
-    callsOnDate = calls.filter(call => {
+    callsOnDate = calls.filter((call: any) => {
       const callDate = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
       
       if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
@@ -516,15 +516,15 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   }
   
   // Get unique lead IDs that had calls today
-  const leadsWithCallsToday = new Set(callsOnDate.map(c => c.leadId));
+  const leadsWithCallsToday = new Set(callsOnDate.map((c: any) => c.leadId));
   
   // New Calls: Leads that had calls today AND have callAttempts = 1
-  const newCallsCount = leads.filter(lead => 
+  const newCallsCount = leads.filter((lead: any) => 
     leadsWithCallsToday.has(lead.id) && (lead.callAttempts || 0) === 1
   ).length;
   
   // Overdue Calls Handled: Leads with calls today AND had follow-up scheduled BEFORE today (overdue)
-  const overdueCallsHandled = leads.filter(lead => {
+  const overdueCallsHandled = leads.filter((lead: any) => {
     // Must have had a call today
     if (!leadsWithCallsToday.has(lead.id)) return false;
     
@@ -539,9 +539,9 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     }
     
     // Check if this lead had any follow-up scheduled BEFORE now (overdue)
-    const leadFollowups = followups.filter(f => f.leadId === lead.id);
+    const leadFollowups = followups.filter((f: any) => f.leadId === lead.id);
     
-    return leadFollowups.some(f => {
+    return leadFollowups.some((f: any) => {
       const scheduledDate = typeof f.scheduledAt === 'string' ? new Date(f.scheduledAt) : f.scheduledAt;
       return scheduledDate < referenceDate; // Scheduled before now = overdue
     });
@@ -549,7 +549,7 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   
   // Get set of leads with overdue calls
   const leadsWithOverdueCalls = new Set<string>();
-  leads.forEach(lead => {
+  leads.forEach((lead: any) => {
     if (!leadsWithCallsToday.has(lead.id)) return;
     
     let referenceDate: Date;
@@ -560,8 +560,8 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
       referenceDate = new Date();
     }
     
-    const leadFollowups = followups.filter(f => f.leadId === lead.id);
-    const hasOverdue = leadFollowups.some(f => {
+    const leadFollowups = followups.filter((f: any) => f.leadId === lead.id);
+    const hasOverdue = leadFollowups.some((f: any) => {
       const scheduledDate = typeof f.scheduledAt === 'string' ? new Date(f.scheduledAt) : f.scheduledAt;
       return scheduledDate < referenceDate;
     });
@@ -573,7 +573,7 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   
   // Follow-up Calls: Leads that had calls today AND have callAttempts > 1 (not 1) AND NOT overdue
   // This ensures follow-up and overdue are mutually exclusive
-  const followupCallsCount = leads.filter(lead => 
+  const followupCallsCount = leads.filter((lead: any) => 
     leadsWithCallsToday.has(lead.id) && (lead.callAttempts || 0) > 1 && !leadsWithOverdueCalls.has(lead.id)
   ).length;
   

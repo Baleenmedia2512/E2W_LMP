@@ -120,8 +120,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Separate future and past follow-ups
-    const futureFollowUps = allPendingFollowUps.filter(f => new Date(f.scheduledAt) >= now);
-    const pastFollowUps = allPendingFollowUps.filter(f => new Date(f.scheduledAt) < now);
+    const futureFollowUps = allPendingFollowUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+    const pastFollowUps = allPendingFollowUps.filter((f: any) => new Date(f.scheduledAt) < now);
 
     // Determine which follow-up to update (prefer future, otherwise most recent past)
     let followUpToUpdate = futureFollowUps[0] || pastFollowUps[pastFollowUps.length - 1];
@@ -144,8 +144,8 @@ export async function POST(request: NextRequest) {
 
       // Delete all other pending follow-ups for this lead (clean up duplicates)
       const otherFollowUpIds = allPendingFollowUps
-        .filter(f => f.id !== followUpToUpdate.id)
-        .map(f => f.id);
+        .filter((f: any) => f.id !== followUpToUpdate.id)
+        .map((f: any) => f.id);
 
       if (otherFollowUpIds.length > 0) {
         await prisma.followUp.deleteMany({

@@ -213,7 +213,7 @@ export async function GET(request: NextRequest) {
     let duplicatesSkipped = 0;
     let errors = 0;
 
-    const normalizedMissing = stillMissing.map(p => normalizePhoneForStorage(p));
+    const normalizedMissing = stillMissing.map((p: any) => normalizePhoneForStorage(p));
 
     // Process each form
     for (const form of forms) {
