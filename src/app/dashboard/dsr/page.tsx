@@ -359,7 +359,7 @@ export default function DSRPage() {
       Status: lead.status,
       Source: lead.source,
       Campaign: lead.campaign || '',
-      Remarks: lead.callLogRemarks || lead.remarks || '',
+      Remarks: (lead as any).callLogRemarks || (lead as any).remarks || '',
       'Assigned To': lead.assignedTo?.name || 'Unassigned',
       'Created Date': formatDate(new Date(lead.createdAt)),
     }));
@@ -1227,7 +1227,7 @@ export default function DSRPage() {
                             {lead.campaign || '-'}
                           </Td>
                           <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
-                            {lead.callLogRemarks || lead.remarks || '-'}
+                            {(lead as any).callLogRemarks || (lead as any).remarks || '-'}
                           </Td>
                         </>
                       )}
