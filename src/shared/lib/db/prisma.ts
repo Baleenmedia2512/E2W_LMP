@@ -1,15 +1,12 @@
 ﻿import { PrismaClient } from '@prisma/client';
-import { withAccelerate } from '@prisma/extension-accelerate';
 
 /**
- * Prisma Client Singleton with Accelerate Support
+ * Prisma Client Singleton - Direct MySQL Connection
  * 
  * Configuration:
- * - DATABASE_URL: Prisma Accelerate connection (prisma://) - Used at runtime
- * - DIRECT_DATABASE_URL: Direct MySQL connection - Used for migrations only
+ * - DATABASE_URL: Direct MySQL connection
  * 
  * Connection Pooling:
- * - Accelerate handles connection pooling automatically
  * - Singleton pattern prevents multiple client instances
  * - In development, reuses client across hot reloads
  */
@@ -25,35 +22,10 @@ const prismaClientSingleton = () => {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  // Trim DATABASE_URL to handle any accidental whitespace
-  const databaseUrl = process.env.DATABASE_URL.trim();
-  
-  // Check if running Accelerate (runtime) vs Direct connection (migrations)
-  const isAccelerateConnection = databaseUrl.startsWith('prisma://');
-
-  if (!isAccelerateConnection && isProduction()) {
-    console.warn(
-      'WARNING: DATABASE_URL does not use Prisma Accelerate (prisma://). ' +
-      'This may cause connection pool issues in production.'
-    );
-  }
-
-  // Initialize Prisma Client with appropriate configuration
-  const client = new PrismaClient({
-    log: isDevelopment() ? ['error', 'warn'] : ['error'],
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
+  // Initialize Prisma Client with direct MySQL connection
+  return new PrismaClient({
+    log: isDevelopment() ? ['query', 'error', 'warn'] : ['error'],
   });
-
-  // Only extend with Accelerate if using the Accelerate URL
-  if (isAccelerateConnection) {
-    return client.$extends(withAccelerate());
-  }
-
-  return client;
 };
 
 declare global {
