@@ -13,16 +13,25 @@ import { withAccelerate } from '@prisma/extension-accelerate';
  * - Singleton pattern prevents multiple client instances
  * - In development, reuses client across hot reloads
  */
+
+// Helper to safely check NODE_ENV (handles trailing spaces from env config)
+const getNodeEnv = () => (process.env.NODE_ENV || '').trim();
+const isProduction = () => getNodeEnv() === 'production';
+const isDevelopment = () => getNodeEnv() === 'development';
+
 const prismaClientSingleton = () => {
   // Validate environment configuration
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
+  // Trim DATABASE_URL to handle any accidental whitespace
+  const databaseUrl = process.env.DATABASE_URL.trim();
+  
   // Check if running Accelerate (runtime) vs Direct connection (migrations)
-  const isAccelerateConnection = process.env.DATABASE_URL.startsWith('prisma://');
+  const isAccelerateConnection = databaseUrl.startsWith('prisma://');
 
-  if (!isAccelerateConnection && process.env.NODE_ENV === 'production') {
+  if (!isAccelerateConnection && isProduction()) {
     console.warn(
       'WARNING: DATABASE_URL does not use Prisma Accelerate (prisma://). ' +
       'This may cause connection pool issues in production.'
@@ -31,7 +40,12 @@ const prismaClientSingleton = () => {
 
   // Initialize Prisma Client with appropriate configuration
   const client = new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    log: isDevelopment() ? ['error', 'warn'] : ['error'],
+    datasources: {
+      db: {
+        url: databaseUrl,
+      },
+    },
   });
 
   // Only extend with Accelerate if using the Accelerate URL
@@ -52,7 +66,7 @@ const prisma = global.prisma ?? prismaClientSingleton();
 export default prisma;
 
 // Cache prisma client in development to prevent multiple instances during hot reload
-if (process.env.NODE_ENV !== 'production') {
+if (!isProduction()) {
   global.prisma = prisma;
 }
 
