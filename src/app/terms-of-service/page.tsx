@@ -99,7 +99,7 @@ export default function TermsOfServicePage() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-3">6. Data and Privacy</h2>
             <p>
               Your use of the Service is also governed by our{' '}
-              <a href="https://e2-w-lmp.vercel.app/privacy-policy" className="text-blue-600 hover:underline">
+              <a href="https://e2wleadmanager.vercel.app/privacy-policy" className="text-blue-600 hover:underline">
                 Privacy Policy
               </a>
               . By using the Service, you consent to our collection, use, and disclosure of your data 

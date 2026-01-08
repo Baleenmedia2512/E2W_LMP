@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   const results: any = {
     timestamp: new Date().toISOString(),
-    webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://e2-w-lmp.vercel.app'}/api/webhooks/meta-leads`,
+    webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://e2wleadmanager.vercel.app'}/api/webhooks/meta-leads`,
     checks: {},
     recommendations: [],
   };

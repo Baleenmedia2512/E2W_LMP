@@ -227,7 +227,7 @@ export default function DataDeletionPage() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-3">Privacy Policy</h2>
             <p>
               For more information about how we collect, use, and protect your data, please read our{' '}
-              <a href="https://e2-w-lmp.vercel.app/privacy-policy" className="text-blue-600 hover:underline">
+              <a href="https://e2wleadmanager.vercel.app/privacy-policy" className="text-blue-600 hover:underline">
                 Privacy Policy
               </a>.
             </p>

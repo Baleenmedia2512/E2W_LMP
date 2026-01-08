@@ -79,7 +79,7 @@ async function checkWebhookStatus() {
 
     // 3. Test webhook endpoint
     console.log('\n3️⃣  Testing webhook endpoint...');
-    const testUrl = 'https://e2-w-lmp.vercel.app/api/webhooks/meta-leads?hub.mode=subscribe&hub.verify_token=E2W_LMP_META_WEBHOOK_2025&hub.challenge=test123';
+    const testUrl = 'https://e2wleadmanager.vercel.app/api/webhooks/meta-leads?hub.mode=subscribe&hub.verify_token=E2W_LMP_META_WEBHOOK_2025&hub.challenge=test123';
     
     try {
       const testResponse = await fetch(testUrl);
