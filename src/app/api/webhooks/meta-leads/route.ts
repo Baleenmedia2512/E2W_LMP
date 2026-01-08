@@ -161,8 +161,14 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
     }
 
     return null;
-  } catch (error) {
-    logWebhookEvent('error', 'Error checking for duplicates', error);
+  } catch (error: any) {
+    logWebhookEvent('error', 'Error checking for duplicates', {
+      error: error.message,
+      metaLeadId,
+      phone,
+      stack: error.stack
+    });
+    // Don't fail the entire webhook on duplicate check error
     return null;
   }
 }
@@ -221,6 +227,14 @@ async function processLead(leadgenData: any): Promise<void> {
   });
 
   try {
+    // Validate required environment variables
+    if (!process.env.META_ACCESS_TOKEN) {
+      throw new Error('META_ACCESS_TOKEN not configured');
+    }
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL not configured');
+    }
+
     // STEP 1: Fetch FULL lead data from Meta Graph API
     // This includes: ad_id, adset_id, campaign_id, form_id, field_data
     logWebhookEvent('info', `Fetching complete lead data from Meta API...`);

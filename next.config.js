@@ -5,7 +5,8 @@ const nextConfig = {
   
   // Performance optimizations
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
+    // Keep console logs in production for webhook debugging
+    removeConsole: false,
   },
   
   // Image optimization - US-25: Images scale properly with device size
