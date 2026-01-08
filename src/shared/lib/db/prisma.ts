@@ -22,9 +22,14 @@ const prismaClientSingleton = () => {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  // Initialize Prisma Client with direct MySQL connection
+  // Initialize Prisma Client with PostgreSQL connection pooling
   return new PrismaClient({
     log: isDevelopment() ? ['query', 'error', 'warn'] : ['error'],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   });
 };
 
