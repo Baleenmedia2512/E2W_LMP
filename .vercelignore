@@ -1,0 +1,12 @@
+# Don't ignore critical source files
+!src/shared/
+
+# Standard ignores
+node_modules/
+.next/
+.git/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
