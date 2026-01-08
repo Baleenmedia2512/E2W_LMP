@@ -1,6 +1,10 @@
 ﻿import { NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 
+// Force dynamic rendering - prevent build-time execution
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     // Set a timeout for the database query
