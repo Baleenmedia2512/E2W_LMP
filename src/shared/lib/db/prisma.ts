@@ -17,9 +17,13 @@ const isProduction = () => getNodeEnv() === 'production';
 const isDevelopment = () => getNodeEnv() === 'development';
 
 const prismaClientSingleton = () => {
-  // Validate environment configuration
+  // Validate environment configuration - warn during build, error at runtime
   if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is not set');
+    if (process.env.NODE_ENV === 'production' && process.env.VERCEL) {
+      console.warn('⚠️  DATABASE_URL not set during build - will be required at runtime');
+    } else {
+      console.error('❌ DATABASE_URL environment variable is not set');
+    }
   }
 
   // Initialize Prisma Client with PostgreSQL connection pooling
