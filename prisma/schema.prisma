@@ -4,9 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model ActivityHistory {
@@ -15,10 +15,10 @@ model ActivityHistory {
   userId      String
   action      String
   fieldName   String?
-  oldValue    String?  @db.Text
-  newValue    String?  @db.Text
+  oldValue    String?
+  newValue    String?
   description String
-  metadata    String?  @db.Text
+  metadata    String?
   createdAt   DateTime @default(now())
   Lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -34,8 +34,8 @@ model AuditLog {
   action     String
   targetType String
   targetId   String
-  changes    String?  @db.Text
-  metadata   String?  @db.Text
+  changes    String?
+  metadata   String?
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
@@ -52,12 +52,12 @@ model CallLog {
   startedAt           DateTime  @default(now())
   endedAt             DateTime?
   duration            Int?
-  remarks             String?   @db.Text
+  remarks             String?
   callStatus          String?
   attemptNumber       Int       @default(1)
   recordingUrl        String?
   customerRequirement String?
-  metadata            String?   @db.Text
+  metadata            String?
   createdAt           DateTime  @default(now())
   User                User      @relation(fields: [callerId], references: [id], onDelete: Cascade)
   Lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
@@ -72,14 +72,14 @@ model FollowUp {
   leadId              String
   scheduledAt         DateTime
   completedAt         DateTime?
-  notes               String?   @db.Text
+  notes               String?
   status              String    @default("pending")
   priority            String    @default("medium")
   createdById         String
-  metadata            String?   @db.Text
+  metadata            String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime
-  customerRequirement String?   @db.Text
+  customerRequirement String?
   User                User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
   Lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
@@ -104,12 +104,12 @@ model Lead {
   customerRequirement          String?
   status                       String            @default("new")
   priority                     String            @default("medium")
-  notes                        String?           @db.Text
-  metadata                     String?           @db.Text
+  notes                        String?
+  metadata                     String?
   assignedToId                 String?
   createdById                  String?
   createdAt                    DateTime          @default(now())
-  updatedAt                    DateTime          @updatedAt
+  updatedAt                    DateTime
   callAttempts                 Int               @default(0)
   ActivityHistory              ActivityHistory[]
   CallLog                      CallLog[]
@@ -129,10 +129,10 @@ model Notification {
   userId        String
   type          String
   title         String
-  message       String    @db.Text
+  message       String
   isRead        Boolean   @default(false)
   readAt        DateTime?
-  metadata      String?   @db.Text
+  metadata      String?
   createdAt     DateTime  @default(now())
   relatedLeadId String?
   User          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -147,7 +147,7 @@ model Role {
   id          String   @id
   name        String   @unique
   description String?
-  permissions String?  @db.Text
+  permissions String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   User        User[]
@@ -165,7 +165,7 @@ model User {
   isActive                     Boolean           @default(true)
   createdAt                    DateTime          @default(now())
   updatedAt                    DateTime
-  settings                     String?           @db.Text
+  settings                     String?
   ActivityHistory              ActivityHistory[]
   CallLog                      CallLog[]
   FollowUp                     FollowUp[]
