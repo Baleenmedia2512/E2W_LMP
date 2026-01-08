@@ -70,7 +70,7 @@ https.get(url, (res) => {
         console.log('\n📝 Next Steps:');
         console.log('1. Go to Meta Business Manager → Webhooks');
         console.log('2. Check if webhook is subscribed to "leadgen" event');
-        console.log('3. Verify callback URL: https://e2-w-lmp.vercel.app/api/webhooks/meta-leads');
+        console.log('3. Verify callback URL: https://e2wleadmanager.vercel.app/api/webhooks/meta-leads');
         console.log('4. Submit a TEST lead in your Meta form');
         console.log('5. Check Vercel logs immediately: https://vercel.com/logs');
         console.log('\nIf you see logs in Vercel with "WEBHOOK POST RECEIVED", webhook is working!');
