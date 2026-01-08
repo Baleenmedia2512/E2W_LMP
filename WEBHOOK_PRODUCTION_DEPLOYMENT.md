@@ -40,8 +40,8 @@ META_WEBHOOK_VERIFY_TOKEN="E2W_LMP_META_WEBHOOK_2025"
 
 # NextAuth
 NEXTAUTH_SECRET="e2w-lmp-nextauth-secret-prod-2025-a1s2d3f4g5h6j7k8l9z0x1c2v3b4n5"
-NEXTAUTH_URL="https://e2-w-lmp.vercel.app"
-NEXT_PUBLIC_APP_URL="https://e2-w-lmp.vercel.app"
+NEXTAUTH_URL="https://e2wleadmanager.vercel.app"
+NEXT_PUBLIC_APP_URL="https://e2wleadmanager.vercel.app"
 
 # App Configuration
 NODE_ENV="production"
@@ -86,7 +86,7 @@ git push origin main
 
 ### Test 1: Webhook Verification Endpoint
 ```bash
-curl "https://e2-w-lmp.vercel.app/api/webhooks/meta-leads?hub.mode=subscribe&hub.verify_token=E2W_LMP_META_WEBHOOK_2025&hub.challenge=test123"
+curl "https://e2wleadmanager.vercel.app/api/webhooks/meta-leads?hub.mode=subscribe&hub.verify_token=E2W_LMP_META_WEBHOOK_2025&hub.challenge=test123"
 # Expected: test123
 ```
 

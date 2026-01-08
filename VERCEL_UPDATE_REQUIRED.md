@@ -39,8 +39,8 @@ META_APP_SECRET = d027d066c388978723bb4e378c93f576
 META_ACCESS_TOKEN = EAAWnNnjnCxIBQOD8CHKD34TxdqDXY0meVqoH5i5wIjGiQZCgKMCQlZAF5SwAbNPPbCST8TkCtsQ8cS1LSbMit2KF6P51Eh1ijzG6TvnWrAotIpFIHZCySkZC7bnU9SyiaZCUUmDWjot3IjqkhLMHZBwh4LVrfn5rgiVHykTOKu6kq1OVxZCP4u8UqWtHVE8lajpPdVE3yYt
 META_PAGE_ID = 1552034478376801
 META_WEBHOOK_VERIFY_TOKEN = E2W_LMP_META_WEBHOOK_2025
-NEXTAUTH_URL = https://e2-w-lmp.vercel.app
-NEXT_PUBLIC_APP_URL = https://e2-w-lmp.vercel.app
+NEXTAUTH_URL = https://e2wleadmanager.vercel.app
+NEXT_PUBLIC_APP_URL = https://e2wleadmanager.vercel.app
 NODE_ENV = production
 ```
 
@@ -58,7 +58,7 @@ NODE_ENV = production
 ### Step 2: Test Immediately
 ```bash
 # Test webhook verification
-curl "https://e2-w-lmp.vercel.app/api/webhooks/meta-leads?hub.mode=subscribe&hub.verify_token=E2W_LMP_META_WEBHOOK_2025&hub.challenge=test123"
+curl "https://e2wleadmanager.vercel.app/api/webhooks/meta-leads?hub.mode=subscribe&hub.verify_token=E2W_LMP_META_WEBHOOK_2025&hub.challenge=test123"
 
 # Should return: test123
 ```
