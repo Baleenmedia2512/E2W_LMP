@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model ActivityHistory {
@@ -17,7 +18,7 @@ model ActivityHistory {
   oldValue    String?  @db.Text
   newValue    String?  @db.Text
   description String
-  metadata    String?  @db.LongText
+  metadata    String?  @db.Text
   createdAt   DateTime @default(now())
   Lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -33,8 +34,8 @@ model AuditLog {
   action     String
   targetType String
   targetId   String
-  changes    String?  @db.LongText
-  metadata   String?  @db.LongText
+  changes    String?  @db.Text
+  metadata   String?  @db.Text
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
@@ -56,7 +57,7 @@ model CallLog {
   attemptNumber       Int       @default(1)
   recordingUrl        String?
   customerRequirement String?
-  metadata            String?   @db.LongText
+  metadata            String?   @db.Text
   createdAt           DateTime  @default(now())
   User                User      @relation(fields: [callerId], references: [id], onDelete: Cascade)
   Lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
@@ -75,7 +76,7 @@ model FollowUp {
   status              String    @default("pending")
   priority            String    @default("medium")
   createdById         String
-  metadata            String?   @db.LongText
+  metadata            String?   @db.Text
   createdAt           DateTime  @default(now())
   updatedAt           DateTime
   customerRequirement String?   @db.Text
@@ -103,8 +104,8 @@ model Lead {
   customerRequirement          String?
   status                       String            @default("new")
   priority                     String            @default("medium")
-  notes                        String?           @db.LongText
-  metadata                     String?           @db.LongText
+  notes                        String?           @db.Text
+  metadata                     String?           @db.Text
   assignedToId                 String?
   createdById                  String?
   createdAt                    DateTime          @default(now())
@@ -131,7 +132,7 @@ model Notification {
   message       String    @db.Text
   isRead        Boolean   @default(false)
   readAt        DateTime?
-  metadata      String?   @db.LongText
+  metadata      String?   @db.Text
   createdAt     DateTime  @default(now())
   relatedLeadId String?
   User          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -146,7 +147,7 @@ model Role {
   id          String   @id
   name        String   @unique
   description String?
-  permissions String?  @db.LongText
+  permissions String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   User        User[]
@@ -164,7 +165,7 @@ model User {
   isActive                     Boolean           @default(true)
   createdAt                    DateTime          @default(now())
   updatedAt                    DateTime
-  settings                     String?           @db.LongText
+  settings                     String?           @db.Text
   ActivityHistory              ActivityHistory[]
   CallLog                      CallLog[]
   FollowUp                     FollowUp[]

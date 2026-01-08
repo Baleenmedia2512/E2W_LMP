@@ -124,11 +124,11 @@ export async function GET(request: NextRequest) {
  */
 async function checkDuplicateLead(phone: string, email: string | null, metaLeadId: string) {
   try {
-    // Check by Meta Lead ID using JSON_EXTRACT for MySQL
+    // Check by Meta Lead ID using PostgreSQL JSON operators
     const existingByMetaId = await prisma.$queryRaw<any[]>`
-      SELECT id, name, phone FROM Lead 
+      SELECT id, name, phone FROM "Lead" 
       WHERE source = 'meta' 
-      AND JSON_EXTRACT(metadata, '$.metaLeadId') = ${metaLeadId}
+      AND metadata::jsonb->>'metaLeadId' = ${metaLeadId}
       LIMIT 1
     `;
 
