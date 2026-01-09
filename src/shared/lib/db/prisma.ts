@@ -18,14 +18,28 @@ const getNodeEnv = () => (process.env.NODE_ENV || '').trim();
 const isProduction = () => getNodeEnv() === 'production';
 const isDevelopment = () => getNodeEnv() === 'development';
 
+// Detect if we're in a build environment (not runtime)
+const isBuildTime = () => {
+  return process.env.NEXT_PHASE === 'phase-production-build' || 
+         process.env.VERCEL_ENV === 'preview' && !process.env.DATABASE_URL;
+};
+
 const prismaClientSingleton = () => {
-  // Validate environment configuration - warn during build, error at runtime
+  // Skip database connection during build time
+  if (isBuildTime()) {
+    console.log('⏭️  Skipping Prisma Client initialization during build phase');
+    // Return a mock client that throws helpful errors if accidentally used
+    return new Proxy({} as PrismaClient, {
+      get: (target, prop) => {
+        throw new Error(`Cannot access database during build time. Route should be marked as dynamic.`);
+      }
+    });
+  }
+
+  // Validate environment configuration at runtime
   if (!process.env.DATABASE_URL) {
-    if (process.env.NODE_ENV === 'production' && process.env.VERCEL) {
-      console.warn('⚠️  DATABASE_URL not set during build - will be required at runtime');
-    } else {
-      console.error('❌ DATABASE_URL environment variable is not set');
-    }
+    console.error('❌ DATABASE_URL environment variable is not set');
+    throw new Error('DATABASE_URL is required at runtime');
   }
 
   // Initialize Prisma Client with PostgreSQL connection pooling
