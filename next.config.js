@@ -34,6 +34,22 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     config.resolve.fallback = { fs: false, net: false, tls: false };
     
+    // Add path aliases to match tsconfig
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, 'src'),
+      '@/shared': require('path').resolve(__dirname, 'src/shared'),
+      '@/shared/components': require('path').resolve(__dirname, 'src/shared/components'),
+      '@/shared/lib': require('path').resolve(__dirname, 'src/shared/lib'),
+      '@/shared/types': require('path').resolve(__dirname, 'src/shared/types'),
+      '@/shared/hooks': require('path').resolve(__dirname, 'src/shared/hooks'),
+      '@/shared/utils': require('path').resolve(__dirname, 'src/shared/utils'),
+      '@/app': require('path').resolve(__dirname, 'src/app'),
+      '@/config': require('path').resolve(__dirname, 'src/config'),
+      '@/styles': require('path').resolve(__dirname, 'src/styles'),
+      '@/features': require('path').resolve(__dirname, 'src/features'),
+    };
+    
     // Code splitting optimization - US-25: Minimal payload for mobile
     if (!isServer) {
       config.optimization = {
