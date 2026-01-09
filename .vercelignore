@@ -7,3 +7,26 @@ node_modules/
 .env.*.local
 *.log
 .DS_Store
+
+# Exclude script files from Vercel build
+scripts/
+prisma/seed.ts
+prisma/migrations/
+
+# Root-level TypeScript files (utility scripts)
+check-lead-position.ts
+check-missing-leads.ts
+diagnose-missing-leads.ts
+test-fix.ts
+test-meta-connection.js
+analyze-leads.js
+check-today-leads.js
+diagnose-webhook.js
+verify-deployment.js
+verify-production-ready.js
+deploy-webhook.ps1
+
+# Documentation and SQL files
+*.md
+!README.md
+*.sql
