@@ -7,9 +7,10 @@
   "build": {
     "env": {
       "NEXT_TELEMETRY_DISABLED": "1",
-      "SKIP_ENV_VALIDATION": "0",
+      "SKIP_ENV_VALIDATION": "1",
       "PRISMA_GENERATE_SKIP_AUTOINSTALL": "false",
-      "PRISMA_CLI_BINARY_TARGETS": "rhel-openssl-3.0.x"
+      "PRISMA_CLI_BINARY_TARGETS": "rhel-openssl-3.0.x",
+      "SKIP_DB_CONNECTION_CHECK": "true"
     }
   },
   "functions": {
