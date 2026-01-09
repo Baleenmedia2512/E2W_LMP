@@ -1,14 +1,16 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
 /**
- * Prisma Client Singleton - Direct MySQL Connection
+ * Prisma Client Singleton - Supabase PostgreSQL Connection
  * 
  * Configuration:
- * - DATABASE_URL: Direct MySQL connection
+ * - DATABASE_URL: Supabase PostgreSQL pooler connection (port 6543)
+ * - DIRECT_DATABASE_URL: Direct connection for migrations (port 5432)
  * 
  * Connection Pooling:
  * - Singleton pattern prevents multiple client instances
  * - In development, reuses client across hot reloads
+ * - Uses pgbouncer for serverless compatibility
  */
 
 // Helper to safely check NODE_ENV (handles trailing spaces from env config)

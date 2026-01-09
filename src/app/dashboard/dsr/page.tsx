@@ -108,6 +108,10 @@ interface Lead {
     isFollowup: boolean;
     isOverdue: boolean;
   };
+  // Optional properties for call logs
+  callStatus?: string;
+  callAttempts?: number;
+  duration?: number;
 }
 
 interface AgentPerformance {
@@ -231,7 +235,7 @@ export default function DSRPage() {
           const params = new URLSearchParams();
           if (selectedDate) params.append('date', selectedDate);
           params.append('limit', '1000'); // Get all calls, not just first 50
-          if (selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
+          if (selectedAgentId && selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
           
           const response = await fetch(`/api/dsr/call-logs?${params.toString()}`);
           if (response.ok) {
@@ -771,7 +775,7 @@ export default function DSRPage() {
             <Box>
               <Divider my={2} borderColor={THEME_COLORS.light} />
               <Text fontSize={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.medium}>
-                Showing results for <strong>{selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}</strong>
+                Showing results for <strong>{selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}</strong>
                 {selectedAgentId !== 'all' && agents.find(a => a.id === selectedAgentId) && (
                   <> • Agent: <strong>{agents.find(a => a.id === selectedAgentId)?.name}</strong></>
                 )}
@@ -788,7 +792,7 @@ export default function DSRPage() {
       {stats && (
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
           {/* New Calls Card */}
-          <Tooltip label={`${stats.newCallsCount} new calls (attemptNumber = 1) made on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
+          <Tooltip label={`${stats.newCallsCount} new calls (attemptNumber = 1) made on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -822,7 +826,7 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Follow-up Calls Card */}
-          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1 AND NOT overdue) made on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
+          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1 AND NOT overdue) made on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -856,7 +860,7 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Total Calls Card */}
-          <Tooltip label={`${stats.totalCalls} total calls made on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
+          <Tooltip label={`${stats.totalCalls} total calls made on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -890,7 +894,7 @@ export default function DSRPage() {
           </Tooltip>
 
           {/* Overdue Calls Handled Card */}
-          <Tooltip label={`${stats.overdueCallsHandled} overdue calls handled on ${selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}`} placement="top">
+          <Tooltip label={`${stats.overdueCallsHandled} overdue calls handled on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
             <Box>
               <Card
                 cursor="pointer"
@@ -1168,25 +1172,25 @@ export default function DSRPage() {
                           <Td>
                             <Badge
                               bg={
-                                (lead as any).callStatus === 'completed' || (lead as any).callStatus === 'answer' ? 'green.500' :
-                                (lead as any).callStatus === 'no_answer' ? 'orange.500' :
-                                (lead as any).callStatus === 'busy' ? 'yellow.500' :
-                                (lead as any).callStatus === 'unreachable' ? 'red.500' :
+                                lead.callStatus === 'completed' || lead.callStatus === 'answer' ? 'green.500' :
+                                lead.callStatus === 'no_answer' ? 'orange.500' :
+                                lead.callStatus === 'busy' ? 'yellow.500' :
+                                lead.callStatus === 'unreachable' ? 'red.500' :
                                 THEME_COLORS.light
                               }
                               color="white"
                               fontSize={{ base: 'xs', md: 'sm' }}
                             >
-                              {(lead as any).callStatus || 'N/A'}
+                              {lead.callStatus || 'N/A'}
                             </Badge>
                           </Td>
                           <Td isNumeric>
-                            <Badge bg={(lead as any).callAttempts === 1 ? THEME_COLORS.primary : THEME_COLORS.medium} color="white">
-                              {(lead as any).callAttempts}
+                            <Badge bg={lead.callAttempts === 1 ? THEME_COLORS.primary : THEME_COLORS.medium} color="white">
+                              {lead.callAttempts}
                             </Badge>
                           </Td>
                           <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
-                            {(lead as any).duration ? `${(lead as any).duration}s` : '-'}
+                            {lead.duration ? `${lead.duration}s` : '-'}
                           </Td>
                         </>
                       ) : (
@@ -1290,7 +1294,7 @@ export default function DSRPage() {
               </Badge>
             </Flex>
             <Text fontSize={{ base: 'xs', md: 'sm' }} color="white" mt={2}>
-              Performance metrics for {selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}
+              Performance metrics for {selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}
             </Text>
           </Box>
 

@@ -146,7 +146,7 @@ export default function CallAttemptsModal({
                   Total Attempts: <strong>{attempts.length}</strong>
                 </Text>
                 <Badge colorScheme="blue">
-                  Latest: {attempts.length > 0 && attempts[attempts.length - 1]?.startedAt ? formatDateTime(attempts[attempts.length - 1]!.startedAt) : 'N/A'}
+                  Latest: {attempts.length > 0 && attempts[attempts.length - 1] ? formatDateTime(attempts[attempts.length - 1]!.startedAt) : 'N/A'}
                 </Badge>
               </HStack>
 

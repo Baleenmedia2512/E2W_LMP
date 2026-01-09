@@ -241,11 +241,10 @@ export async function PUT(
         const assignedId = body.assignedToId;
         if (assignedId && assignedId !== null && assignedId !== undefined) {
           const assignerName = body.updatedById ? 
-            (await prisma.user.findUnique({ where: { id: body.updatedById } }))?.name : undefined;
-          // TODO: Fix TypeScript type narrowing issue
-          // notificationPromises.push(
-          //   notifyLeadAssigned(params.id, lead.name, String(assignedId), assignerName)
-          // );
+            (await prisma.user.findUnique({ where: { id: body.updatedById } }))?.name ?? undefined : undefined;
+          notificationPromises.push(
+            notifyLeadAssigned(params.id, lead.name, String(assignedId), assignerName)
+          );
         }
       }
 
