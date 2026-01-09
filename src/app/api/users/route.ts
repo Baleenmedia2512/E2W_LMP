@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 
-// Force dynamic rendering - prevent static optimization
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
 // Force dynamic rendering - prevent build-time execution
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
