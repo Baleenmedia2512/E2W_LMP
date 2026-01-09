@@ -4,6 +4,11 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   
+  // Prevent prerendering of API routes during build
+  generateBuildId: async () => {
+    return 'build-' + Date.now();
+  },
+  
   // Performance optimizations
   compiler: {
     // Keep console logs in production for webhook debugging
