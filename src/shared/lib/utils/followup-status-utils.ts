@@ -88,8 +88,7 @@ export function shouldNotifyLeadStageChange(
   change.isFollowUpRelated = 
     followUpRelatedStages.includes(oldStage) && 
     followUpRelatedStages.includes(newStage) &&
-    (oldStage === 'followup' || newStage === 'followup' || 
-     (oldStage === 'new' && (newStage as LeadStatus) === 'followup'));
+    (oldStage === 'followup' || newStage === 'followup');
 
   if (!change.isFollowUpRelated) {
     return change;
