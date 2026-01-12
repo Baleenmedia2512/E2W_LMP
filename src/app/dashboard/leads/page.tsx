@@ -701,51 +701,52 @@ export default function LeadsPage() {
                       bg="red.50"
                       borderRadius="lg"
                       boxShadow="md"
-                      p={{ base: 3, md: 4 }}
+                      p={{ base: 3, sm: 3, md: 4 }}
                       borderLeft="6px"
                       borderColor="red.600"
                       _hover={{ boxShadow: 'lg', bg: 'red.100' }}
                       transition="all 0.2s"
                     >
-                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={3} direction={{ base: 'column', lg: 'row' }}>
+                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={{ base: 2, md: 3 }} direction={{ base: 'column', lg: 'row' }}>
                         <Box flex="1" minW={{ base: 'full', lg: '300px' }}>
                           <Text
                             fontWeight="bold"
-                            fontSize={{ base: 'md', md: 'lg' }}
+                            fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
                             color="blue.600"
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}
-                            mb={2}
+                            mb={{ base: 1, md: 2 }}
+                            noOfLines={1}
                           >
                             {lead.name}
                           </Text>
                           
-                          <VStack align="stretch" spacing={2}>
+                          <VStack align="stretch" spacing={{ base: 1, md: 2 }}>
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Email:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.email || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Email:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.email || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Phone:</Text>
-                              <Text fontSize="sm" color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Phone:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Source:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.source || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Source:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{lead.source || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Campaign:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.campaign || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Status:</Text>
-                              <HStack>
-                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize="sm">
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Status:</Text>
+                              <HStack flexWrap="wrap">
+                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', sm: 'sm' }}>
                                   {getStatusLabel(lead.status)}
                                 </Badge>
                                 {lead.callAttempts > 0 && (
@@ -757,14 +758,14 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Lead Age:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Lead Age:</Text>
                               <LeadAge createdAt={lead.createdAt} />
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Assigned To:</Text>
-                              <HStack spacing={1}>
-                                <Text fontSize="sm" color="gray.700">{lead.assignedTo?.name || 'Unassigned'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Assigned To:</Text>
+                              <HStack spacing={1} flexWrap="wrap">
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.assignedTo?.name || 'Unassigned'}</Text>
                                 <IconButton
                                   aria-label="Change assignment"
                                   icon={<HiPencil />}
@@ -785,28 +786,28 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Call:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Call:</Text>
                               {lastCall ? (
                                 <VStack align="flex-start" spacing={1}>
-                                  <Text fontSize="sm" color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
                                   <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
                                     {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
                                   </Badge>
                                 </VStack>
                               ) : (
-                                <Text fontSize="sm" color="gray.700">-</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
                               )}
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Next Followup:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Next Followup:</Text>
                               {followUp ? (
-                                <VStack align="flex-start" spacing={1}>
+                                <VStack align="flex-start" spacing={1} maxW="full">
                                   <HStack spacing={2} flexWrap="wrap">
                                     <Badge colorScheme="orange" fontSize="xs">Follow-up</Badge>
                                     <Badge colorScheme="red" fontSize="xs">Overdue by {timeDiff}</Badge>
                                   </HStack>
-                                  <Text fontSize="sm" color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
                                   {followUp.notes && (
                                     <Text fontSize="xs" color="gray.600" noOfLines={2}>
                                       Note: {followUp.notes}
@@ -814,25 +815,25 @@ export default function LeadsPage() {
                                   )}
                                 </VStack>
                               ) : (
-                                <Text fontSize="sm" color="gray.700">-</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
                               )}
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Origin:</Text>
-                              <Text fontSize="sm" color="gray.700">{formatDateTime(lead.createdAt)}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Origin:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.createdAt)}</Text>
                             </HStack>
                             
                             {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
                               <HStack spacing={2} flexWrap="wrap">
-                                <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Last Edit:</Text>
-                                <Text fontSize="sm" color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Last Edit:</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
                               </HStack>
                             )}
                           </VStack>
                         </Box>
 
-                        <HStack spacing={2} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-end', lg: 'flex-start' }}>
+                        <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-start', lg: 'flex-start' }}>
                           <Button
                             size={{ base: 'xs', sm: 'sm' }}
                             leftIcon={<HiPhone />}
@@ -841,6 +842,8 @@ export default function LeadsPage() {
                               setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
                               onCallDialerOpen();
                             }}
+                            fontSize={{ base: '2xs', xs: 'xs', sm: 'sm' }}
+                            px={{ base: 2, sm: 4 }}
                           >
                             Call Now
                           </Button>
@@ -863,7 +866,7 @@ export default function LeadsPage() {
                           <IconButton
                             aria-label="Assign lead"
                             icon={<HiUserAdd />}
-                            size="sm"
+                            size={{ base: 'xs', sm: 'sm' }}
                             colorScheme="blue"
                             variant="outline"
                             onClick={(e) => {
@@ -879,7 +882,7 @@ export default function LeadsPage() {
                           <IconButton
                             aria-label="View details"
                             icon={<HiEye />}
-                            size="sm"
+                            size={{ base: 'xs', sm: 'sm' }}
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                           />
                         </HStack>
@@ -938,51 +941,52 @@ export default function LeadsPage() {
                       bg="white"
                       borderRadius="lg"
                       boxShadow="sm"
-                      p={{ base: 3, md: 4 }}
+                      p={{ base: 3, sm: 3, md: 4 }}
                       borderLeft="4px"
                       borderColor="green.500"
                       _hover={{ boxShadow: 'md' }}
                       transition="all 0.2s"
                     >
-                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={3} direction={{ base: 'column', lg: 'row' }}>
+                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={{ base: 2, md: 3 }} direction={{ base: 'column', lg: 'row' }}>
                         <Box flex="1" minW={{ base: 'full', lg: '300px' }}>
                           <Text
                             fontWeight="bold"
-                            fontSize={{ base: 'md', md: 'lg' }}
+                            fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
                             color="blue.600"
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}
-                            mb={2}
+                            mb={{ base: 1, md: 2 }}
+                            noOfLines={1}
                           >
                             {lead.name}
                           </Text>
                           
-                          <VStack align="stretch" spacing={2}>
+                          <VStack align="stretch" spacing={{ base: 1, md: 2 }}>
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Email:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.email || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Email:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.email || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Phone:</Text>
-                              <Text fontSize="sm" color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Phone:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Source:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.source || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Source:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{lead.source || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Campaign:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.campaign || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Status:</Text>
-                              <HStack>
-                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize="sm">
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Status:</Text>
+                              <HStack flexWrap="wrap">
+                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', sm: 'sm' }}>
                                   {getStatusLabel(lead.status)}
                                 </Badge>
                                 {lead.callAttempts > 0 && (
@@ -994,14 +998,14 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Lead Age:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Lead Age:</Text>
                               <LeadAge createdAt={lead.createdAt} />
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Assigned To:</Text>
-                              <HStack spacing={1}>
-                                <Text fontSize="sm" color="gray.700">{lead.assignedTo?.name || 'Unassigned'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Assigned To:</Text>
+                              <HStack spacing={1} flexWrap="wrap">
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.assignedTo?.name || 'Unassigned'}</Text>
                                 <IconButton
                                   aria-label="Change assignment"
                                   icon={<HiPencil />}
@@ -1022,23 +1026,23 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Call:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Call:</Text>
                               {lastCall ? (
                                 <VStack align="flex-start" spacing={1}>
-                                  <Text fontSize="sm" color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
                                   <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
                                     {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
                                   </Badge>
                                 </VStack>
                               ) : (
-                                <Text fontSize="sm" color="gray.700">-</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
                               )}
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Next Followup:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Next Followup:</Text>
                               {followUp ? (
-                                <VStack align="flex-start" spacing={1}>
+                                <VStack align="flex-start" spacing={1} maxW="full">
                                   <HStack spacing={2} flexWrap="wrap">
                                     <Badge colorScheme="orange" fontSize="xs">Follow-up</Badge>
                                     {isDueToday ? (
@@ -1047,7 +1051,7 @@ export default function LeadsPage() {
                                       <Badge colorScheme="green" fontSize="xs">In {timeDiff}</Badge>
                                     )}
                                   </HStack>
-                                  <Text fontSize="sm" color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
                                   {followUp.notes && (
                                     <Text fontSize="xs" color="gray.600" noOfLines={2}>
                                       Note: {followUp.notes}
@@ -1055,25 +1059,25 @@ export default function LeadsPage() {
                                   )}
                                 </VStack>
                               ) : (
-                                <Text fontSize="sm" color="gray.700">-</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
                               )}
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Origin:</Text>
-                              <Text fontSize="sm" color="gray.700">{formatDateTime(lead.createdAt)}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Origin:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.createdAt)}</Text>
                             </HStack>
                             
                             {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
                               <HStack spacing={2} flexWrap="wrap">
-                                <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Last Edit:</Text>
-                                <Text fontSize="sm" color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Last Edit:</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
                               </HStack>
                             )}
                           </VStack>
                         </Box>
 
-                        <HStack spacing={2} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-end', lg: 'flex-start' }}>
+                        <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-start', lg: 'flex-start' }}>
                           <Button
                             size={{ base: 'xs', sm: 'sm' }}
                             leftIcon={<HiPhone />}
@@ -1083,6 +1087,8 @@ export default function LeadsPage() {
                               setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
                               onCallDialerOpen();
                             }}
+                            fontSize={{ base: '2xs', xs: 'xs', sm: 'sm' }}
+                            px={{ base: 2, sm: 4 }}
                           >
                             Call
                           </Button>
@@ -1174,51 +1180,52 @@ export default function LeadsPage() {
                       bg="white"
                       borderRadius="lg"
                       boxShadow="sm"
-                      p={{ base: 3, md: 4 }}
+                      p={{ base: 3, sm: 3, md: 4 }}
                       borderLeft="4px"
                       borderColor="blue.500"
                       _hover={{ boxShadow: 'md' }}
                       transition="all 0.2s"
                     >
-                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={3} direction={{ base: 'column', lg: 'row' }}>
+                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={{ base: 2, md: 3 }} direction={{ base: 'column', lg: 'row' }}>
                         <Box flex="1" minW={{ base: 'full', lg: '300px' }}>
                           <Text
                             fontWeight="bold"
-                            fontSize={{ base: 'md', md: 'lg' }}
+                            fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
                             color="blue.600"
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}
-                            mb={2}
+                            mb={{ base: 1, md: 2 }}
+                            noOfLines={1}
                           >
                             {lead.name}
                           </Text>
                           
-                          <VStack align="stretch" spacing={2}>
+                          <VStack align="stretch" spacing={{ base: 1, md: 2 }}>
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Email:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.email || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Email:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.email || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Phone:</Text>
-                              <Text fontSize="sm" color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Phone:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Source:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.source || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Source:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{lead.source || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Campaign:</Text>
-                              <Text fontSize="sm" color="gray.700">{lead.campaign || '-'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Campaign:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.campaign || '-'}</Text>
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Status:</Text>
-                              <HStack>
-                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize="sm">
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Status:</Text>
+                              <HStack flexWrap="wrap">
+                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', sm: 'sm' }}>
                                   {getStatusLabel(lead.status)}
                                 </Badge>
                                 {lead.callAttempts > 0 && (
@@ -1230,14 +1237,14 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Lead Age:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Lead Age:</Text>
                               <LeadAge createdAt={lead.createdAt} />
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Assigned To:</Text>
-                              <HStack spacing={1}>
-                                <Text fontSize="sm" color="gray.700">{lead.assignedTo?.name || 'Unassigned'}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Assigned To:</Text>
+                              <HStack spacing={1} flexWrap="wrap">
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.assignedTo?.name || 'Unassigned'}</Text>
                                 <IconButton
                                   aria-label="Change assignment"
                                   icon={<HiPencil />}
@@ -1258,28 +1265,28 @@ export default function LeadsPage() {
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Call:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Call:</Text>
                               {lastCall ? (
                                 <VStack align="flex-start" spacing={1}>
-                                  <Text fontSize="sm" color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
                                   <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
                                     {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
                                   </Badge>
                                 </VStack>
                               ) : (
-                                <Text fontSize="sm" color="gray.700">-</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
                               )}
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Next Followup:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Next Followup:</Text>
                               {followUp ? (
-                                <VStack align="flex-start" spacing={1}>
+                                <VStack align="flex-start" spacing={1} maxW="full">
                                   <HStack spacing={2} flexWrap="wrap">
                                     <Badge colorScheme="orange" fontSize="xs">Follow-up</Badge>
                                     <Badge colorScheme="blue" fontSize="xs">Due Today</Badge>
                                   </HStack>
-                                  <Text fontSize="sm" color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
+                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
                                   {followUp.notes && (
                                     <Text fontSize="xs" color="gray.600" noOfLines={2}>
                                       Note: {followUp.notes}
@@ -1287,25 +1294,25 @@ export default function LeadsPage() {
                                   )}
                                 </VStack>
                               ) : (
-                                <Text fontSize="sm" color="gray.700">-</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
                               )}
                             </HStack>
                             
                             <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Origin:</Text>
-                              <Text fontSize="sm" color="gray.700">{formatDateTime(lead.createdAt)}</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Origin:</Text>
+                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.createdAt)}</Text>
                             </HStack>
                             
                             {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
                               <HStack spacing={2} flexWrap="wrap">
-                                <Text fontSize="sm" color="gray.600" fontWeight="medium" minW="100px">Last Edit:</Text>
-                                <Text fontSize="sm" color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Last Edit:</Text>
+                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
                               </HStack>
                             )}
                           </VStack>
                         </Box>
 
-                        <HStack spacing={2} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-end', lg: 'flex-start' }}>
+                        <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-start', lg: 'flex-start' }}>
                           <Button
                             size={{ base: 'xs', sm: 'sm' }}
                             leftIcon={<HiPhone />}
@@ -1314,6 +1321,8 @@ export default function LeadsPage() {
                               setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
                               onCallDialerOpen();
                             }}
+                            fontSize={{ base: '2xs', xs: 'xs', sm: 'sm' }}
+                            px={{ base: 2, sm: 4 }}
                           >
                             Call
                           </Button>
@@ -1336,7 +1345,7 @@ export default function LeadsPage() {
                           <IconButton
                             aria-label="Assign lead"
                             icon={<HiUserAdd />}
-                            size="sm"
+                            size={{ base: 'xs', sm: 'sm' }}
                             colorScheme="blue"
                             variant="outline"
                             onClick={(e) => {
@@ -1352,7 +1361,7 @@ export default function LeadsPage() {
                           <IconButton
                             aria-label="View details"
                             icon={<HiEye />}
-                            size="sm"
+                            size={{ base: 'xs', sm: 'sm' }}
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                           />
                         </HStack>

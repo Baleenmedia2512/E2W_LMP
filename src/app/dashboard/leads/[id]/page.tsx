@@ -671,12 +671,12 @@ export default function LeadDetailPage() {
                 <TabPanel>
                   <VStack align="stretch" spacing={4}>
                     {callLogs && callLogs.length > 0 && (
-                      <HStack justify="space-between">
-                        <Text fontSize="sm" color="gray.600">
+                      <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                        <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600">
                           Showing {callLogs.length} call log{callLogs.length !== 1 ? 's' : ''}
                         </Text>
                         <Button
-                          size="sm"
+                          size={{ base: 'xs', sm: 'sm' }}
                           variant="outline"
                           colorScheme="blue"
                           onClick={onCallAttemptsOpen}
@@ -686,74 +686,78 @@ export default function LeadDetailPage() {
                       </HStack>
                     )}
                     {callLogs && callLogs.length > 0 ? (
-                      <Table size="sm" variant="simple">
-                        <Thead bg="gray.50">
-                          <Tr>
-                            <Th>Date/Time</Th>
-                            <Th>Duration</Th>
-                            <Th>Status</Th>
-                            <Th>Agent</Th>
-                            <Th>Remarks</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {callLogs.map((call: any) => {
-                            // Helper function for call status display
-                            const getCallStatusDisplay = (status: string) => {
-                              switch (status) {
-                                case 'answer':
-                                case 'completed':
-                                  return { label: 'Answer', color: 'green' };
-                                case 'busy':
-                                  return { label: 'Busy', color: 'orange' };
-                                case 'wrong_number':
-                                case 'ring_not_response':
-                                  return { label: 'Wrong Number', color: 'red' };
-                                default:
-                                  return { label: status || 'N/A', color: 'gray' };
-                              }
-                            };
-                            
-                            const statusDisplay = getCallStatusDisplay(call.callStatus);
-                            
-                            return (
-                              <Tr key={call.id}>
-                                <Td>{formatDateTime(call.createdAt)}</Td>
-                                <Td>
-                                  {call.duration
-                                    ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
-                                    : 'N/A'}
-                                </Td>
-                                <Td>
-                                  <Badge colorScheme={statusDisplay.color}>{statusDisplay.label}</Badge>
-                                </Td>
-                                <Td>
-                                  <Text fontSize="sm">
-                                    {call.caller?.name || 'N/A'}
-                                  </Text>
-                                </Td>
-                                <Td maxW="300px">
-                                  {call.remarks ? (
-                                    <Tooltip label="Click to view full text" placement="top" hasArrow>
-                                      <Text
-                                        noOfLines={2}
-                                        fontSize="sm"
-                                        cursor="pointer"
-                                        onClick={() => handleShowRemark(call.remarks)}
-                                        _hover={{ color: 'blue.600' }}
-                                      >
-                                        {call.remarks}
-                                      </Text>
-                                    </Tooltip>
-                                  ) : (
-                                    <Text fontSize="sm" color="gray.400">-</Text>
-                                  )}
-                                </Td>
-                              </Tr>
-                            );
-                          })}
-                        </Tbody>
-                      </Table>
+                      <Box overflowX="auto" mx={{ base: -4, md: 0 }}>
+                        <Table size={{ base: 'sm', md: 'sm' }} variant="simple">
+                          <Thead bg="gray.50">
+                            <Tr>
+                              <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Date/Time</Th>
+                              <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Duration</Th>
+                              <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
+                              <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Agent</Th>
+                              <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Remarks</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {callLogs.map((call: any) => {
+                              // Helper function for call status display
+                              const getCallStatusDisplay = (status: string) => {
+                                switch (status) {
+                                  case 'answer':
+                                  case 'completed':
+                                    return { label: 'Answer', color: 'green' };
+                                  case 'busy':
+                                    return { label: 'Busy', color: 'orange' };
+                                  case 'wrong_number':
+                                  case 'ring_not_response':
+                                    return { label: 'Wrong Number', color: 'red' };
+                                  default:
+                                    return { label: status || 'N/A', color: 'gray' };
+                                }
+                              };
+                              
+                              const statusDisplay = getCallStatusDisplay(call.callStatus);
+                              
+                              return (
+                                <Tr key={call.id} _hover={{ bg: 'gray.50' }}>
+                                  <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
+                                    {formatDateTime(call.createdAt)}
+                                  </Td>
+                                  <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
+                                    {call.duration
+                                      ? `${Math.floor(call.duration / 60)}m ${call.duration % 60}s`
+                                      : 'N/A'}
+                                  </Td>
+                                  <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                                    <Badge colorScheme={statusDisplay.color} fontSize={{ base: '0.6rem', sm: 'xs' }}>{statusDisplay.label}</Badge>
+                                  </Td>
+                                  <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                                    <Text fontSize={{ base: 'xs', sm: 'sm' }} noOfLines={1}>
+                                      {call.caller?.name || 'N/A'}
+                                    </Text>
+                                  </Td>
+                                  <Td maxW={{ base: '120px', sm: '200px', md: '300px' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                                    {call.remarks ? (
+                                      <Tooltip label="Click to view full text" placement="top" hasArrow>
+                                        <Text
+                                          noOfLines={2}
+                                          fontSize={{ base: 'xs', sm: 'sm' }}
+                                          cursor="pointer"
+                                          onClick={() => handleShowRemark(call.remarks)}
+                                          _hover={{ color: 'blue.600' }}
+                                        >
+                                          {call.remarks}
+                                        </Text>
+                                      </Tooltip>
+                                    ) : (
+                                      <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.400">-</Text>
+                                    )}
+                                  </Td>
+                                </Tr>
+                              );
+                            })}
+                          </Tbody>
+                        </Table>
+                      </Box>
                     ) : (
                       <Box textAlign="center" py={8}>
                         <Text color="gray.500" mb={4}>No call logs yet</Text>
@@ -774,20 +778,24 @@ export default function LeadDetailPage() {
                 <TabPanel>
                   <VStack align="stretch" spacing={4}>
                     {followUps && followUps.length > 0 ? (
-                      <Table size="sm" variant="simple">
-                        <Thead bg="gray.50">
-                          <Tr>
-                            <Th>Scheduled Date</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {followUps.map((followup: any) => (
-                            <Tr key={followup.id}>
-                              <Td>{formatDateTime(followup.scheduledAt)}</Td>
+                      <Box overflowX="auto" mx={{ base: -4, md: 0 }}>
+                        <Table size={{ base: 'sm', md: 'sm' }} variant="simple">
+                          <Thead bg="gray.50">
+                            <Tr>
+                              <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Scheduled Date</Th>
                             </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
+                          </Thead>
+                          <Tbody>
+                            {followUps.map((followup: any) => (
+                              <Tr key={followup.id} _hover={{ bg: 'gray.50' }}>
+                                <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                                  {formatDateTime(followup.scheduledAt)}
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </Box>
                     ) : (
                       <Box textAlign="center" py={8}>
                         <Text color="gray.500" mb={4}>No follow-ups scheduled</Text>
