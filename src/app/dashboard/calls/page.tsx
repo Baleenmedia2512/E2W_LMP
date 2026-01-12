@@ -241,13 +241,14 @@ export default function CallsPage() {
   return (
     <Box>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={3}>
-        <Heading size="lg">Call History</Heading>
-        <ButtonGroup size="sm" isAttached variant="outline">
+        <Heading size={{ base: 'md', md: 'lg' }}>Call History</Heading>
+        <ButtonGroup size={{ base: 'xs', sm: 'sm' }} isAttached variant="outline">
           <Button
             leftIcon={<HiViewList />}
             onClick={() => setViewMode('table')}
             colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
             variant={viewMode === 'table' ? 'solid' : 'outline'}
+            fontSize={{ base: 'xs', sm: 'sm' }}
           >
             Table
           </Button>
@@ -256,6 +257,7 @@ export default function CallsPage() {
             onClick={() => setViewMode('tile')}
             colorScheme={viewMode === 'tile' ? 'blue' : 'gray'}
             variant={viewMode === 'tile' ? 'solid' : 'outline'}
+            fontSize={{ base: 'xs', sm: 'sm' }}
           >
             Tiles
           </Button>
@@ -327,56 +329,61 @@ export default function CallsPage() {
 
       {!loading && viewMode === 'table' && (
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-          <Box overflowX="auto">
-            <Table variant="simple" size="sm">
+          <Box overflowX="auto" mx={{ base: -4, md: 0 }}>
+            <Table variant="simple" size={{ base: 'sm', md: 'sm' }}>
               <Thead bg="gray.50">
                 <Tr>
-                  <Th>Lead Name</Th>
-                  <Th>Last Called</Th>
-                  <Th>Attempts</Th>
-                  <Th>Duration (min)</Th>
-                  <Th>Status</Th>
-                  <Th>Agent Name</Th>
-                  <Th>Actions</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Lead Name</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', sm: 'table-cell' }}>Last Called</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Attempts</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', md: 'table-cell' }}>Duration (min)</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', lg: 'table-cell' }}>Agent Name</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {filteredCalls.length > 0 ? (
                   filteredCalls.map((group) => (
                     <Tr key={group.leadId} _hover={{ bg: 'gray.50' }}>
-                      <Td>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         <Text
                           fontWeight="medium"
                           cursor="pointer"
                           color="blue.600"
                           onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
                           _hover={{ textDecoration: 'underline' }}
+                          noOfLines={1}
                         >
                           {group.leadName}
                         </Text>
                       </Td>
-                      <Td fontSize="sm" whiteSpace="nowrap">
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} whiteSpace="nowrap" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', sm: 'table-cell' }}>
                         {formatDateTime(group.latestCall.createdAt)}
                       </Td>
-                      <Td>
-                        <Badge colorScheme="purple" variant="subtle">
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                        <Badge colorScheme="purple" variant="subtle" fontSize={{ base: '0.6rem', sm: 'xs' }}>
                           {group.totalAttempts}
                         </Badge>
                       </Td>
-                      <Td>{formatDuration(group.latestCall.duration)}</Td>
-                      <Td>
-                        <Badge colorScheme={getCallStatusColor(group.latestCall.callStatus)}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', md: 'table-cell' }}>
+                        {formatDuration(group.latestCall.duration)}
+                      </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                        <Badge colorScheme={getCallStatusColor(group.latestCall.callStatus)} fontSize={{ base: '0.6rem', sm: 'xs' }}>
                           {getCallStatusLabel(group.latestCall.callStatus)}
                         </Badge>
                       </Td>
-                      <Td>{group.latestCall.caller.name || 'N/A'}</Td>
-                      <Td>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', lg: 'table-cell' }}>
+                        <Text noOfLines={1}>{group.latestCall.caller.name || 'N/A'}</Text>
+                      </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         <Menu>
                           <MenuButton
                             as={IconButton}
                             icon={<HiDotsVertical />}
                             variant="ghost"
-                            size="sm"
+                            size={{ base: 'xs', sm: 'sm' }}
                             aria-label="Actions"
                           />
                           <MenuList>
@@ -384,6 +391,7 @@ export default function CallsPage() {
                               <MenuItem
                                 icon={<HiEye />}
                                 onClick={() => handleViewHistory(group.allCalls)}
+                                fontSize={{ base: 'xs', sm: 'sm' }}
                               >
                                 View All Calls ({group.totalAttempts})
                               </MenuItem>
@@ -391,6 +399,7 @@ export default function CallsPage() {
                             <MenuItem
                               icon={<HiEye />}
                               onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
+                              fontSize={{ base: 'xs', sm: 'sm' }}
                             >
                               View Lead
                             </MenuItem>
@@ -402,7 +411,7 @@ export default function CallsPage() {
                 ) : (
                   <Tr>
                     <Td colSpan={8} textAlign="center" py={8}>
-                      <Text color="gray.500">
+                      <Text color="gray.500" fontSize={{ base: 'xs', sm: 'sm' }}>
                         {searchQuery || statusFilter !== 'all'
                           ? 'No call logs match your filters'
                           : 'No call logs found'}
@@ -415,8 +424,8 @@ export default function CallsPage() {
           </Box>
 
           {filteredCalls.length > 0 && (
-            <Box p={4} borderTopWidth="1px">
-              <Text fontSize="sm" color="gray.600">
+            <Box p={{ base: 3, md: 4 }} borderTopWidth="1px">
+              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600">
                 Showing {filteredCalls.length} lead{filteredCalls.length !== 1 ? 's' : ''} with {filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0)} total call{filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0) !== 1 ? 's' : ''}
               </Text>
             </Box>
@@ -608,46 +617,50 @@ export default function CallsPage() {
       {/* Call History Modal */}
       <Modal isOpen={isHistoryOpen} onClose={onHistoryClose} size="4xl">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
+        <ModalContent mx={{ base: 4, md: 0 }}>
+          <ModalHeader fontSize={{ base: 'md', md: 'lg' }}>
             All Call History
             {selectedLeadHistory[0]?.lead?.name && ` - ${selectedLeadHistory[0].lead.name}`}
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
-            <Box overflowX="auto">
-              <Table variant="simple" size="sm">
+            <Box overflowX="auto" mx={{ base: -4, md: 0 }}>
+              <Table variant="simple" size={{ base: 'sm', md: 'sm' }}>
                 <Thead bg="gray.50">
                   <Tr>
-                    <Th>Date/Time</Th>
-                    <Th>Duration (min)</Th>
-                    <Th>Status</Th>
-                    <Th>Agent Name</Th>
+                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Date/Time</Th>
+                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', sm: 'table-cell' }}>Duration (min)</Th>
+                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
+                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', md: 'table-cell' }}>Agent Name</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {selectedLeadHistory.map((call, index) => (
-                    <Tr key={call.id} bg={index === 0 ? 'blue.50' : 'white'}>
-                      <Td fontSize="sm" whiteSpace="nowrap">
+                    <Tr key={call.id} bg={index === 0 ? 'blue.50' : 'white'} _hover={{ bg: index === 0 ? 'blue.100' : 'gray.50' }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} whiteSpace="nowrap" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         {formatDateTime(call.createdAt)}
                         {index === 0 && (
                           <Badge ml={2} colorScheme="blue" fontSize="xs">Latest</Badge>
                         )}
                       </Td>
-                      <Td>{formatDuration(call.duration)}</Td>
-                      <Td>
-                        <Badge colorScheme={getCallStatusColor(call.callStatus)}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', sm: 'table-cell' }}>
+                        {formatDuration(call.duration)}
+                      </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                        <Badge colorScheme={getCallStatusColor(call.callStatus)} fontSize={{ base: '0.6rem', sm: 'xs' }}>
                           {getCallStatusLabel(call.callStatus)}
                         </Badge>
                       </Td>
-                      <Td>{call.caller.name || 'N/A'}</Td>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', md: 'table-cell' }}>
+                        <Text noOfLines={1}>{call.caller.name || 'N/A'}</Text>
+                      </Td>
                     </Tr>
                   ))}
                 </Tbody>
               </Table>
             </Box>
-            <Box mt={4} p={3} bg="blue.50" borderRadius="md">
-              <Text fontSize="sm" color="gray.700">
+            <Box mt={4} p={{ base: 2, md: 3 }} bg="blue.50" borderRadius="md">
+              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">
                 Total Calls: <strong>{selectedLeadHistory.length}</strong>
               </Text>
             </Box>
