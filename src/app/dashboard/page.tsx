@@ -53,12 +53,13 @@ const StatCard = ({
 }) => (
   <Box 
     bg="white" 
-    p={{ base: 4, md: 6 }} 
+    p={{ base: 4, md: 5 }} 
     borderRadius="lg" 
     boxShadow="sm" 
     borderWidth="1px"
     cursor={onClick ? "pointer" : "default"}
     transition="all 0.2s"
+    minW="0"
     _hover={onClick ? { 
       boxShadow: "md", 
       transform: "translateY(-2px)",
@@ -67,17 +68,17 @@ const StatCard = ({
     onClick={onClick}
   >
     <Stat>
-      <HStack justify="space-between" mb={{ base: 1, md: 2 }} spacing={2}>
-        <StatLabel fontSize={{ base: 'xs', sm: 'sm' }} fontWeight="medium" color="gray.600" noOfLines={1}>
+      <HStack justify="space-between" mb={{ base: 1, md: 2 }} spacing={2} align="flex-start">
+        <StatLabel fontSize={{ base: 'sm', md: 'md' }} fontWeight="medium" color="gray.600" whiteSpace="normal" lineHeight="1.3">
           {label}
         </StatLabel>
-        <Icon as={icon} boxSize={{ base: 4, md: 5 }} color={`${colorScheme}.500`} flexShrink={0} />
+        <Icon as={icon} boxSize={{ base: 5, md: 6 }} color={`${colorScheme}.500`} flexShrink={0} />
       </HStack>
       <StatNumber fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold">
         {value}
       </StatNumber>
       {helpText && (
-        <StatHelpText fontSize={{ base: 'xs', sm: 'sm' }} color="gray.500" noOfLines={1}>
+        <StatHelpText fontSize={{ base: 'xs', sm: 'sm' }} color="gray.500" whiteSpace="normal">
           {helpText}
         </StatHelpText>
       )}
@@ -298,29 +299,6 @@ export default function DashboardPage() {
         w="full"
       >
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
-        <HStack spacing={{ base: 2, md: 3 }} flexWrap="wrap" justify={{ base: 'center', sm: 'flex-end' }}>
-          <FormControl display="flex" alignItems="center" width="auto">
-            <FormLabel htmlFor="auto-refresh" mb="0" fontSize={{ base: 'xs', sm: 'sm' }} mr={2} whiteSpace="nowrap">
-              Auto-refresh
-            </FormLabel>
-            <Switch
-              id="auto-refresh"
-              isChecked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              colorScheme="brand"
-              size={{ base: 'sm', md: 'md' }}
-            />
-          </FormControl>
-          <Button
-            leftIcon={<FiRefreshCw />}
-            size={{ base: 'xs', sm: 'sm' }}
-            variant="outline"
-            onClick={handleManualRefresh}
-            isLoading={isLoading}
-          >
-            Refresh
-          </Button>
-        </HStack>
       </Flex>
 
       {/* Date Filter */}
@@ -441,7 +419,7 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 7 }} spacing={{ base: 3, md: 4, lg: 6 }}>
+      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={{ base: 3, md: 4, lg: 6 }}>
         <StatCard
           label="Total Leads"
           value={stats.totalLeadsForDashboard}
@@ -473,68 +451,6 @@ export default function DashboardPage() {
           colorScheme="red"
           onClick={() => router.push('/dashboard/leads?filter=overdue')}
         />
-        <StatCard
-          label={getLabel('Unqualified')}
-          value={stats.unqualifiedLeads}
-          helpText="Not interested"
-          icon={FiXCircle}
-          colorScheme="yellow"
-          onClick={() => handleCardClick('unqualified')}
-        />
-        <StatCard
-          label={getLabel('Won')}
-          value={stats.wonLeads}
-          helpText="Deals closed"
-          icon={FiCheckCircle}
-          colorScheme="green"
-          onClick={() => handleCardClick('won')}
-        />
-        <StatCard
-          label={getLabel('Conversations')}
-          value={stats.conversations}
-          helpText="Calls made"
-          icon={FiPhone}
-          colorScheme="teal"
-          onClick={() => router.push('/dashboard/calls')}
-        />
-      </SimpleGrid>
-
-      {/* Summary Stats - All Clickable */}
-      <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={{ base: 3, md: 6 }}>
-        <Box 
-          bg="white" 
-          p={{ base: 4, md: 6 }} 
-          borderRadius="lg" 
-          boxShadow="sm" 
-          borderWidth="1px"
-          cursor="pointer"
-          transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "blue.500" }}
-          onClick={() => router.push('/dashboard/reports')}
-        >
-          <Stat>
-            <StatLabel fontSize={{ base: 'xs', sm: 'sm' }}>{getLabel('Conversion Rate')}</StatLabel>
-            <StatNumber color="blue.600" fontSize={{ base: 'xl', md: '2xl' }}>{stats.conversionRate}%</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Won / Total leads</StatHelpText>
-          </Stat>
-        </Box>
-        <Box 
-          bg="white" 
-          p={{ base: 4, md: 6 }} 
-          borderRadius="lg" 
-          boxShadow="sm" 
-          borderWidth="1px"
-          cursor="pointer"
-          transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "teal.500" }}
-          onClick={() => router.push('/dashboard/reports')}
-        >
-          <Stat>
-            <StatLabel fontSize={{ base: 'xs', sm: 'sm' }}>{getLabel('Win Rate')}</StatLabel>
-            <StatNumber fontSize={{ base: 'xl', md: '2xl' }} color="teal.600">{stats.winRate}%</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Won / Closed deals</StatHelpText>
-          </Stat>
-        </Box>
       </SimpleGrid>
 
       {/* Upcoming Follow-ups */}
