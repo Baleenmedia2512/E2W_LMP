@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -38,7 +38,7 @@ import {
   Textarea,
   useDisclosure,
 } from '@chakra-ui/react';
-import { HiEye, HiSearch, HiRefresh, HiPhone } from 'react-icons/hi';
+import { HiEye, HiSearch, HiPhone } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
@@ -75,7 +75,8 @@ export default function LeadOutcomesPage() {
   const initialStatusFilter = searchParams.get('status') || null;
   
   // State for filters (applies to all sections)
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Immediate input value
+  const [searchQuery, setSearchQuery] = useState(''); // Debounced search query
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month'>(initialDateFilter);
@@ -90,6 +91,7 @@ export default function LeadOutcomesPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [owners, setOwners] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [rescheduleLeadId, setRescheduleLeadId] = useState<string | null>(null);
   const [rescheduleLeadName, setRescheduleLeadName] = useState<string>('');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -112,7 +114,10 @@ export default function LeadOutcomesPage() {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      // Only show full loading spinner on initial load
+      if (!initialLoadComplete) {
+        setLoading(true);
+      }
       
       // Build query params
       const params = new URLSearchParams();
@@ -180,8 +185,18 @@ export default function LeadOutcomesPage() {
       });
     } finally {
       setLoading(false);
+      setInitialLoadComplete(true);
     }
   };
+
+  // Debounce search input - only update searchQuery after 500ms of no typing
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchInput]);
 
   useEffect(() => {
     fetchData();
@@ -261,6 +276,7 @@ export default function LeadOutcomesPage() {
   ];
 
   const clearFilters = () => {
+    setSearchInput('');
     setSearchQuery('');
     setOwnerFilter('all');
     setSourceFilter('all');
@@ -269,7 +285,7 @@ export default function LeadOutcomesPage() {
     setEndDate('');
   };
 
-  const hasActiveFilters = searchQuery || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
+  const hasActiveFilters = searchInput || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
 
   const openRescheduleModal = (leadId: string, leadName: string) => {
     setRescheduleLeadId(leadId);
@@ -439,14 +455,6 @@ export default function LeadOutcomesPage() {
     <Box>
       <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Lead Outcomes</Heading>
-        <Button
-          size={{ base: 'sm', md: 'md' }}
-          leftIcon={<HiRefresh />}
-          onClick={fetchData}
-          variant="outline"
-        >
-          Refresh
-        </Button>
       </Flex>
 
       {/* Global Filters */}
@@ -461,8 +469,8 @@ export default function LeadOutcomesPage() {
             </InputLeftElement>
             <Input
               placeholder="Search name or phone"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               size={{ base: 'sm', md: 'md' }}
             />
           </InputGroup>
