@@ -250,18 +250,6 @@ export default function LeadOutcomesPage() {
 
   const sections: OutcomeSection[] = [
     {
-      title: 'Unqualified',
-      status: 'unqualified',
-      colorScheme: 'gray',
-      leads: filterLeadsByStatus('unqualified'),
-    },
-    {
-      title: 'Unreachable',
-      status: 'unreach',
-      colorScheme: 'pink',
-      leads: filterLeadsByStatus('unreach'),
-    },
-    {
       title: 'Won',
       status: 'won',
       colorScheme: 'green',
@@ -272,6 +260,18 @@ export default function LeadOutcomesPage() {
       status: 'lost',
       colorScheme: 'red',
       leads: filterLeadsByStatus('lost'),
+    },
+    {
+      title: 'Unqualified',
+      status: 'unqualified',
+      colorScheme: 'gray',
+      leads: filterLeadsByStatus('unqualified'),
+    },
+    {
+      title: 'Unreachable',
+      status: 'unreach',
+      colorScheme: 'pink',
+      leads: filterLeadsByStatus('unreach'),
     },
   ];
 
