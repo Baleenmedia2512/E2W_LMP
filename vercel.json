@@ -14,8 +14,11 @@
     }
   },
   "functions": {
+    "app/api/dashboard/**/*.ts": {
+      "maxDuration": 20
+    },
     "app/api/**/*.ts": {
-      "maxDuration": 10
+      "maxDuration": 15
     },
     "app/api/webhooks/**/*.ts": {
       "maxDuration": 30
