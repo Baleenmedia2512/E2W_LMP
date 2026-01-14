@@ -77,6 +77,7 @@ export default function LeadOutcomesPage() {
   // State for filters (applies to all sections)
   const [searchInput, setSearchInput] = useState(''); // Immediate input value
   const [searchQuery, setSearchQuery] = useState(''); // Debounced search query
+  const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>('all'); // Status filter for outcomes
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month'>(initialDateFilter);
@@ -248,36 +249,46 @@ export default function LeadOutcomesPage() {
     }));
   };
 
-  const sections: OutcomeSection[] = [
-    {
-      title: 'Won',
-      status: 'won',
-      colorScheme: 'green',
-      leads: filterLeadsByStatus('won'),
-    },
-    {
-      title: 'Lost',
-      status: 'lost',
-      colorScheme: 'red',
-      leads: filterLeadsByStatus('lost'),
-    },
-    {
-      title: 'Unqualified',
-      status: 'unqualified',
-      colorScheme: 'gray',
-      leads: filterLeadsByStatus('unqualified'),
-    },
-    {
-      title: 'Unreachable',
-      status: 'unreach',
-      colorScheme: 'pink',
-      leads: filterLeadsByStatus('unreach'),
-    },
-  ];
+  // Get sections based on status filter
+  const sections: OutcomeSection[] = useMemo(() => {
+    const allSections = [
+      {
+        title: 'Won',
+        status: 'won',
+        colorScheme: 'green',
+        leads: filterLeadsByStatus('won'),
+      },
+      {
+        title: 'Lost',
+        status: 'lost',
+        colorScheme: 'red',
+        leads: filterLeadsByStatus('lost'),
+      },
+      {
+        title: 'Unqualified',
+        status: 'unqualified',
+        colorScheme: 'gray',
+        leads: filterLeadsByStatus('unqualified'),
+      },
+      {
+        title: 'Unreachable',
+        status: 'unreach',
+        colorScheme: 'pink',
+        leads: filterLeadsByStatus('unreach'),
+      },
+    ];
+
+    // Filter sections based on outcomeStatusFilter
+    if (outcomeStatusFilter === 'all') {
+      return allSections;
+    }
+    return allSections.filter(section => section.status === outcomeStatusFilter);
+  }, [leads, sortConfig, outcomeStatusFilter, filterLeadsByStatus]);
 
   const clearFilters = () => {
     setSearchInput('');
     setSearchQuery('');
+    setOutcomeStatusFilter('all');
     setOwnerFilter('all');
     setSourceFilter('all');
     setDateRangeFilter('all');
@@ -285,7 +296,7 @@ export default function LeadOutcomesPage() {
     setEndDate('');
   };
 
-  const hasActiveFilters = searchInput || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
+  const hasActiveFilters = searchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
 
   const openRescheduleModal = (leadId: string, leadName: string) => {
     setRescheduleLeadId(leadId);
@@ -478,6 +489,19 @@ export default function LeadOutcomesPage() {
           {/* Filter Row */}
           <Flex gap={3} flexWrap="wrap">
             <Select
+              value={outcomeStatusFilter}
+              onChange={(e) => setOutcomeStatusFilter(e.target.value)}
+              maxW={{ base: 'full', sm: '200px' }}
+              size={{ base: 'sm', md: 'md' }}
+            >
+              <option value="all">All Outcomes</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+              <option value="unqualified">Unqualified</option>
+              <option value="unreach">Unreachable</option>
+            </Select>
+
+            <Select
               value={ownerFilter}
               onChange={(e) => setOwnerFilter(e.target.value)}
               maxW={{ base: 'full', sm: '200px' }}
@@ -546,6 +570,11 @@ export default function LeadOutcomesPage() {
               Clear All Filters
             </Button>
           )}
+
+          {/* Results Count */}
+          <Text fontSize="sm" fontWeight="medium" color="gray.700">
+            Showing {sections.reduce((acc, section) => acc + section.leads.length, 0)} of {leads.length} leads
+          </Text>
         </VStack>
       </Box>
 

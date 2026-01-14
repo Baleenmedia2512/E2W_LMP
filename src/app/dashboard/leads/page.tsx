@@ -601,16 +601,11 @@ export default function LeadsPage() {
               maxW={{ base: 'full', sm: '220px' }}
               flex={{ base: '1 1 100%', sm: '0 1 auto' }}
             >
-              <option value="all">All</option>
+              <option value="all">All Active Leads</option>
               <option value="new">New</option>
               <option value="today">Follow-up Today</option>
               <option value="overdue">Overdue</option>
               <option value="scheduled">Scheduled Follow-up</option>
-              <option value="qualified">Qualified</option>
-              <option value="unqualified">Unqualified</option>
-              <option value="won">Won</option>
-              <option value="lost">Lost</option>
-              <option value="unreach">Unreachable</option>
             </Select>
 
             <Select
@@ -685,7 +680,7 @@ export default function LeadsPage() {
 
           {/* Results Count */}
           <Text fontSize="sm" fontWeight="medium" color="gray.700">
-            Showing {filteredLeads.length} of {leads.length} leads
+            Showing {categorizedLeads.overdue.length + categorizedLeads.newLeads.length + categorizedLeads.future.length + categorizedLeads.statusFiltered.length} of {leads.length} leads
           </Text>
         </VStack>
       </Box>
