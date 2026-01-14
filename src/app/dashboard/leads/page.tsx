@@ -175,6 +175,7 @@ export default function LeadsPage() {
   });
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
+  const [showOnlyToday, setShowOnlyToday] = useState<boolean>(true); // Default: show only today's leads
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
     id: string;
@@ -204,6 +205,18 @@ export default function LeadsPage() {
       const leadsParams = new URLSearchParams({ limit: '500' });
       if (assignedToMe) {
         leadsParams.append('assigned_to', 'me');
+      }
+      
+      // Add date filter for today's leads only
+      if (showOnlyToday) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        // Format as ISO string
+        leadsParams.append('startDate', today.toISOString());
+        leadsParams.append('endDate', tomorrow.toISOString());
       }
       
       // Prepare headers with authorization token
@@ -247,7 +260,7 @@ export default function LeadsPage() {
     if (token) {
       fetchData();
     }
-  }, [token]);
+  }, [token, showOnlyToday]);
   
   // Refresh data when assignedToMe filter changes
   useEffect(() => {
@@ -292,6 +305,7 @@ export default function LeadsPage() {
     setDateRangeFilter('all');
     setAttemptsFilter('all');
     setAssignedToMe(false);
+    setShowOnlyToday(true); // Reset to default: show only today's leads
   };
   
   // Update current time every minute for visual updates
@@ -637,7 +651,7 @@ export default function LeadsPage() {
               variant="outline"
               colorScheme="red"
               flex={{ base: '1 1 100%', sm: '0 1 auto' }}
-              isDisabled={searchQuery === '' && statusFilter === 'all' && sourceFilter === 'all' && attemptsFilter === 'all' && !assignedToMe}
+              isDisabled={searchQuery === '' && statusFilter === 'all' && sourceFilter === 'all' && attemptsFilter === 'all' && !assignedToMe && showOnlyToday}
             >
               Reset Filters
             </Button>
@@ -656,6 +670,18 @@ export default function LeadsPage() {
               </Checkbox>
             </Box>
           )}
+          
+          {/* Show All Leads Checkbox */}
+          <Box>
+            <Checkbox
+              isChecked={!showOnlyToday}
+              onChange={(e) => setShowOnlyToday(!e.target.checked)}
+              size={{ base: 'sm', md: 'md' }}
+              colorScheme="blue"
+            >
+              <Text fontSize={{ base: 'sm', md: 'md' }}>Show All Leads</Text>
+            </Checkbox>
+          </Box>
 
           {/* Results Count */}
           <Text fontSize="sm" fontWeight="medium" color="gray.700">

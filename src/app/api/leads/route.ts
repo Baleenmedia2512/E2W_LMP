@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     const assignedTo = searchParams.get('assigned_to');
     const assignedToId = searchParams.get('assignedToId');
     const search = searchParams.get('search');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
@@ -36,6 +38,17 @@ export async function GET(request: NextRequest) {
 
     if (status) where.status = status;
     if (source) where.source = source;
+    
+    // Date range filter for createdAt
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lt = new Date(endDate);
+      }
+    }
     
     // Handle assigned_to filtering
     if (assignedTo === 'me') {
