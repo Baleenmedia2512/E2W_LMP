@@ -55,6 +55,13 @@ declare global {
 // Create singleton instance
 const prisma = global.prisma ?? prismaClientSingleton();
 
+// Warm up connection on first import in production (for serverless)
+if (isProduction() && !global.prisma) {
+  prisma.$connect().catch(err => {
+    console.warn('⚠️  Prisma connection warmup failed (will retry on first query):', err.message);
+  });
+}
+
 export default prisma;
 
 // Cache prisma client in development to prevent multiple instances during hot reload

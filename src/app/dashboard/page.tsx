@@ -129,6 +129,15 @@ export default function DashboardPage() {
       revalidateOnFocus: true, // Revalidate when window regains focus
       revalidateOnReconnect: true, // Revalidate when reconnecting
       dedupingInterval: 2000, // Dedupe requests within 2 seconds
+      errorRetryCount: 3, // Retry up to 3 times on failure
+      errorRetryInterval: 1000, // Wait 1 second between retries
+      shouldRetryOnError: true, // Enable retry on errors
+      onErrorRetry: (error: any, key, config, revalidate, { retryCount }) => {
+        // Don't retry on 4xx errors (client errors)
+        if (error.status >= 400 && error.status < 500) return;
+        // Exponential backoff: 1s, 2s, 4s
+        setTimeout(() => revalidate({ retryCount }), 1000 * Math.pow(2, retryCount));
+      },
     }
   );
 
@@ -258,7 +267,9 @@ export default function DashboardPage() {
       <VStack spacing={4} align="stretch">
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
         <Box textAlign="center" py={8}>
+          <Icon as={FiRefreshCw} boxSize={8} color="blue.500" mb={2} className="spin" />
           <Text color="gray.500">Loading dashboard data...</Text>
+          {error && <Text fontSize="sm" color="orange.500" mt={2}>Retrying connection...</Text>}
         </Box>
       </VStack>
     );
