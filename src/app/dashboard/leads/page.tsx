@@ -207,17 +207,13 @@ export default function LeadsPage() {
         leadsParams.append('assigned_to', 'me');
       }
       
-      // Add date filter for today's leads only
-      if (showOnlyToday) {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        // Format as ISO string
-        leadsParams.append('startDate', today.toISOString());
-        leadsParams.append('endDate', tomorrow.toISOString());
-      }
+      // When showOnlyToday is true (checkbox is unchecked), we still fetch all leads
+      // but will filter them on the client side to show:
+      // - Overdue follow-ups
+      // - Today's scheduled follow-ups  
+      // - Today's new leads
+      // This ensures we don't miss any overdue items
+      // When showOnlyToday is false (checkbox is checked), show ALL leads
       
       // Prepare headers with authorization token
       const headers: HeadersInit = {
@@ -260,7 +256,7 @@ export default function LeadsPage() {
     if (token) {
       fetchData();
     }
-  }, [token, showOnlyToday]);
+  }, [token]); // Removed showOnlyToday - we now filter on client side
   
   // Refresh data when assignedToMe filter changes
   useEffect(() => {
@@ -485,6 +481,35 @@ export default function LeadsPage() {
   const categorizedLeads = useMemo(() => {
     const categorized = categorizeAndSortLeads(filteredLeads, followUps);
     
+    // When "Show All Leads" checkbox is UNCHECKED (showOnlyToday = true)
+    // Show: Overdue follow-ups + Today's scheduled follow-ups + Today's new leads
+    if (showOnlyToday) {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      
+      // Filter new leads to show only today's
+      const todayNewLeads = categorized.newLeads.filter(({ lead }) => {
+        const createdDate = new Date(lead.createdAt);
+        return createdDate >= todayStart && createdDate <= todayEnd;
+      });
+      
+      // Filter scheduled follow-ups to show only today's
+      const todayScheduled = categorized.future.filter(({ followUp }) => {
+        if (!followUp) return false;
+        const scheduledDate = new Date(followUp.scheduledAt);
+        return scheduledDate >= todayStart && scheduledDate <= todayEnd;
+      });
+      
+      // Always show ALL overdue follow-ups (they should be addressed regardless of date)
+      return { 
+        overdue: categorized.overdue, 
+        newLeads: todayNewLeads, 
+        future: todayScheduled, 
+        statusFiltered: [] 
+      };
+    }
+    
     // Apply status filter for overdue/scheduled/today categories
     if (statusFilter === 'overdue') {
       return { overdue: categorized.overdue, newLeads: [], future: [], statusFiltered: [] };
@@ -516,7 +541,7 @@ export default function LeadsPage() {
     }
     
     return { ...categorized, statusFiltered: [] };
-  }, [filteredLeads, followUps, currentTime, statusFilter]); // Re-calculate when time updates
+  }, [filteredLeads, followUps, currentTime, statusFilter, showOnlyToday]); // Re-calculate when time updates or showOnlyToday changes
 
   const getStatusColor = (status: string) => {
     switch (status) {
