@@ -37,6 +37,8 @@ import {
   FormLabel,
   Select,
   Tooltip,
+  Input,
+  Textarea,
 } from '@chakra-ui/react';
 import { useRouter, useParams } from 'next/navigation';
 import { HiArrowLeft, HiPencil, HiPhone, HiCalendar, HiRefresh } from 'react-icons/hi';
@@ -118,6 +120,7 @@ export default function LeadDetailPage() {
   const { isOpen: isLostOpen, onOpen: onLostOpen, onClose: onLostClose } = useDisclosure();
   const { isOpen: isCallAttemptsOpen, onOpen: onCallAttemptsOpen, onClose: onCallAttemptsClose } = useDisclosure();
   const { isOpen: isRemarksOpen, onOpen: onRemarksOpen, onClose: onRemarksClose } = useDisclosure();
+  const { isOpen: isRescheduleWonOpen, onOpen: onRescheduleWonOpen, onClose: onRescheduleWonClose } = useDisclosure();
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
@@ -128,6 +131,12 @@ export default function LeadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
   const [requalifyLoading, setRequalifyLoading] = useState(false);
+  
+  // Reschedule Won Lead states
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('09:00');
+  const [rescheduleNotes, setRescheduleNotes] = useState('');
 
   const handleShowRemark = (remark: string | null) => {
     setSelectedRemark(remark);
@@ -257,6 +266,84 @@ export default function LeadDetailPage() {
       });
     } finally {
       setRequalifyLoading(false);
+    }
+  };
+
+  const handleRescheduleWon = async () => {
+    if (!lead || !rescheduleDate || !rescheduleTime) {
+      toast({
+        title: 'Error',
+        description: 'Please select date and time for follow-up',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setRescheduleLoading(true);
+    try {
+      // Combine date and time
+      const scheduledAt = new Date(`${rescheduleDate}T${rescheduleTime}`);
+      
+      // Check if scheduled time is in the future
+      const now = new Date();
+      if (scheduledAt <= now) {
+        toast({
+          title: 'Invalid Date/Time',
+          description: 'Follow-up date and time must be in the future',
+          status: 'error',
+          duration: 3000,
+        });
+        setRescheduleLoading(false);
+        return;
+      }
+
+      // Create follow-up with allowWonOverride flag
+      const followUpResponse = await fetch('/api/followups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id,
+          scheduledAt: scheduledAt.toISOString(),
+          notes: rescheduleNotes || 'Rescheduled follow-up for won lead',
+          customerRequirement: rescheduleNotes || 'Follow-up for previously won deal',
+          allowWonOverride: true, // Special flag to allow rescheduling won leads
+        }),
+      });
+
+      const followUpData = await followUpResponse.json();
+
+      if (followUpResponse.ok) {
+        toast({
+          title: 'Success',
+          description: `Follow-up scheduled for ${lead.name}. Lead status changed to Follow-up.`,
+          status: 'success',
+          duration: 4000,
+        });
+        
+        // Reset form
+        setRescheduleDate('');
+        setRescheduleTime('09:00');
+        setRescheduleNotes('');
+        onRescheduleWonClose();
+        
+        // Refresh the page to show updated data
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        throw new Error(followUpData.error || 'Failed to schedule follow-up');
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to schedule follow-up',
+        status: 'error',
+        duration: 3000,
+      });
+      console.error(error);
+    } finally {
+      setRescheduleLoading(false);
     }
   };
 
@@ -474,6 +561,17 @@ export default function LeadDetailPage() {
                   onClick={onRequalifyOpen}
                 >
                   Requalify Lead
+                </Button>
+              )}
+              {lead.status === 'won' && (
+                <Button
+                  leftIcon={<HiCalendar />}
+                  colorScheme="orange"
+                  variant="solid"
+                  size="md"
+                  onClick={onRescheduleWonOpen}
+                >
+                  Reschedule Follow-up
                 </Button>
               )}
             </HStack>
@@ -965,6 +1063,67 @@ export default function LeadDetailPage() {
               loadingText="Requalifying..."
             >
               Requalify Lead
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Reschedule Won Lead Modal */}
+      <Modal isOpen={isRescheduleWonOpen} onClose={onRescheduleWonClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Reschedule Follow-up for Won Lead</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Box bg="orange.50" p={3} borderRadius="md" borderWidth="1px" borderColor="orange.200">
+                <Text fontSize="sm" color="orange.800">
+                  ⚠️ This lead was marked as <strong>WON</strong>. Scheduling a follow-up will change the status back to <strong>Follow-up</strong>.
+                  The previous won status will be recorded in the lead notes.
+                </Text>
+              </Box>
+              <Text>
+                Schedule a follow-up for <strong>{lead?.name}</strong>
+              </Text>
+              <FormControl isRequired>
+                <FormLabel fontWeight="600">Follow-up Date</FormLabel>
+                <Input
+                  type="date"
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </FormControl>
+              <FormControl isRequired>
+                <FormLabel fontWeight="600">Follow-up Time</FormLabel>
+                <Input
+                  type="time"
+                  value={rescheduleTime}
+                  onChange={(e) => setRescheduleTime(e.target.value)}
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontWeight="600">Notes (Optional)</FormLabel>
+                <Textarea
+                  value={rescheduleNotes}
+                  onChange={(e) => setRescheduleNotes(e.target.value)}
+                  placeholder="Enter follow-up notes or reason for rescheduling..."
+                  rows={3}
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onRescheduleWonClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="orange"
+              onClick={handleRescheduleWon}
+              isLoading={rescheduleLoading}
+              loadingText="Scheduling..."
+            >
+              Schedule Follow-up
             </Button>
           </ModalFooter>
         </ModalContent>
