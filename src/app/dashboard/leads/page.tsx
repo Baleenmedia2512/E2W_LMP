@@ -703,9 +703,53 @@ export default function LeadsPage() {
             </Checkbox>
           </Box>
 
-          {/* Results Count */}
+          {/* Results Count - Show contextual count based on selected filter */}
           <Text fontSize="sm" fontWeight="medium" color="gray.700">
-            Showing {categorizedLeads.overdue.length + categorizedLeads.newLeads.length + categorizedLeads.future.length + categorizedLeads.statusFiltered.length} of {leads.length} leads
+            {(() => {
+              const displayedCount = categorizedLeads.overdue.length + categorizedLeads.newLeads.length + categorizedLeads.future.length + categorizedLeads.statusFiltered.length;
+              
+              // Get the base categorized leads (without status filter applied) for total count
+              const baseCategorized = categorizeAndSortLeads(filteredLeads, followUps);
+              const allActiveTotal = baseCategorized.overdue.length + baseCategorized.newLeads.length + baseCategorized.future.length;
+              
+              // Determine label and total based on status filter
+              let label = '';
+              let total = 0;
+              
+              switch (statusFilter) {
+                case 'new':
+                  label = 'New';
+                  total = baseCategorized.newLeads.length;
+                  break;
+                case 'overdue':
+                  label = 'Overdue';
+                  total = baseCategorized.overdue.length;
+                  break;
+                case 'scheduled':
+                  label = 'Scheduled Follow-up';
+                  total = baseCategorized.future.length;
+                  break;
+                case 'today':
+                  // For today's follow-ups, calculate today's total
+                  const now = new Date();
+                  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+                  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                  const todayFollowUps = baseCategorized.future.filter(({ followUp }) => {
+                    if (!followUp) return false;
+                    const scheduledDate = new Date(followUp.scheduledAt);
+                    return scheduledDate >= todayStart && scheduledDate <= todayEnd;
+                  });
+                  label = 'Follow-up Today';
+                  total = todayFollowUps.length;
+                  break;
+                default:
+                  // All Active Leads
+                  label = 'Active Leads';
+                  total = allActiveTotal;
+              }
+              
+              return `Showing ${displayedCount} of ${total} ${label}`;
+            })()}
           </Text>
         </VStack>
       </Box>

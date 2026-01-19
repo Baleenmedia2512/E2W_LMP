@@ -94,6 +94,7 @@ export default function LeadOutcomesPage() {
   const [owners, setOwners] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [dateRangeComputed, setDateRangeComputed] = useState(false);
   const [rescheduleLeadId, setRescheduleLeadId] = useState<string | null>(null);
   const [rescheduleLeadName, setRescheduleLeadName] = useState<string>('');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -180,7 +181,31 @@ export default function LeadOutcomesPage() {
       const usersData = await usersRes.json();
       
       if (leadsData.success) {
-        setLeads(leadsData.data || []);
+        const fetchedLeads = leadsData.data || [];
+        setLeads(fetchedLeads);
+        
+        // On initial load, compute min and max dates from the data for display
+        // Subtract 1 day from min to ensure all leads are included when filtering
+        if (!dateRangeComputed && fetchedLeads.length > 0) {
+          const dates = fetchedLeads.map((lead: Lead) => new Date(lead.updatedAt).getTime());
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          
+          // Subtract 1 day from minDate to account for timezone differences
+          minDate.setDate(minDate.getDate() - 1);
+          
+          // Format dates as YYYY-MM-DD
+          const formatDateStr = (date: Date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          };
+          
+          setStartDate(formatDateStr(minDate));
+          setEndDate(formatDateStr(maxDate));
+          setDateRangeComputed(true);
+        }
       }
       
       if (usersData.success) {
@@ -303,6 +328,7 @@ export default function LeadOutcomesPage() {
     setDateRangeFilter('all');
     setStartDate('');
     setEndDate('');
+    setDateRangeComputed(false); // Reset so min/max dates can be recalculated
   };
 
   const hasActiveFilters = searchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
@@ -553,7 +579,7 @@ export default function LeadOutcomesPage() {
           {/* Custom Date Range */}
           <Flex gap={3} flexWrap="wrap">
             <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-              <Text fontSize="sm" mb={1}>Start Date</Text>
+              <Text fontSize="sm" mb={1}>Last Updated Start Date</Text>
               <Input
                 type="date"
                 value={startDate}
@@ -563,7 +589,7 @@ export default function LeadOutcomesPage() {
               />
             </Box>
             <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-              <Text fontSize="sm" mb={1}>End Date</Text>
+              <Text fontSize="sm" mb={1}>Last Updated End Date</Text>
               <Input
                 type="date"
                 value={endDate}
