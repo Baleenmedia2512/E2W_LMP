@@ -37,8 +37,9 @@ import {
   FormLabel,
   Textarea,
   useDisclosure,
+  Collapse,
 } from '@chakra-ui/react';
-import { HiEye, HiSearch, HiPhone } from 'react-icons/hi';
+import { HiEye, HiSearch, HiPhone, HiChevronDown, HiChevronUp } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
@@ -101,6 +102,14 @@ export default function LeadOutcomesPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('tomorrow');
   const [isRescheduling, setIsRescheduling] = useState(false);
   
+  // Collapse state for each section
+  const [collapsedSections, setCollapsedSections] = useState<{[key: string]: boolean}>({
+    won: false,
+    lost: false,
+    unqualified: false,
+    unreach: false,
+  });
+  
   const { isOpen: isRescheduleOpen, onOpen: onRescheduleOpen, onClose: onRescheduleClose } = useDisclosure();
   
   // Sorting state for each section (default: newest first)
@@ -160,7 +169,7 @@ export default function LeadOutcomesPage() {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       
-      params.append('limit', '500');
+      params.append('limit', '2000');
       
       const [leadsRes, usersRes] = await Promise.all([
         fetch(`/api/leads/outcomes?${params.toString()}`),
@@ -592,21 +601,38 @@ export default function LeadOutcomesPage() {
           >
             <Flex
               align="center"
+              justify="space-between"
               mb={4}
               p={3}
               bg={`${section.colorScheme}.50`}
               borderRadius="md"
               borderLeft="4px"
               borderColor={`${section.colorScheme}.500`}
+              _hover={{ bg: `${section.colorScheme}.100` }}
+              transition="all 0.2s"
             >
-              <Heading size={{ base: 'sm', md: 'md' }} color={`${section.colorScheme}.700`}>
-                {section.title}
-              </Heading>
-              <Badge ml={3} colorScheme={section.colorScheme} fontSize={{ base: 'sm', md: 'md' }}>
-                {section.leads.length}
-              </Badge>
+              <Flex align="center">
+                <Heading size={{ base: 'sm', md: 'md' }} color={`${section.colorScheme}.700`}>
+                  {section.title}
+                </Heading>
+                <Badge ml={3} colorScheme={section.colorScheme} fontSize={{ base: 'sm', md: 'md' }}>
+                  {section.leads.length}
+                </Badge>
+              </Flex>
+              <IconButton
+                aria-label={collapsedSections[section.status] ? 'Show' : 'Hide'}
+                icon={<Icon as={collapsedSections[section.status] ? HiChevronDown : HiChevronUp} />}
+                size="sm"
+                variant="ghost"
+                colorScheme={section.colorScheme}
+                onClick={() => setCollapsedSections(prev => ({
+                  ...prev,
+                  [section.status]: !prev[section.status]
+                }))}
+              />
             </Flex>
 
+            {!collapsedSections[section.status] && (
             <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
               {section.leads.length > 0 ? (
                 <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
@@ -700,6 +726,7 @@ export default function LeadOutcomesPage() {
                 </Box>
               )}
             </Box>
+            )}
           </Box>
         ))}
       </VStack>
