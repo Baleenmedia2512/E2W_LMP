@@ -211,21 +211,46 @@ export async function POST(request: NextRequest) {
     });
 
     // Update lead status to 'followup' if it's not already won, lost, or unqualified
+    // Allow override for won status if explicitly requested (for rescheduling won leads)
     const currentLead = await prisma.lead.findUnique({
       where: { id: body.leadId },
       select: { status: true, assignedToId: true, name: true },
     });
 
-    const nonUpdatableStatuses = ['won', 'lost', 'unqualified'];
-    if (currentLead && !nonUpdatableStatuses.includes(currentLead.status)) {
+    const nonUpdatableStatuses = ['lost', 'unqualified'];
+    const allowWonOverride = body.allowWonOverride === true; // New flag to allow rescheduling won leads
+    
+    // Check if we should update the status
+    const shouldUpdateStatus = currentLead && (
+      !nonUpdatableStatuses.includes(currentLead.status) || 
+      (currentLead.status === 'won' && allowWonOverride)
+    );
+    
+    if (shouldUpdateStatus) {
       const oldStatus = currentLead.status;
+      
+      // If it was won and we're overriding, store the won status in metadata
+      const updateData: any = { 
+        status: 'followup',
+        updatedAt: new Date(),
+      };
+      
+      // Store previous won status in notes/metadata if it was won
+      if (oldStatus === 'won' && allowWonOverride) {
+        const existingNotes = (await prisma.lead.findUnique({
+          where: { id: body.leadId },
+          select: { notes: true }
+        }))?.notes || '';
+        
+        const wonRescheduleNote = `[Previous Status: WON - Rescheduled for follow-up on ${new Date().toLocaleDateString()}]`;
+        updateData.notes = existingNotes 
+          ? `${existingNotes}\n${wonRescheduleNote}` 
+          : wonRescheduleNote;
+      }
       
       await prisma.lead.update({
         where: { id: body.leadId },
-        data: { 
-          status: 'followup',
-          updatedAt: new Date(),
-        },
+        data: updateData,
       });
 
       // Send notification if status changed and lead is assigned
