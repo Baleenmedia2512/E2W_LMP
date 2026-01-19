@@ -48,3 +48,9 @@ next-env.d.ts
 # Misc
 .vercel
 *.pem
+
+# Temporary Excel files
+*.xlsx
+*.xls
+~$*.xlsx
+~$*.xls
