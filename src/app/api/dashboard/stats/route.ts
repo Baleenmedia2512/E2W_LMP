@@ -114,15 +114,28 @@ export async function GET(request: NextRequest) {
 
     // CRITICAL: Use consistent timezone handling for accurate date/time comparisons
     // All calculations should use the server's local timezone (configured via TZ env var)
-    // Calculate current time in IST (UTC+5:30) for accurate "today" calculation
-    // This ensures dashboard stats match Indian local time
+    // Calculate current time and "today" boundaries in IST (UTC+5:30)
+    // Database stores timestamps in UTC, so we need to calculate IST boundaries in UTC terms
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
-    const istNow = new Date(now.getTime() + istOffset);
     
-    // Calculate today's boundaries in IST
-    const todayStart = new Date(istNow.getFullYear(), istNow.getMonth(), istNow.getDate(), 0, 0, 0, 0);
-    const todayEnd = new Date(istNow.getFullYear(), istNow.getMonth(), istNow.getDate(), 23, 59, 59, 999);
+    // Get IST date components
+    const istTime = new Date(now.getTime() + istOffset);
+    const istYear = istTime.getUTCFullYear();
+    const istMonth = istTime.getUTCMonth();
+    const istDate = istTime.getUTCDate();
+    
+    // Create today's boundaries in IST, then convert back to UTC for database comparison
+    // IST today start: IST midnight = UTC (midnight - 5:30)
+    const todayStartIST = new Date(Date.UTC(istYear, istMonth, istDate, 0, 0, 0, 0));
+    const todayEndIST = new Date(Date.UTC(istYear, istMonth, istDate, 23, 59, 59, 999));
+    
+    // Convert to UTC equivalents (subtract IST offset)
+    const todayStart = new Date(todayStartIST.getTime() - istOffset);
+    const todayEnd = new Date(todayEndIST.getTime() - istOffset);
+    
+    // For comparison, use current time in UTC (database stores UTC timestamps)
+    const istNow = now; // We compare DB timestamps (UTC) directly
     
     console.log('[Dashboard Stats] Server timezone info:', {
       serverTime: now.toISOString(),
@@ -218,10 +231,12 @@ export async function GET(request: NextRequest) {
     const leadFollowUpMap = new Map<string, any>();
     
     console.log('[Dashboard Stats] Today range for follow-up calculation (IST):', {
-      start: todayStart.toISOString(),
-      end: todayEnd.toISOString(),
-      currentTime: istNow.toISOString(),
-      utcTime: now.toISOString()
+      istDate: `${istYear}-${istMonth + 1}-${istDate}`,
+      todayStartUTC: todayStart.toISOString(),
+      todayEndUTC: todayEnd.toISOString(),
+      currentTimeUTC: now.toISOString(),
+      todayStartIST: todayStartIST.toISOString(),
+      todayEndIST: todayEndIST.toISOString()
     });
     
     // Group all follow-ups by lead
@@ -257,18 +272,19 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Count only leads whose NEXT follow-up is scheduled for TODAY with FUTURE time (in IST)
+    // Count only leads whose NEXT follow-up is scheduled for TODAY with FUTURE time
+    // Compare database timestamps (UTC) against IST today boundaries (converted to UTC)
     let followUpsDueCount = 0;
     for (const followUp of leadFollowUpMap.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
-      // Count only TODAY's follow-ups that are in the FUTURE (time not passed yet)
-      // Compare using IST time
-      if (scheduledDate >= istNow && scheduledDate >= todayStart && scheduledDate <= todayEnd) {
+      // Count only TODAY's follow-ups (in IST) that are in the FUTURE
+      if (scheduledDate >= now && scheduledDate >= todayStart && scheduledDate <= todayEnd) {
         console.log('[Dashboard Stats] Follow-up counted for today:', {
           leadId: followUp.leadId,
-          scheduledAt: scheduledDate.toISOString(),
-          istNow: istNow.toISOString(),
-          isFuture: scheduledDate >= istNow
+          scheduledAtUTC: scheduledDate.toISOString(),
+          currentTimeUTC: now.toISOString(),
+          isFuture: scheduledDate >= now,
+          inTodayRange: scheduledDate >= todayStart && scheduledDate <= todayEnd
         });
         followUpsDueCount++;
       }
@@ -294,8 +310,8 @@ export async function GET(request: NextRequest) {
     
     // Then, find NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLead.entries()) {
-      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= istNow);
-      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < istNow);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
@@ -316,11 +332,11 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Step 2: Count leads whose NEXT follow-up is currently overdue (< istNow)
+    // Step 2: Count leads whose NEXT follow-up is currently overdue (< now)
     const overdueLeadsSet = new Set<string>();
     for (const followUp of leadNextFollowUpMap.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
-      if (scheduledDate < istNow) {
+      if (scheduledDate < now) {
         overdueLeadsSet.add(followUp.leadId);
       }
     }
@@ -341,8 +357,8 @@ export async function GET(request: NextRequest) {
     
     // Find the NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLeadForDisplay.entries()) {
-      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= istNow);
-      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < istNow);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
@@ -363,11 +379,11 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Filter only FUTURE follow-ups for display (using IST time)
+    // Filter only FUTURE follow-ups for display
     const upcomingArray: any[] = [];
     for (const followUp of leadNextFollowUpForDisplay.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
-      if (scheduledDate >= istNow) {
+      if (scheduledDate >= now) {
         upcomingArray.push(followUp);
       }
     }
