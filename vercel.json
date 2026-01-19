@@ -32,6 +32,10 @@
     {
       "path": "/api/cron/check-upcoming-followups",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/auto-followup-won-leads",
+      "schedule": "0 1 * * *"
     }
   ],
   "headers": [
