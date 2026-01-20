@@ -403,8 +403,9 @@ export async function GET(request: NextRequest) {
       ? Math.round((wonLeadsCount / totalLeadsCount) * 100) 
       : 0;
 
-    // Calculate Total Leads for dashboard (New + Overdue + Today Follow-ups + Won)
-    const totalLeadsForDashboard = newLeadsCount + overdueCount + followUpsDueCount + wonLeadsCount;
+    // Calculate Total Leads for dashboard (New + Overdue + Today Follow-ups)
+    // Note: Won leads are excluded from this total as they are completed
+    const totalLeadsForDashboard = newLeadsCount + overdueCount + followUpsDueCount;
 
     // Transform recentLeads to match frontend expectations
     const transformedRecentLeads = recentLeads.map((lead: any) => ({
