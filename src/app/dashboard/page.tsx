@@ -306,7 +306,7 @@ export default function DashboardPage() {
         <StatCard
           label="Total Leads"
           value={stats.totalLeadsForDashboard}
-          helpText="New + Overdue + Today + Won"
+          helpText="New + Overdue + Today"
           icon={FiUsers}
           colorScheme="purple"
         />
