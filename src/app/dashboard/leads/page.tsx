@@ -481,13 +481,54 @@ export default function LeadsPage() {
   const categorizedLeads = useMemo(() => {
     const categorized = categorizeAndSortLeads(filteredLeads, followUps);
     
-    // When "Show All Leads" checkbox is UNCHECKED (showOnlyToday = true)
-    // Show: Overdue follow-ups + Today's scheduled follow-ups + Today's new leads
-    if (showOnlyToday) {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    
+    // Apply status filter FIRST
+    if (statusFilter === 'overdue') {
+      return { overdue: categorized.overdue, newLeads: [], future: [], statusFiltered: [] };
+    } else if (statusFilter === 'scheduled') {
+      // When showOnlyToday is true (checkbox unchecked), only show today's scheduled follow-ups
+      const scheduledToShow = showOnlyToday 
+        ? categorized.future.filter(({ followUp }) => {
+            if (!followUp) return false;
+            const scheduledDate = new Date(followUp.scheduledAt);
+            return scheduledDate >= todayStart && scheduledDate <= todayEnd;
+          })
+        : categorized.future;
+      return { overdue: [], newLeads: [], future: scheduledToShow, statusFiltered: [] };
+    } else if (statusFilter === 'today') {
+      // Filter future to show only TODAY's follow-ups
+      const todayFollowUps = categorized.future.filter(({ followUp }) => {
+        if (!followUp) return false;
+        const scheduledDate = new Date(followUp.scheduledAt);
+        return scheduledDate >= todayStart && scheduledDate <= todayEnd && scheduledDate >= now;
+      });
       
+      return { overdue: [], newLeads: [], future: todayFollowUps, statusFiltered: [] };
+    } else if (statusFilter === 'new') {
+      // When showOnlyToday is true (checkbox unchecked), only show today's new leads
+      const newLeadsToShow = showOnlyToday
+        ? categorized.newLeads.filter(({ lead }) => {
+            const createdDate = new Date(lead.createdAt);
+            return createdDate >= todayStart && createdDate <= todayEnd;
+          })
+        : categorized.newLeads;
+      return { overdue: [], newLeads: newLeadsToShow, future: [], statusFiltered: [] };
+    } else if (statusFilter !== 'all' && ['qualified', 'unqualified', 'won', 'lost', 'unreach'].includes(statusFilter)) {
+      // For specific status filters, show all filtered leads in a separate section
+      return { 
+        overdue: [], 
+        newLeads: [], 
+        future: [], 
+        statusFiltered: filteredLeads.map(lead => ({ lead, followUp: getNextFollowUpForLead(lead.id) }))
+      };
+    }
+    
+    // When "Show All Leads" checkbox is UNCHECKED (showOnlyToday = true) and no specific filter
+    // Show: Overdue follow-ups + Today's scheduled follow-ups + Today's new leads
+    if (showOnlyToday && statusFilter === 'all') {
       // Filter new leads to show only today's
       const todayNewLeads = categorized.newLeads.filter(({ lead }) => {
         const createdDate = new Date(lead.createdAt);
@@ -507,36 +548,6 @@ export default function LeadsPage() {
         newLeads: todayNewLeads, 
         future: todayScheduled, 
         statusFiltered: [] 
-      };
-    }
-    
-    // Apply status filter for overdue/scheduled/today categories
-    if (statusFilter === 'overdue') {
-      return { overdue: categorized.overdue, newLeads: [], future: [], statusFiltered: [] };
-    } else if (statusFilter === 'scheduled') {
-      return { overdue: [], newLeads: [], future: categorized.future, statusFiltered: [] };
-    } else if (statusFilter === 'today') {
-      // Filter future to show only TODAY's follow-ups
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-      
-      const todayFollowUps = categorized.future.filter(({ followUp }) => {
-        if (!followUp) return false;
-        const scheduledDate = new Date(followUp.scheduledAt);
-        return scheduledDate >= todayStart && scheduledDate <= todayEnd && scheduledDate >= now;
-      });
-      
-      return { overdue: [], newLeads: [], future: todayFollowUps, statusFiltered: [] };
-    } else if (statusFilter === 'new') {
-      return { overdue: [], newLeads: categorized.newLeads, future: [], statusFiltered: [] };
-    } else if (statusFilter !== 'all' && ['qualified', 'unqualified', 'won', 'lost', 'unreach'].includes(statusFilter)) {
-      // For specific status filters, show all filtered leads in a separate section
-      return { 
-        overdue: [], 
-        newLeads: [], 
-        future: [], 
-        statusFiltered: filteredLeads.map(lead => ({ lead, followUp: getNextFollowUpForLead(lead.id) }))
       };
     }
     
@@ -708,47 +719,52 @@ export default function LeadsPage() {
             {(() => {
               const displayedCount = categorizedLeads.overdue.length + categorizedLeads.newLeads.length + categorizedLeads.future.length + categorizedLeads.statusFiltered.length;
               
-              // Get the base categorized leads (without status filter applied) for total count
-              const baseCategorized = categorizeAndSortLeads(filteredLeads, followUps);
-              const allActiveTotal = baseCategorized.overdue.length + baseCategorized.newLeads.length + baseCategorized.future.length;
-              
-              // Determine label and total based on status filter
-              let label = '';
-              let total = 0;
-              
-              switch (statusFilter) {
-                case 'new':
-                  label = 'New';
-                  total = baseCategorized.newLeads.length;
-                  break;
-                case 'overdue':
-                  label = 'Overdue';
-                  total = baseCategorized.overdue.length;
-                  break;
-                case 'scheduled':
-                  label = 'Scheduled Follow-up';
-                  total = baseCategorized.future.length;
-                  break;
-                case 'today':
-                  // For today's follow-ups, calculate today's total
-                  const now = new Date();
-                  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-                  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-                  const todayFollowUps = baseCategorized.future.filter(({ followUp }) => {
-                    if (!followUp) return false;
-                    const scheduledDate = new Date(followUp.scheduledAt);
-                    return scheduledDate >= todayStart && scheduledDate <= todayEnd;
-                  });
-                  label = 'Follow-up Today';
-                  total = todayFollowUps.length;
-                  break;
-                default:
-                  // All Active Leads
-                  label = 'Active Leads';
-                  total = allActiveTotal;
+              // When a specific status filter is active, show the count as "X of X"
+              // since we're showing all items that match that specific filter
+              if (statusFilter !== 'all') {
+                let label = '';
+                switch (statusFilter) {
+                  case 'new':
+                    label = 'New';
+                    break;
+                  case 'overdue':
+                    label = 'Overdue';
+                    break;
+                  case 'scheduled':
+                    label = 'Scheduled Follow-up';
+                    break;
+                  case 'today':
+                    label = 'Follow-up Today';
+                    break;
+                  case 'qualified':
+                    label = 'Qualified';
+                    break;
+                  case 'unqualified':
+                    label = 'Unqualified';
+                    break;
+                  case 'won':
+                    label = 'Won';
+                    break;
+                  case 'lost':
+                    label = 'Lost';
+                    break;
+                  case 'unreach':
+                    label = 'Unreachable';
+                    break;
+                  default:
+                    label = 'Leads';
+                }
+                return `Showing ${displayedCount} ${label}`;
               }
               
-              return `Showing ${displayedCount} of ${total} ${label}`;
+              // When showOnlyToday is true (checkbox unchecked), the total should match displayed count
+              // since we're filtering to show only today's relevant leads
+              if (showOnlyToday) {
+                return `Showing ${displayedCount} of ${displayedCount} Active Leads`;
+              }
+              
+              // Show all active leads (checkbox is checked)
+              return `Showing ${displayedCount} of ${displayedCount} Active Leads`;
             })()}
           </Text>
         </VStack>
