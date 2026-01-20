@@ -202,7 +202,7 @@ export default function LeadsPage() {
       
       // Build query parameters for leads API
       // Increased limit to ensure all leads with followups are fetched
-      const leadsParams = new URLSearchParams({ limit: '500' });
+      const leadsParams = new URLSearchParams({ limit: '2000' });
       if (assignedToMe) {
         leadsParams.append('assigned_to', 'me');
       }
