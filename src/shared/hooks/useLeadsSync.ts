@@ -35,6 +35,11 @@ export function useLeadsSync(
       setLeads((prev) =>
         prev.map((lead) => {
           if (lead.id === payload.new.id) {
+            // If assignedToId changed, reload page to get full relationship data
+            if (lead.assignedToId !== payload.new.assignedToId) {
+              console.log('👤 Assignment changed, reloading page to sync UI...');
+              setTimeout(() => window.location.reload(), 500);
+            }
             // Merge: keep existing related objects, update with new values
             return {
               ...lead,
