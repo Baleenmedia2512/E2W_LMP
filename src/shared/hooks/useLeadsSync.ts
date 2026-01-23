@@ -30,9 +30,21 @@ export function useLeadsSync(
       setLeads((prev) => [payload.new, ...prev]);
       console.log('🆕 New lead added via Realtime:', payload.new.id);
     } else if (payload.eventType === 'UPDATE') {
-      // Update existing lead in state
+      // For UPDATE events, merge with existing data to preserve relationships
+      // This prevents "Unassigned" flashing when assigned person's name isn't in the payload
       setLeads((prev) =>
-        prev.map((lead) => (lead.id === payload.new.id ? payload.new : lead))
+        prev.map((lead) => {
+          if (lead.id === payload.new.id) {
+            // Merge: keep existing related objects, update with new values
+            return {
+              ...lead,
+              ...payload.new,
+              // Preserve User relationship if it exists in the old lead
+              User_Lead_assignedToIdToUser: payload.new.User_Lead_assignedToIdToUser || lead.User_Lead_assignedToIdToUser,
+            };
+          }
+          return lead;
+        })
       );
       console.log('✏️ Lead updated via Realtime:', payload.new.id);
     } else if (payload.eventType === 'DELETE') {
