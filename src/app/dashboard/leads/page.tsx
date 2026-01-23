@@ -31,6 +31,7 @@ import {
   Tooltip,
   Checkbox,
 } from '@chakra-ui/react';
+import { useLeadsSync } from '@/shared/hooks/useLeadsSync';
 import {
   HiPlus,
   HiEye,
@@ -273,20 +274,9 @@ export default function LeadsPage() {
     }
   }, [searchParams]);
   
-  // Refresh data when returning to this page
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchData();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+  // Set up real-time sync with Supabase instead of polling on focus
+  // This will automatically update leads and follow-ups as changes occur in the database
+  useLeadsSync(setLeads, setFollowUps);
   
   // Handler to refresh data after status changes
   const handleRefreshLeads = () => {
