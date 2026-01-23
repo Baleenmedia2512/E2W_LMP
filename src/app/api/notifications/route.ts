@@ -49,10 +49,35 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Accept both userId and recipientId for flexibility
+    const userId = body.userId || body.recipientId;
+
+    // Validate required fields
+    if (!userId || !body.title || !body.message) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields: userId/recipientId, title, message' },
+        { status: 400 }
+      );
+    }
+
+    // Verify user exists
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!userExists) {
+      console.error('User not found:', userId);
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const notification = await prisma.notification.create({
       data: {
         id: randomUUID(),
-        userId: body.userId,
+        userId: userId,
         type: body.type || 'info',
         title: body.title,
         message: body.message,
