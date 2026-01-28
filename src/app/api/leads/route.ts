@@ -85,6 +85,20 @@ export async function GET(request: NextRequest) {
         include: {
           User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
           User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
+          CallLog: { 
+            orderBy: { createdAt: 'desc' }, 
+            take: 10,
+            select: {
+              id: true,
+              remarks: true,
+              callStatus: true,
+              createdAt: true,
+              startedAt: true,
+              endedAt: true,
+              duration: true,
+              attemptNumber: true,
+            }
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,

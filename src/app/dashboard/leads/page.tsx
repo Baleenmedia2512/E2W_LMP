@@ -54,7 +54,7 @@ import CallDialerModal from '@/features/leads/components/CallDialerModal';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatDateTime } from '@/shared/lib/date-utils';
 import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils/lead-categorization';
-import type { CallLog } from '@/shared/types';
+import type { CallLog, Lead } from '@/shared/types';
 import { openWhatsApp, isValidWhatsAppPhone } from '@/shared/utils/whatsapp';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
@@ -144,6 +144,101 @@ const getStatusLabel = (status: string): string => {
   }
 };
 
+// Component to display call remarks with scrolling
+const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
+  // Always show the box for debugging
+  const remarksWithLogs = callLogs ? callLogs.filter(log => log.remarks && log.remarks.trim() !== '') : [];
+  
+  return (
+    <Box
+      flex={{ base: '1', lg: '0 0 250px' }}
+      minW={{ base: 'full', lg: '200px' }}
+      maxW={{ base: 'full', lg: '300px' }}
+      bg="gray.50"
+      borderRadius="md"
+      p={{ base: 2, sm: 3 }}
+      border="1px solid"
+      borderColor="gray.200"
+    >
+      <Text
+        fontSize={{ base: '2xs', sm: 'xs' }}
+        fontWeight="bold"
+        color="gray.700"
+        mb={2}
+      >
+        Call Remarks ({remarksWithLogs.length})
+      </Text>
+      {remarksWithLogs.length === 0 ? (
+        <Text fontSize="xs" color="gray.500" fontStyle="italic">
+          No call remarks yet
+        </Text>
+      ) : (
+        <VStack
+          align="stretch"
+          spacing={2}
+          maxH="120px"
+          overflowY="auto"
+          sx={{
+            '&::-webkit-scrollbar': {
+              width: '6px',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: 'gray.100',
+              borderRadius: '3px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: 'gray.400',
+              borderRadius: '3px',
+            },
+            '&::-webkit-scrollbar-thumb:hover': {
+              background: 'gray.500',
+            },
+          }}
+        >
+        {remarksWithLogs.slice(0, 10).map((log, index) => (
+          <Box
+            key={log.id}
+            bg="white"
+            p={2}
+            borderRadius="sm"
+            border="1px solid"
+            borderColor="gray.200"
+          >
+            <HStack spacing={1} mb={1} flexWrap="wrap">
+              <Badge
+                colorScheme={
+                  log.callStatus === 'answer' || log.callStatus === 'completed'
+                    ? 'green'
+                    : log.callStatus === 'busy'
+                    ? 'red'
+                    : 'orange'
+                }
+                fontSize="2xs"
+              >
+                {log.callStatus === 'ring_not_response'
+                  ? 'No Answer'
+                  : log.callStatus === 'answer'
+                  ? 'Answered'
+                  : log.callStatus === 'completed'
+                  ? 'Completed'
+                  : (log.callStatus || '').charAt(0).toUpperCase() +
+                    (log.callStatus || '').slice(1)}
+              </Badge>
+              <Text fontSize="2xs" color="gray.500">
+                {formatDateTime(log.createdAt)}
+              </Text>
+            </HStack>
+            <Text fontSize={{ base: '2xs', sm: 'xs' }} color="gray.700">
+              {log.remarks}
+            </Text>
+          </Box>
+        ))}
+        </VStack>
+      )}
+    </Box>
+  );
+};
+
 // Lead management page with multiple view modes and categorization
 export default function LeadsPage() {
   const router = useRouter();
@@ -189,7 +284,7 @@ export default function LeadsPage() {
     name: string;
     phone: string;
   } | null>(null);
-  const [leads, setLeads] = useState<any[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -367,9 +462,22 @@ export default function LeadsPage() {
 
   // Helper functions to get call and follow-up data for table views
   const getLastCallForLead = (leadId: string): CallLog | null => {
-    // In a real app, you'd have call logs data
-    // For now, return null
+    // Find lead and return its most recent call log
+    const lead = leads.find(l => l.id === leadId);
+    if (lead && lead.CallLog && lead.CallLog.length > 0) {
+      const firstCall = lead.CallLog[0];
+      return firstCall ? firstCall : null; // Already sorted by createdAt desc from API
+    }
     return null;
+  };
+
+  // Helper to get call remarks for a lead
+  const getCallRemarksForLead = (leadId: string): CallLog[] => {
+    const lead = leads.find(l => l.id === leadId);
+    if (lead && lead.CallLog) {
+      return lead.CallLog.filter((log: CallLog) => log.remarks && log.remarks.trim() !== '');
+    }
+    return [];
   };
 
   const getNextFollowUpForLead = (leadId: string) => {
@@ -986,6 +1094,9 @@ export default function LeadsPage() {
                           </VStack>
                         </Box>
 
+                        {/* Call Remarks Display */}
+                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
+
                         <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-start', lg: 'flex-start' }}>
                           <Button
                             size={{ base: 'xs', sm: 'sm' }}
@@ -1230,6 +1341,9 @@ export default function LeadsPage() {
                           </VStack>
                         </Box>
 
+                        {/* Call Remarks Display */}
+                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
+
                         <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-start', lg: 'flex-start' }}>
                           <Button
                             size={{ base: 'xs', sm: 'sm' }}
@@ -1464,6 +1578,9 @@ export default function LeadsPage() {
                             )}
                           </VStack>
                         </Box>
+
+                        {/* Call Remarks Display */}
+                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
 
                         <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-start', lg: 'flex-start' }}>
                           <Button
@@ -1705,6 +1822,9 @@ export default function LeadsPage() {
                             )}
                           </VStack>
                         </Box>
+
+                        {/* Call Remarks Display */}
+                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
 
                         <HStack spacing={2} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-end', lg: 'flex-start' }}>
                           <Button
