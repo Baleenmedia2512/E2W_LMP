@@ -52,11 +52,33 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Validate required fields
+    if (!body.leadId || !body.userId) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields: leadId, userId' },
+        { status: 400 }
+      );
+    }
+
+    // Verify user exists
+    const userExists = await prisma.user.findUnique({
+      where: { id: body.userId },
+      select: { id: true },
+    });
+
+    if (!userExists) {
+      console.error('User not found:', body.userId);
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const activity = await prisma.activityHistory.create({
       data: {
         id: randomUUID(),
         leadId: body.leadId,
-        userId: body.userId || body.updatedById || 'system',
+        userId: body.userId,
         action: body.action,
         fieldName: body.fieldName || null,
         oldValue: body.oldValue || null,
