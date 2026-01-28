@@ -31,6 +31,7 @@ import {
   Tooltip,
   Checkbox,
 } from '@chakra-ui/react';
+import { useLeadsSync } from '@/shared/hooks/useLeadsSync';
 import {
   HiPlus,
   HiEye,
@@ -176,6 +177,7 @@ export default function LeadsPage() {
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
   const [showOnlyToday, setShowOnlyToday] = useState<boolean>(true); // Default: show only today's leads
+  const [visibleCount, setVisibleCount] = useState<number>(50); // Lazy loading: initially show 50 leads
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
     id: string;
@@ -273,20 +275,9 @@ export default function LeadsPage() {
     }
   }, [searchParams]);
   
-  // Refresh data when returning to this page
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchData();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+  // Set up real-time sync with Supabase instead of polling on focus
+  // This will automatically update leads and follow-ups as changes occur in the database
+  useLeadsSync(setLeads, setFollowUps);
   
   // Handler to refresh data after status changes
   const handleRefreshLeads = () => {
@@ -302,6 +293,7 @@ export default function LeadsPage() {
     setAttemptsFilter('all');
     setAssignedToMe(false);
     setShowOnlyToday(true); // Reset to default: show only today's leads
+    setVisibleCount(50); // Reset lazy loading
   };
   
   // Update current time every minute for visual updates
@@ -554,6 +546,54 @@ export default function LeadsPage() {
     return { ...categorized, statusFiltered: [] };
   }, [filteredLeads, followUps, currentTime, statusFilter, showOnlyToday]); // Re-calculate when time updates or showOnlyToday changes
 
+  // Lazy loaded leads - only limit when showing all leads (showOnlyToday = false)
+  const lazyLoadedLeads = useMemo(() => {
+    // When showing only today's leads, return all (typically small count, no lazy loading needed)
+    if (showOnlyToday) {
+      const totalItems = categorizedLeads.overdue.length + categorizedLeads.newLeads.length + 
+                         categorizedLeads.future.length + categorizedLeads.statusFiltered.length;
+      return {
+        ...categorizedLeads,
+        totalItems,
+        visibleItems: totalItems,
+        hasMore: false
+      };
+    }
+
+    // Combine all leads for lazy loading when showing all
+    const allItems = [
+      ...categorizedLeads.overdue.map(item => ({ ...item, category: 'overdue' as const })),
+      ...categorizedLeads.future.map(item => ({ ...item, category: 'future' as const })),
+      ...categorizedLeads.newLeads.map(item => ({ ...item, category: 'newLeads' as const })),
+      ...categorizedLeads.statusFiltered.map(item => ({ ...item, category: 'statusFiltered' as const })),
+    ];
+
+    const totalItems = allItems.length;
+    const visibleItems = allItems.slice(0, visibleCount);
+    const hasMore = visibleCount < totalItems;
+
+    // Separate back into categories for rendering
+    const overdue = visibleItems.filter(item => item.category === 'overdue').map(({ category, ...rest }) => rest);
+    const future = visibleItems.filter(item => item.category === 'future').map(({ category, ...rest }) => rest);
+    const newLeads = visibleItems.filter(item => item.category === 'newLeads').map(({ category, ...rest }) => rest);
+    const statusFiltered = visibleItems.filter(item => item.category === 'statusFiltered').map(({ category, ...rest }) => rest);
+
+    return {
+      overdue,
+      future,
+      newLeads,
+      statusFiltered,
+      totalItems,
+      visibleItems: visibleCount,
+      hasMore
+    };
+  }, [categorizedLeads, visibleCount, showOnlyToday]);
+
+  // Load more handler for lazy loading
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 50);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'new':
@@ -706,7 +746,10 @@ export default function LeadsPage() {
           <Box>
             <Checkbox
               isChecked={!showOnlyToday}
-              onChange={(e) => setShowOnlyToday(!e.target.checked)}
+              onChange={(e) => {
+                setShowOnlyToday(!e.target.checked);
+                setVisibleCount(50); // Reset lazy loading when toggling
+              }}
               size={{ base: 'sm', md: 'md' }}
               colorScheme="blue"
             >
@@ -717,7 +760,8 @@ export default function LeadsPage() {
           {/* Results Count - Show contextual count based on selected filter */}
           <Text fontSize="sm" fontWeight="medium" color="gray.700">
             {(() => {
-              const displayedCount = categorizedLeads.overdue.length + categorizedLeads.newLeads.length + categorizedLeads.future.length + categorizedLeads.statusFiltered.length;
+              const displayedCount = lazyLoadedLeads.overdue.length + lazyLoadedLeads.newLeads.length + lazyLoadedLeads.future.length + lazyLoadedLeads.statusFiltered.length;
+              const totalCount = lazyLoadedLeads.totalItems;
               
               // When a specific status filter is active, show the count as "X of X"
               // since we're showing all items that match that specific filter
@@ -754,17 +798,20 @@ export default function LeadsPage() {
                   default:
                     label = 'Leads';
                 }
-                return `Showing ${displayedCount} ${label}`;
+                return lazyLoadedLeads.hasMore 
+                  ? `Showing ${displayedCount} of ${totalCount} ${label}`
+                  : `Showing ${displayedCount} ${label}`;
               }
               
-              // When showOnlyToday is true (checkbox unchecked), the total should match displayed count
-              // since we're filtering to show only today's relevant leads
+              // When showOnlyToday is true (checkbox unchecked), show today's count
               if (showOnlyToday) {
                 return `Showing ${displayedCount} of ${displayedCount} Active Leads`;
               }
               
-              // Show all active leads (checkbox is checked)
-              return `Showing ${displayedCount} of ${displayedCount} Active Leads`;
+              // Show all active leads with lazy loading info
+              return lazyLoadedLeads.hasMore
+                ? `Showing ${displayedCount} of ${totalCount} Active Leads`
+                : `Showing ${displayedCount} Active Leads`;
             })()}
           </Text>
         </VStack>
@@ -790,13 +837,13 @@ export default function LeadsPage() {
                 Overdue Follow-ups
               </Heading>
               <Badge ml={3} colorScheme="red" fontSize={{ base: 'sm', md: 'md' }}>
-                {categorizedLeads.overdue.length}
+                {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.overdue.length}+` : lazyLoadedLeads.overdue.length}
               </Badge>
             </Flex>
             
-            {categorizedLeads.overdue.length > 0 ? (
+            {lazyLoadedLeads.overdue.length > 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
-                {categorizedLeads.overdue.map(({ lead, followUp }) => {
+                {lazyLoadedLeads.overdue.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
                   const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
                   const lastCall = getLastCallForLead(lead.id);
@@ -1024,13 +1071,13 @@ export default function LeadsPage() {
                 Scheduled Follow-ups
               </Heading>
               <Badge ml={3} colorScheme="green" fontSize={{ base: 'sm', md: 'md' }}>
-                {categorizedLeads.future.length}
+                {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.future.length}+` : lazyLoadedLeads.future.length}
               </Badge>
             </Flex>
             
-            {categorizedLeads.future.length > 0 ? (
+            {lazyLoadedLeads.future.length > 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
-                {categorizedLeads.future.map(({ lead, followUp }) => {
+                {lazyLoadedLeads.future.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
                   const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
                   const lastCall = getLastCallForLead(lead.id);
@@ -1269,13 +1316,13 @@ export default function LeadsPage() {
                 New Leads
               </Heading>
               <Badge ml={3} colorScheme="blue" fontSize={{ base: 'sm', md: 'md' }}>
-                {categorizedLeads.newLeads.length}
+                {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.newLeads.length}+` : lazyLoadedLeads.newLeads.length}
               </Badge>
             </Flex>
             
-            {categorizedLeads.newLeads.length > 0 ? (
+            {lazyLoadedLeads.newLeads.length > 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
-                {categorizedLeads.newLeads.map(({ lead, followUp }) => {
+                {lazyLoadedLeads.newLeads.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
                   const isNewLead = !followUp;
                   const lastCall = getLastCallForLead(lead.id);
@@ -1484,7 +1531,7 @@ export default function LeadsPage() {
           </Box>
 
           {/* Status Filtered Leads - For specific status filters like unqualified, won, lost, etc. */}
-          {categorizedLeads.statusFiltered && categorizedLeads.statusFiltered.length > 0 && (
+          {lazyLoadedLeads.statusFiltered && lazyLoadedLeads.statusFiltered.length > 0 && (
             <Box>
               <Flex
                 align="center"
@@ -1539,12 +1586,12 @@ export default function LeadsPage() {
                   statusFilter === 'unreach' ? 'pink' :
                   'gray'
                 } fontSize={{ base: 'sm', md: 'md' }}>
-                  {categorizedLeads.statusFiltered.length}
+                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.statusFiltered.length}+` : lazyLoadedLeads.statusFiltered.length}
                 </Badge>
               </Flex>
               
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
-                {categorizedLeads.statusFiltered.map(({ lead, followUp }) => {
+                {lazyLoadedLeads.statusFiltered.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
                   const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
                   const lastCall = getLastCallForLead(lead.id);
@@ -1716,6 +1763,21 @@ export default function LeadsPage() {
                 })}
               </SimpleGrid>
             </Box>
+          )}
+          
+          {/* Load More Button - Only show when there are more leads to load */}
+          {lazyLoadedLeads.hasMore && (
+            <Flex justify="center" mt={6} pb={4}>
+              <Button
+                size="lg"
+                colorScheme="blue"
+                variant="outline"
+                onClick={handleLoadMore}
+                px={8}
+              >
+                Load More ({lazyLoadedLeads.totalItems - lazyLoadedLeads.visibleItems} remaining)
+              </Button>
+            </Flex>
           )}
         </VStack>
 
