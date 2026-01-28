@@ -153,20 +153,18 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
   
   return (
     <Box
-      flex={{ base: '1', lg: '0 0 250px' }}
-      minW={{ base: 'full', lg: '200px' }}
-      maxW={{ base: 'full', lg: '300px' }}
+      w="full"
       bg="gray.50"
       borderRadius="md"
-      p={{ base: 2, sm: 3 }}
+      p={{ base: 2, sm: 2.5 }}
       border="1px solid"
       borderColor="gray.200"
     >
       <Text
-        fontSize={{ base: '2xs', sm: 'xs' }}
+        fontSize="xs"
         fontWeight="bold"
         color="gray.700"
-        mb={2}
+        mb={1.5}
       >
         Call Remarks ({remarksWithLogs.length})
       </Text>
@@ -177,8 +175,8 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
       ) : (
         <VStack
           align="stretch"
-          spacing={2}
-          maxH="120px"
+          spacing={1.5}
+          maxH="80px"
           overflowY="auto"
           sx={{
             '&::-webkit-scrollbar': {
@@ -987,8 +985,9 @@ export default function LeadsPage() {
                       _hover={{ boxShadow: 'lg', bg: 'red.100' }}
                       transition="all 0.2s"
                     >
-                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={{ base: 2, md: 3 }} direction={{ base: 'column', lg: 'row' }}>
-                        <Box flex="1" minW={{ base: 'full', lg: '300px' }}>
+                      <VStack align="stretch" spacing={2.5}>
+                        <Flex justify="space-between" align="flex-start" gap={2.5} flexWrap={{ base: 'wrap', xl: 'nowrap' }}>
+                        <Box flex="1" minW="0">
                           <Text
                             fontWeight="bold"
                             fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
@@ -996,7 +995,7 @@ export default function LeadsPage() {
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}
-                            mb={{ base: 1, md: 2 }}
+                            mb={1.5}
                             noOfLines={1}
                           >
                             {lead.name}
@@ -1113,10 +1112,7 @@ export default function LeadsPage() {
                           </VStack>
                         </Box>
 
-                        {/* Call Remarks Display */}
-                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
-
-                        <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width={{ base: 'full', lg: 'auto' }} justify={{ base: 'flex-start', lg: 'flex-start' }}>
+                        <HStack spacing={{ base: 1, sm: 1.5 }} flexWrap="wrap" alignSelf="flex-start" flexShrink={0}>
                           <Button
                             size={{ base: 'xs', sm: 'sm' }}
                             leftIcon={<HiPhone />}
@@ -1169,7 +1165,11 @@ export default function LeadsPage() {
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                           />
                         </HStack>
-                      </Flex>
+                        </Flex>
+                        
+                        {/* Call Remarks Display - Full Width Below */}
+                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
+                      </VStack>
                     </Box>
                   );
                 })}
