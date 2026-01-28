@@ -57,6 +57,8 @@ interface Lead {
   customerRequirement?: string;
   status: string;
   wonDate?: string; // For historical won leads - date when it was marked as won
+  wonDates?: string[]; // For historical won leads - array of all dates when marked as won
+  wonCount?: number; // For historical won leads - count of how many times marked as won
   currentStatus?: string; // For historical won leads - current status (might be different)
 }
 
@@ -110,6 +112,10 @@ export default function LeadOutcomesPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('tomorrow');
   const [isRescheduling, setIsRescheduling] = useState(false);
   
+  // Won dates modal state
+  const [selectedWonDates, setSelectedWonDates] = useState<string[]>([]);
+  const [selectedLeadName, setSelectedLeadName] = useState<string>('');
+  
   // Collapse state for each section
   const [collapsedSections, setCollapsedSections] = useState<{[key: string]: boolean}>({
     won: false,
@@ -119,6 +125,7 @@ export default function LeadOutcomesPage() {
   });
   
   const { isOpen: isRescheduleOpen, onOpen: onRescheduleOpen, onClose: onRescheduleClose } = useDisclosure();
+  const { isOpen: isWonDatesOpen, onOpen: onWonDatesOpen, onClose: onWonDatesClose } = useDisclosure();
   
   // Sorting state for each section (default: newest first)
   const [sortConfig, setSortConfig] = useState<{
@@ -780,6 +787,9 @@ export default function LeadOutcomesPage() {
                         Phone {sortConfig[section.status]?.field === 'phone' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
                       <Th>Status</Th>
+                      {section.status === 'won' && wonViewMode === 'historical' && (
+                        <Th>Count</Th>
+                      )}
                       <Th 
                         cursor="pointer" 
                         onClick={() => handleSort(section.status, 'updatedAt')}
@@ -824,6 +834,27 @@ export default function LeadOutcomesPage() {
                               )}
                             </VStack>
                           </Td>
+                          {section.status === 'won' && wonViewMode === 'historical' && (
+                            <Td onClick={(e) => e.stopPropagation()}>
+                              <Badge 
+                                colorScheme="blue" 
+                                fontSize="md" 
+                                px={3} 
+                                py={1}
+                                cursor="pointer"
+                                _hover={{ bg: 'blue.600', transform: 'scale(1.05)' }}
+                                transition="all 0.2s"
+                                onClick={() => {
+                                  setSelectedWonDates(lead.wonDates || [lead.wonDate || '']);
+                                  setSelectedLeadName(lead.name);
+                                  onWonDatesOpen();
+                                }}
+                                title="Click to view all won dates"
+                              >
+                                {lead.wonCount || 1}
+                              </Badge>
+                            </Td>
+                          )}
                           <Td>
                             {isHistoricalWon && lead.wonDate ? formatDate(lead.wonDate) : formatDate(lead.updatedAt)}
                           </Td>
@@ -979,6 +1010,62 @@ export default function LeadOutcomesPage() {
               _hover={{ bg: 'orange.700' }}
             >
               Schedule Follow-up
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Won Dates History Modal */}
+      <Modal isOpen={isWonDatesOpen} onClose={onWonDatesClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <VStack align="start" spacing={1}>
+              <Text>Won History</Text>
+              <Text fontSize="sm" fontWeight="normal" color="gray.600">
+                {selectedLeadName}
+              </Text>
+            </VStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <VStack spacing={3} align="stretch">
+              <Text fontWeight="medium" color="gray.700">
+                This lead was marked as Won {selectedWonDates.length} time{selectedWonDates.length > 1 ? 's' : ''}:
+              </Text>
+              {selectedWonDates.map((date, index) => (
+                <Box
+                  key={index}
+                  p={3}
+                  bg="green.50"
+                  borderRadius="md"
+                  borderLeft="4px"
+                  borderColor="green.500"
+                >
+                  <HStack justify="space-between">
+                    <VStack align="start" spacing={0}>
+                      <Text fontWeight="semibold" color="green.700">
+                        Won #{index + 1}
+                      </Text>
+                      <Text fontSize="sm" color="gray.600">
+                        {formatDate(date)}
+                      </Text>
+                    </VStack>
+                    <Badge colorScheme="green" fontSize="xs">
+                      {new Date(date).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </Badge>
+                  </HStack>
+                </Box>
+              ))}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={onWonDatesClose} colorScheme="blue" w="full">
+              Close
             </Button>
           </ModalFooter>
         </ModalContent>
