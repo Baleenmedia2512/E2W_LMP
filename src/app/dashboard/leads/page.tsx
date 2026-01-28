@@ -44,6 +44,8 @@ import {
   HiSearch,
   HiViewBoards,
   HiExclamation,
+  HiChevronUp,
+  HiChevronDown,
 } from 'react-icons/hi';
 import { FaWhatsapp } from 'react-icons/fa';
 import AddLeadModal from '@/features/leads/components/AddLeadModal';
@@ -288,6 +290,12 @@ export default function LeadsPage() {
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Section collapse state
+  const [isOverdueCollapsed, setIsOverdueCollapsed] = useState(false);
+  const [isScheduledCollapsed, setIsScheduledCollapsed] = useState(false);
+  const [isNewLeadsCollapsed, setIsNewLeadsCollapsed] = useState(false);
+  const [isStatusFilteredCollapsed, setIsStatusFilteredCollapsed] = useState(false);
 
   // Auto-refresh every minute to update overdue status
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -939,17 +947,28 @@ export default function LeadsPage() {
               borderColor="red.500"
               flexWrap="wrap"
               gap={2}
+              justify="space-between"
             >
-              <HiExclamation size={24} color="red" />
-              <Heading size={{ base: 'sm', md: 'md' }} ml={2} color="red.700">
-                Overdue Follow-ups
-              </Heading>
-              <Badge ml={3} colorScheme="red" fontSize={{ base: 'sm', md: 'md' }}>
-                {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.overdue.length}+` : lazyLoadedLeads.overdue.length}
-              </Badge>
+              <Flex align="center" gap={2} flexWrap="wrap">
+                <HiExclamation size={24} color="red" />
+                <Heading size={{ base: 'sm', md: 'md' }} ml={2} color="red.700">
+                  Overdue Follow-ups
+                </Heading>
+                <Badge ml={3} colorScheme="red" fontSize={{ base: 'sm', md: 'md' }}>
+                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.overdue.length}+` : lazyLoadedLeads.overdue.length}
+                </Badge>
+              </Flex>
+              <IconButton
+                aria-label={isOverdueCollapsed ? "Show" : "Hide"}
+                icon={isOverdueCollapsed ? <HiChevronDown /> : <HiChevronUp />}
+                size="sm"
+                variant="ghost"
+                colorScheme="red"
+                onClick={() => setIsOverdueCollapsed(!isOverdueCollapsed)}
+              />
             </Flex>
             
-            {lazyLoadedLeads.overdue.length > 0 ? (
+            {!isOverdueCollapsed && (lazyLoadedLeads.overdue.length > 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
                 {lazyLoadedLeads.overdue.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
@@ -1159,7 +1178,7 @@ export default function LeadsPage() {
               <Box bg="white" p={6} borderRadius="lg" textAlign="center">
                 <Text color="gray.500">No overdue follow-ups ??</Text>
               </Box>
-            )}
+            ))}
           </Box>
 
           <Divider />
@@ -1176,17 +1195,28 @@ export default function LeadsPage() {
               borderColor="green.500"
               flexWrap="wrap"
               gap={2}
+              justify="space-between"
             >
-              <HiClock size={24} color="green" />
-              <Heading size={{ base: 'sm', md: 'md' }} ml={2} color="green.700">
-                Scheduled Follow-ups
-              </Heading>
-              <Badge ml={3} colorScheme="green" fontSize={{ base: 'sm', md: 'md' }}>
-                {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.future.length}+` : lazyLoadedLeads.future.length}
-              </Badge>
+              <Flex align="center" gap={2} flexWrap="wrap">
+                <HiClock size={24} color="green" />
+                <Heading size={{ base: 'sm', md: 'md' }} ml={2} color="green.700">
+                  Scheduled Follow-ups
+                </Heading>
+                <Badge ml={3} colorScheme="green" fontSize={{ base: 'sm', md: 'md' }}>
+                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.future.length}+` : lazyLoadedLeads.future.length}
+                </Badge>
+              </Flex>
+              <IconButton
+                aria-label={isScheduledCollapsed ? "Show" : "Hide"}
+                icon={isScheduledCollapsed ? <HiChevronDown /> : <HiChevronUp />}
+                size="sm"
+                variant="ghost"
+                colorScheme="green"
+                onClick={() => setIsScheduledCollapsed(!isScheduledCollapsed)}
+              />
             </Flex>
             
-            {lazyLoadedLeads.future.length > 0 ? (
+            {!isScheduledCollapsed && (lazyLoadedLeads.future.length > 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
                 {lazyLoadedLeads.future.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
@@ -1407,7 +1437,7 @@ export default function LeadsPage() {
               <Box bg="white" p={6} borderRadius="lg" textAlign="center">
                 <Text color="gray.500">No scheduled follow-ups</Text>
               </Box>
-            )}
+            ))}
           </Box>
 
           <Divider />
@@ -1424,17 +1454,28 @@ export default function LeadsPage() {
               borderColor="blue.500"
               flexWrap="wrap"
               gap={2}
+              justify="space-between"
             >
-              <HiUserAdd size={24} color="blue" />
-              <Heading size={{ base: 'sm', md: 'md' }} ml={2} color="blue.700">
-                New Leads
-              </Heading>
-              <Badge ml={3} colorScheme="blue" fontSize={{ base: 'sm', md: 'md' }}>
-                {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.newLeads.length}+` : lazyLoadedLeads.newLeads.length}
-              </Badge>
+              <Flex align="center" gap={2} flexWrap="wrap">
+                <HiUserAdd size={24} color="blue" />
+                <Heading size={{ base: 'sm', md: 'md' }} ml={2} color="blue.700">
+                  New Leads
+                </Heading>
+                <Badge ml={3} colorScheme="blue" fontSize={{ base: 'sm', md: 'md' }}>
+                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.newLeads.length}+` : lazyLoadedLeads.newLeads.length}
+                </Badge>
+              </Flex>
+              <IconButton
+                aria-label={isNewLeadsCollapsed ? "Show" : "Hide"}
+                icon={isNewLeadsCollapsed ? <HiChevronDown /> : <HiChevronUp />}
+                size="sm"
+                variant="ghost"
+                colorScheme="blue"
+                onClick={() => setIsNewLeadsCollapsed(!isNewLeadsCollapsed)}
+              />
             </Flex>
             
-            {lazyLoadedLeads.newLeads.length > 0 ? (
+            {!isNewLeadsCollapsed && (lazyLoadedLeads.newLeads.length > 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
                 {lazyLoadedLeads.newLeads.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
@@ -1644,7 +1685,7 @@ export default function LeadsPage() {
               <Box bg="white" p={6} borderRadius="lg" textAlign="center">
                 <Text color="gray.500">No new leads</Text>
               </Box>
-            )}
+            ))}
           </Box>
 
           {/* Status Filtered Leads - For specific status filters like unqualified, won, lost, etc. */}
@@ -1667,47 +1708,65 @@ export default function LeadsPage() {
                 }
                 flexWrap="wrap"
                 gap={2}
+                justify="space-between"
               >
-                <Icon 
-                  as={
-                    statusFilter === 'unqualified' ? HiX :
-                    statusFilter === 'won' ? HiPlus :
-                    statusFilter === 'lost' ? HiBan :
-                    HiViewBoards
-                  } 
-                  boxSize={6} 
-                  color={
-                    statusFilter === 'unqualified' ? 'purple.600' :
-                    statusFilter === 'won' ? 'green.600' :
-                    statusFilter === 'lost' ? 'red.600' :
-                    statusFilter === 'qualified' ? 'cyan.600' :
-                    statusFilter === 'unreach' ? 'pink.600' :
-                    'gray.600'
+                <Flex align="center" gap={2} flexWrap="wrap">
+                  <Icon 
+                    as={
+                      statusFilter === 'unqualified' ? HiX :
+                      statusFilter === 'won' ? HiPlus :
+                      statusFilter === 'lost' ? HiBan :
+                      HiViewBoards
+                    } 
+                    boxSize={6} 
+                    color={
+                      statusFilter === 'unqualified' ? 'purple.600' :
+                      statusFilter === 'won' ? 'green.600' :
+                      statusFilter === 'lost' ? 'red.600' :
+                      statusFilter === 'qualified' ? 'cyan.600' :
+                      statusFilter === 'unreach' ? 'pink.600' :
+                      'gray.600'
+                    }
+                  />
+                  <Heading size={{ base: 'sm', md: 'md' }} ml={2} color={
+                    statusFilter === 'unqualified' ? 'purple.700' :
+                    statusFilter === 'won' ? 'green.700' :
+                    statusFilter === 'lost' ? 'red.700' :
+                    statusFilter === 'qualified' ? 'cyan.700' :
+                    statusFilter === 'unreach' ? 'pink.700' :
+                    'gray.700'
+                  }>
+                    {getStatusLabel(statusFilter)} Leads
+                  </Heading>
+                  <Badge ml={3} colorScheme={
+                    statusFilter === 'unqualified' ? 'purple' :
+                    statusFilter === 'won' ? 'green' :
+                    statusFilter === 'lost' ? 'red' :
+                    statusFilter === 'qualified' ? 'cyan' :
+                    statusFilter === 'unreach' ? 'pink' :
+                    'gray'
+                  } fontSize={{ base: 'sm', md: 'md' }}>
+                    {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.statusFiltered.length}+` : lazyLoadedLeads.statusFiltered.length}
+                  </Badge>
+                </Flex>
+                <IconButton
+                  aria-label={isStatusFilteredCollapsed ? "Show" : "Hide"}
+                  icon={isStatusFilteredCollapsed ? <HiChevronDown /> : <HiChevronUp />}
+                  size="sm"
+                  variant="ghost"
+                  colorScheme={
+                    statusFilter === 'unqualified' ? 'purple' :
+                    statusFilter === 'won' ? 'green' :
+                    statusFilter === 'lost' ? 'red' :
+                    statusFilter === 'qualified' ? 'cyan' :
+                    statusFilter === 'unreach' ? 'pink' :
+                    'gray'
                   }
+                  onClick={() => setIsStatusFilteredCollapsed(!isStatusFilteredCollapsed)}
                 />
-                <Heading size={{ base: 'sm', md: 'md' }} ml={2} color={
-                  statusFilter === 'unqualified' ? 'purple.700' :
-                  statusFilter === 'won' ? 'green.700' :
-                  statusFilter === 'lost' ? 'red.700' :
-                  statusFilter === 'qualified' ? 'cyan.700' :
-                  statusFilter === 'unreach' ? 'pink.700' :
-                  'gray.700'
-                }>
-                  {getStatusLabel(statusFilter)} Leads
-                </Heading>
-                <Badge ml={3} colorScheme={
-                  statusFilter === 'unqualified' ? 'purple' :
-                  statusFilter === 'won' ? 'green' :
-                  statusFilter === 'lost' ? 'red' :
-                  statusFilter === 'qualified' ? 'cyan' :
-                  statusFilter === 'unreach' ? 'pink' :
-                  'gray'
-                } fontSize={{ base: 'sm', md: 'md' }}>
-                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.statusFiltered.length}+` : lazyLoadedLeads.statusFiltered.length}
-                </Badge>
               </Flex>
               
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
+              {!isStatusFilteredCollapsed && (<SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
                 {lazyLoadedLeads.statusFiltered.map(({ lead, followUp }) => {
                   const dueDate = followUp?.scheduledAt;
                   const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
@@ -1881,7 +1940,7 @@ export default function LeadsPage() {
                     </Box>
                   );
                 })}
-              </SimpleGrid>
+              </SimpleGrid>)}
             </Box>
           )}
           
