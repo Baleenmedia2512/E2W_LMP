@@ -56,6 +56,8 @@ interface Lead {
   notes?: string;
   customerRequirement?: string;
   status: string;
+  wonDate?: string; // For historical won leads - date when it was marked as won
+  currentStatus?: string; // For historical won leads - current status (might be different)
 }
 
 interface OutcomeSection {
@@ -85,6 +87,11 @@ export default function LeadOutcomesPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
+  
+  // Won section view mode: 'current' or 'historical'
+  const [wonViewMode, setWonViewMode] = useState<'current' | 'historical'>('current');
+  const [historicalWonLeads, setHistoricalWonLeads] = useState<Lead[]>([]);
+  const [loadingHistoricalWon, setLoadingHistoricalWon] = useState(false);
   
   // Ref for scrolling to Won section
   const wonSectionRef = useRef<HTMLDivElement>(null);
@@ -224,6 +231,68 @@ export default function LeadOutcomesPage() {
     }
   };
 
+  // Fetch historical won leads
+  const fetchHistoricalWonLeads = async () => {
+    try {
+      setLoadingHistoricalWon(true);
+      
+      // Build query params (same as current filters)
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (ownerFilter !== 'all') params.append('assignedToId', ownerFilter);
+      if (sourceFilter !== 'all') params.append('source', sourceFilter);
+      
+      // Handle date range filter
+      if (dateRangeFilter !== 'all') {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        const formatLocalDate = (date: Date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        
+        if (dateRangeFilter === 'today') {
+          const todayStr = formatLocalDate(today);
+          params.append('startDate', todayStr);
+          params.append('endDate', todayStr);
+        } else if (dateRangeFilter === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          params.append('startDate', formatLocalDate(weekAgo));
+          params.append('endDate', formatLocalDate(today));
+        } else if (dateRangeFilter === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          params.append('startDate', formatLocalDate(monthAgo));
+          params.append('endDate', formatLocalDate(today));
+        }
+      }
+      
+      // Custom date range
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      
+      const response = await fetch(`/api/leads/outcomes/historical?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setHistoricalWonLeads(data.data || []);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load historical won leads',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setLoadingHistoricalWon(false);
+    }
+  };
+
   // Debounce search input - only update searchQuery after 500ms of no typing
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
@@ -236,6 +305,13 @@ export default function LeadOutcomesPage() {
   useEffect(() => {
     fetchData();
   }, [searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]);
+
+  // Fetch historical won leads when switching to historical view
+  useEffect(() => {
+    if (wonViewMode === 'historical') {
+      fetchHistoricalWonLeads();
+    }
+  }, [wonViewMode, searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]);
 
   // Auto-scroll to highlighted section on mount
   useEffect(() => {
@@ -285,12 +361,15 @@ export default function LeadOutcomesPage() {
 
   // Get sections based on status filter
   const sections: OutcomeSection[] = useMemo(() => {
+    // For Won section, use historical leads if in historical view mode
+    const wonLeads = wonViewMode === 'historical' ? historicalWonLeads : filterLeadsByStatus('won');
+    
     const allSections = [
       {
         title: 'Won',
         status: 'won',
         colorScheme: 'green',
-        leads: filterLeadsByStatus('won'),
+        leads: wonLeads,
       },
       {
         title: 'Lost',
@@ -317,7 +396,7 @@ export default function LeadOutcomesPage() {
       return allSections;
     }
     return allSections.filter(section => section.status === outcomeStatusFilter);
-  }, [leads, sortConfig, outcomeStatusFilter, filterLeadsByStatus]);
+  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus]);
 
   const clearFilters = () => {
     setSearchInput('');
@@ -637,13 +716,35 @@ export default function LeadOutcomesPage() {
               _hover={{ bg: `${section.colorScheme}.100` }}
               transition="all 0.2s"
             >
-              <Flex align="center">
-                <Heading size={{ base: 'sm', md: 'md' }} color={`${section.colorScheme}.700`}>
-                  {section.title}
-                </Heading>
-                <Badge ml={3} colorScheme={section.colorScheme} fontSize={{ base: 'sm', md: 'md' }}>
-                  {section.leads.length}
-                </Badge>
+              <Flex align="center" gap={3} flexWrap="wrap">
+                <Flex align="center">
+                  <Heading size={{ base: 'sm', md: 'md' }} color={`${section.colorScheme}.700`}>
+                    {section.title}
+                  </Heading>
+                  <Badge ml={3} colorScheme={section.colorScheme} fontSize={{ base: 'sm', md: 'md' }}>
+                    {loadingHistoricalWon && section.status === 'won' && wonViewMode === 'historical' ? (
+                      <Spinner size="xs" />
+                    ) : (
+                      section.leads.length
+                    )}
+                  </Badge>
+                </Flex>
+                
+                {/* Won section dropdown to switch between current and historical view */}
+                {section.status === 'won' && (
+                  <Select
+                    value={wonViewMode}
+                    onChange={(e) => setWonViewMode(e.target.value as 'current' | 'historical')}
+                    size="sm"
+                    maxW="220px"
+                    bg="white"
+                    borderColor="green.300"
+                    _hover={{ borderColor: 'green.400' }}
+                  >
+                    <option value="current">Current Status (Won)</option>
+                    <option value="historical">Historical (Marked as Won)</option>
+                  </Select>
+                )}
               </Flex>
               <IconButton
                 aria-label={collapsedSections[section.status] ? 'Show' : 'Hide'}
@@ -684,7 +785,7 @@ export default function LeadOutcomesPage() {
                         onClick={() => handleSort(section.status, 'updatedAt')}
                         _hover={{ bg: 'gray.100' }}
                       >
-                        Last Updated {sortConfig[section.status]?.field === 'updatedAt' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
+                        {section.status === 'won' && wonViewMode === 'historical' ? 'Marked Won On' : 'Last Updated'} {sortConfig[section.status]?.field === 'updatedAt' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
                       <Th 
                         cursor="pointer" 
@@ -698,50 +799,65 @@ export default function LeadOutcomesPage() {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {section.leads.map((lead) => (
-                      <Tr 
-                        key={lead.id} 
-                        _hover={{ bg: 'gray.50', cursor: 'pointer' }}
-                        onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                      >
-                        <Td fontWeight="medium">{lead.name}</Td>
-                        <Td>{formatPhoneForDisplay(lead.phone)}</Td>
-                        <Td>
-                          <Badge colorScheme={section.colorScheme}>
-                            {section.title}
-                          </Badge>
-                        </Td>
-                        <Td>{formatDate(lead.updatedAt)}</Td>
-                        <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
-                        <Td>
-                          <Text noOfLines={2} fontSize="sm" maxW="250px" title={lead.customerRequirement || lead.notes || '-'}>
-                            {lead.customerRequirement || lead.notes || '-'}
-                          </Text>
-                        </Td>
-                        <Td onClick={(e) => e.stopPropagation()}>
-                          <HStack spacing={1}>
-                            <IconButton
-                              aria-label="View details"
-                              icon={<HiEye />}
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                            />
-                            {section.status === 'unreach' && (
+                    {section.leads.map((lead: any) => {
+                      const isHistoricalWon = section.status === 'won' && wonViewMode === 'historical';
+                      const currentStatus = isHistoricalWon ? lead.currentStatus : lead.status;
+                      const isStatusDifferent = isHistoricalWon && currentStatus !== 'won';
+                      
+                      return (
+                        <Tr 
+                          key={lead.id} 
+                          _hover={{ bg: 'gray.50', cursor: 'pointer' }}
+                          onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                        >
+                          <Td fontWeight="medium">{lead.name}</Td>
+                          <Td>{formatPhoneForDisplay(lead.phone)}</Td>
+                          <Td>
+                            <VStack align="start" spacing={1}>
+                              <Badge colorScheme={section.colorScheme}>
+                                {section.title}
+                              </Badge>
+                              {isStatusDifferent && (
+                                <Badge colorScheme="orange" variant="outline" fontSize="xs">
+                                  Now: {currentStatus === 'followup' ? 'Follow-up' : currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                                </Badge>
+                              )}
+                            </VStack>
+                          </Td>
+                          <Td>
+                            {isHistoricalWon && lead.wonDate ? formatDate(lead.wonDate) : formatDate(lead.updatedAt)}
+                          </Td>
+                          <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
+                          <Td>
+                            <Text noOfLines={2} fontSize="sm" maxW="250px" title={lead.customerRequirement || lead.notes || '-'}>
+                              {lead.customerRequirement || lead.notes || '-'}
+                            </Text>
+                          </Td>
+                          <Td onClick={(e) => e.stopPropagation()}>
+                            <HStack spacing={1}>
                               <IconButton
-                                aria-label="Reschedule"
-                                icon={<HiPhone />}
+                                aria-label="View details"
+                                icon={<HiEye />}
                                 size="sm"
-                                colorScheme="green"
                                 variant="ghost"
-                                onClick={() => handleReschedule(lead.id, lead.name)}
-                                title="Move to Follow-up and reschedule"
+                                onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                               />
-                            )}
-                          </HStack>
-                        </Td>
-                      </Tr>
-                    ))}
+                              {section.status === 'unreach' && (
+                                <IconButton
+                                  aria-label="Reschedule"
+                                  icon={<HiPhone />}
+                                  size="sm"
+                                  colorScheme="green"
+                                  variant="ghost"
+                                  onClick={() => handleReschedule(lead.id, lead.name)}
+                                  title="Move to Follow-up and reschedule"
+                                />
+                              )}
+                            </HStack>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
                   </Tbody>
                 </Table>
               ) : (

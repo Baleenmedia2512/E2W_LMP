@@ -383,6 +383,7 @@ export default function CallDialerModal({
           body: JSON.stringify({
             status: 'won',
             notes: remarks,
+            updatedById: user?.id,
           }),
         });
         
@@ -407,6 +408,7 @@ export default function CallDialerModal({
           body: JSON.stringify({
             status: 'lost',
             notes: remarks,
+            updatedById: user?.id,
           }),
         });
         
@@ -578,6 +580,7 @@ export default function CallDialerModal({
           status: 'unqualified',
           customerRequirement: unqualifiedReason,
           notes: unqualifiedNotes || unqualifiedReason,
+          updatedById: user?.id,
         }),
       });
       
@@ -622,6 +625,7 @@ export default function CallDialerModal({
           status: 'unreach',
           customerRequirement: unreachableReason,
           notes: unreachableNotes || unreachableReason,
+          updatedById: user?.id,
         }),
       });
       
