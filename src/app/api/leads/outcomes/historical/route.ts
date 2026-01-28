@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Get unique leads (a lead might have been marked won multiple times)
+    // Group leads by ID and count how many times each was marked as won
     const leadMap = new Map();
     
     for (const activity of wonActivities) {
@@ -74,13 +74,20 @@ export async function GET(request: NextRequest) {
         if (lead.source !== source) continue;
       }
 
-      // Only add if not already added (keeps the most recent won activity)
-      if (!leadMap.has(lead.id)) {
+      // Add or update lead with count
+      if (leadMap.has(lead.id)) {
+        const existingLead = leadMap.get(lead.id);
+        existingLead.wonCount += 1;
+        // Keep track of all won dates
+        existingLead.wonDates.push(activity.createdAt);
+      } else {
         leadMap.set(lead.id, {
           ...lead,
           assignedTo: lead.User_Lead_assignedToIdToUser,
           User_Lead_assignedToIdToUser: undefined,
-          wonDate: activity.createdAt, // Date when it was marked as won
+          wonDate: activity.createdAt, // Most recent won date
+          wonDates: [activity.createdAt], // Array of all won dates
+          wonCount: 1, // Count of how many times it was marked as won
           currentStatus: lead.status, // Current status (might be different)
         });
       }
