@@ -60,6 +60,7 @@ import type { CallLog, Lead } from '@/shared/types';
 import { openWhatsApp, isValidWhatsAppPhone } from '@/shared/utils/whatsapp';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
 
 
 
@@ -289,6 +290,9 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Scroll restoration state - hide content until scroll is restored
+  const [scrollRestored, setScrollRestored] = useState(false);
+  
   // Section collapse state
   const [isOverdueCollapsed, setIsOverdueCollapsed] = useState(false);
   const [isScheduledCollapsed, setIsScheduledCollapsed] = useState(false);
@@ -360,6 +364,45 @@ export default function LeadsPage() {
       fetchData();
     }
   }, [token]); // Removed showOnlyToday - we now filter on client side
+  
+  // Restore scroll position IMMEDIATELY when component mounts
+  useEffect(() => {
+    const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads');
+    const container = document.getElementById('dashboard-scroll-container');
+    
+    if (savedPosition && container) {
+      // Restore immediately without waiting
+      const targetScroll = parseInt(savedPosition, 10);
+      container.scrollTop = targetScroll;
+      console.log(`⚡ Immediate restore to ${targetScroll}px`);
+      setScrollRestored(true);
+    } else {
+      // No saved position, show content immediately
+      setScrollRestored(true);
+    }
+  }, []);
+  
+  // Also restore after data loads (fallback)
+  useEffect(() => {
+    if (!loading && leads.length > 0) {
+      const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads');
+      if (savedPosition) {
+        const container = document.getElementById('dashboard-scroll-container');
+        if (container) {
+          const targetScroll = parseInt(savedPosition, 10);
+          // Only restore if not already at position
+          if (Math.abs(container.scrollTop - targetScroll) > 50) {
+            container.scrollTop = targetScroll;
+            console.log(`🔄 Fallback restore to ${targetScroll}px after data load`);
+          }
+        }
+      }
+      setScrollRestored(true);
+    }
+  }, [loading, leads.length]);
+  
+  // Use the hook for continuous scroll tracking
+  useScrollRestoration('/dashboard/leads', 100);
   
   // Refresh data when assignedToMe filter changes
   useEffect(() => {
@@ -730,7 +773,7 @@ export default function LeadsPage() {
   };
 
   return (
-    <Box>
+    <Box opacity={scrollRestored ? 1 : 0} transition="opacity 0.15s ease-in">
       <Flex
         justify="space-between"
         align={{ base: 'stretch', md: 'center' }}
