@@ -43,6 +43,7 @@ import { HiEye, HiSearch, HiPhone, HiChevronDown, HiChevronUp } from 'react-icon
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
 
 interface Lead {
   id: string;
@@ -113,6 +114,9 @@ export default function LeadOutcomesPage() {
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [selectedTimeframe, setSelectedTimeframe] = useState('tomorrow');
   const [isRescheduling, setIsRescheduling] = useState(false);
+  
+  // Scroll restoration state
+  const [scrollRestored, setScrollRestored] = useState(false);
   
   // Won dates modal state
   const [selectedWonDates, setSelectedWonDates] = useState<string[]>([]);
@@ -362,6 +366,45 @@ export default function LeadOutcomesPage() {
   useEffect(() => {
     fetchData();
   }, [searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]);
+
+  // Use the hook for continuous scroll tracking
+  useScrollRestoration('/dashboard/leads/outcomes', 100);
+
+  // Restore scroll position IMMEDIATELY when component mounts
+  useEffect(() => {
+    const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads/outcomes');
+    const container = document.getElementById('dashboard-scroll-container');
+    
+    if (savedPosition && container) {
+      // Restore immediately without waiting
+      const targetScroll = parseInt(savedPosition, 10);
+      container.scrollTop = targetScroll;
+      console.log(`⚡ Immediate restore to ${targetScroll}px on outcomes`);
+      setScrollRestored(true);
+    } else {
+      // No saved position, show content immediately
+      setScrollRestored(true);
+    }
+  }, []);
+  
+  // Also restore after data loads (fallback)
+  useEffect(() => {
+    if (!loading && leads.length > 0) {
+      const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads/outcomes');
+      if (savedPosition) {
+        const container = document.getElementById('dashboard-scroll-container');
+        if (container) {
+          const targetScroll = parseInt(savedPosition, 10);
+          // Only restore if not already at position
+          if (Math.abs(container.scrollTop - targetScroll) > 50) {
+            container.scrollTop = targetScroll;
+            console.log(`🔄 Fallback restore to ${targetScroll}px after data load on outcomes`);
+          }
+        }
+      }
+      setScrollRestored(true);
+    }
+  }, [loading, leads.length]);
 
   // Fetch historical won leads when switching to historical view
   useEffect(() => {
@@ -634,7 +677,7 @@ export default function LeadOutcomesPage() {
   }
 
   return (
-    <Box>
+    <Box opacity={scrollRestored ? 1 : 0} transition="opacity 0.15s ease-in">
       <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Lead Outcomes</Heading>
       </Flex>

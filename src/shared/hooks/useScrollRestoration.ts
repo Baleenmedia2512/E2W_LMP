@@ -57,6 +57,8 @@ export function useScrollRestoration(key: string, delay: number = 100) {
         if (scrollPosition > 0) {
           sessionStorage.setItem(scrollKey, scrollPosition.toString());
           console.log(`💾 Saved scroll position: ${scrollPosition}px for ${key}`);
+        } else {
+          console.log(`⏭️ Skipped saving 0px scroll position for ${key}`);
         }
       }
     };
@@ -153,17 +155,10 @@ export function useScrollRestoration(key: string, delay: number = 100) {
       window.removeEventListener('click', handleClick);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       saveScrollPosition();
+      console.log(`👋 Component unmounting for ${key}, saved position before leaving`);
     };
   }, [scrollKey, delay, key]);
 
-  // Clear scroll position when navigating to a different page
-  useEffect(() => {
-    return () => {
-      // Only clear if we're actually leaving this page
-      if (!window.location.pathname.includes(key)) {
-        sessionStorage.removeItem(scrollKey);
-        console.log(`🗑️ Cleared scroll position for ${key}`);
-      }
-    };
-  }, [pathname, scrollKey, key]);
+  // Don't clear scroll position on navigation - we want it to persist!
+  // Only clear manually if needed (e.g., user logs out)
 }
