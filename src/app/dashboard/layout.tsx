@@ -64,7 +64,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       <Flex flex="1" direction="column" overflow="hidden">
         <Header onMenuClick={onOpen} />
-        <Box flex="1" overflow="auto" bg="gray.50">
+        <Box 
+          flex="1" 
+          overflow="auto" 
+          bg="gray.50"
+          id="dashboard-scroll-container"
+        >
           <Container maxW="container.xl" py={{ base: 4, md: 6 }} px={{ base: 4, md: 6 }}>
             {children}
           </Container>
