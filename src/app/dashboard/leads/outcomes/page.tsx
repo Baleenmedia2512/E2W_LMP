@@ -85,9 +85,11 @@ export default function LeadOutcomesPage() {
   const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>('all'); // Status filter for outcomes
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month'>(initialDateFilter);
+  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>(initialDateFilter);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dataMinDate, setDataMinDate] = useState(''); // Store min date from data
+  const [dataMaxDate, setDataMaxDate] = useState(''); // Store max date from data
   const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
   
   // Won section view mode: 'current' or 'historical'
@@ -151,7 +153,7 @@ export default function LeadOutcomesPage() {
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       
       // Handle date range filter
-      if (dateRangeFilter !== 'all') {
+      if (dateRangeFilter !== 'all' && dateRangeFilter !== 'custom') {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
@@ -180,9 +182,11 @@ export default function LeadOutcomesPage() {
         }
       }
       
-      // Custom date range (overrides dateRangeFilter if both are set)
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      // Custom date range (when dateRangeFilter is 'custom')
+      if (dateRangeFilter === 'custom' || startDate || endDate) {
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      }
       
       params.append('limit', '2000');
       
@@ -216,8 +220,15 @@ export default function LeadOutcomesPage() {
             return `${year}-${month}-${day}`;
           };
           
-          setStartDate(formatDateStr(minDate));
-          setEndDate(formatDateStr(maxDate));
+          const minDateStr = formatDateStr(minDate);
+          const maxDateStr = formatDateStr(maxDate);
+          
+          // Store the computed min/max dates
+          setDataMinDate(minDateStr);
+          setDataMaxDate(maxDateStr);
+          
+          setStartDate(minDateStr);
+          setEndDate(maxDateStr);
           setDateRangeComputed(true);
         }
       }
@@ -250,7 +261,7 @@ export default function LeadOutcomesPage() {
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       
       // Handle date range filter
-      if (dateRangeFilter !== 'all') {
+      if (dateRangeFilter !== 'all' && dateRangeFilter !== 'custom') {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
@@ -278,9 +289,11 @@ export default function LeadOutcomesPage() {
         }
       }
       
-      // Custom date range
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      // Custom date range (when dateRangeFilter is 'custom')
+      if (dateRangeFilter === 'custom' || startDate || endDate) {
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      }
       
       const response = await fetch(`/api/leads/outcomes/historical?${params.toString()}`);
       const data = await response.json();
@@ -308,6 +321,43 @@ export default function LeadOutcomesPage() {
 
     return () => clearTimeout(debounceTimer);
   }, [searchInput]);
+
+  // Auto-update date fields when preset date filter changes
+  useEffect(() => {
+    if (dateRangeFilter === 'all') {
+      // Restore min/max dates from data
+      if (dataMinDate && dataMaxDate) {
+        setStartDate(dataMinDate);
+        setEndDate(dataMaxDate);
+      }
+    } else if (dateRangeFilter !== 'custom') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      const formatLocalDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      if (dateRangeFilter === 'today') {
+        const todayStr = formatLocalDate(today);
+        setStartDate(todayStr);
+        setEndDate(todayStr);
+      } else if (dateRangeFilter === 'week') {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        setStartDate(formatLocalDate(weekAgo));
+        setEndDate(formatLocalDate(today));
+      } else if (dateRangeFilter === 'month') {
+        const monthAgo = new Date(today);
+        monthAgo.setDate(monthAgo.getDate() - 30);
+        setStartDate(formatLocalDate(monthAgo));
+        setEndDate(formatLocalDate(today));
+      }
+    }
+  }, [dateRangeFilter, dataMinDate, dataMaxDate]);
 
   useEffect(() => {
     fetchData();
@@ -659,6 +709,7 @@ export default function LeadOutcomesPage() {
               <option value="today">Today</option>
               <option value="week">Last 7 Days</option>
               <option value="month">Last 30 Days</option>
+              <option value="custom">Custom</option>
             </Select>
           </Flex>
 
@@ -669,7 +720,12 @@ export default function LeadOutcomesPage() {
               <Input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (dateRangeFilter !== 'custom') {
+                    setDateRangeFilter('custom');
+                  }
+                }}
                 size={{ base: 'sm', md: 'md' }}
                 max={endDate || undefined}
               />
@@ -679,7 +735,12 @@ export default function LeadOutcomesPage() {
               <Input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  if (dateRangeFilter !== 'custom') {
+                    setDateRangeFilter('custom');
+                  }
+                }}
                 size={{ base: 'sm', md: 'md' }}
                 min={startDate || undefined}
               />
