@@ -19,6 +19,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface ChangeStatusModalProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ export default function ChangeStatusModal({
   onSuccess,
 }: ChangeStatusModalProps) {
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [newStatus, setNewStatus] = useState(currentStatus);
   const [reason, setReason] = useState('');
@@ -137,6 +139,7 @@ export default function ChangeStatusModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             status: 'followup',
+            updatedById: user?.id,
           }),
         });
 
@@ -209,6 +212,9 @@ export default function ChangeStatusModal({
       } else if (notes) {
         updatePayload.notes = notes;
       }
+
+      // Add userId for activity history tracking
+      updatePayload.updatedById = user?.id;
 
       const response = await fetch(`/api/leads/${leadId}`, {
         method: 'PUT',

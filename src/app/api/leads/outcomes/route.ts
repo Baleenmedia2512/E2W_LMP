@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/leads/outcomes
  * Optimized endpoint for fetching lead outcomes (unqualified, unreachable, won, lost)
@@ -16,7 +19,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const limit = parseInt(searchParams.get('limit') || '2000');
     const skip = (page - 1) * limit;
 
     // Build where clause
@@ -73,7 +76,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Transform leads to match frontend expectations
-    const transformedLeads = leads.map(lead => ({
+    const transformedLeads = leads.map((lead: any) => ({
       ...lead,
       assignedTo: lead.User_Lead_assignedToIdToUser,
       User_Lead_assignedToIdToUser: undefined,
@@ -81,10 +84,10 @@ export async function GET(request: NextRequest) {
 
     // Group by status for quick access
     const grouped = {
-      unqualified: transformedLeads.filter(l => l.status === 'unqualified'),
-      unreach: transformedLeads.filter(l => l.status === 'unreach'),
-      won: transformedLeads.filter(l => l.status === 'won'),
-      lost: transformedLeads.filter(l => l.status === 'lost'),
+      unqualified: transformedLeads.filter((l: any) => l.status === 'unqualified'),
+      unreach: transformedLeads.filter((l: any) => l.status === 'unreach'),
+      won: transformedLeads.filter((l: any) => l.status === 'won'),
+      lost: transformedLeads.filter((l: any) => l.status === 'lost'),
     };
 
     return NextResponse.json({

@@ -18,6 +18,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useState } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface MarkAsLostModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export default function MarkAsLostModal({
   onSuccess,
 }: MarkAsLostModalProps) {
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState('');
   const [details, setDetails] = useState('');
@@ -77,6 +79,7 @@ export default function MarkAsLostModal({
           status: 'lost',
           customerRequirement: selectedReason,
           notes: lostNotes,
+          updatedById: user?.id,
         }),
       });
 

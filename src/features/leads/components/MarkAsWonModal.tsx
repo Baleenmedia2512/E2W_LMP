@@ -22,6 +22,7 @@ import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges';
 import { ConfirmDialog, useConfirmDialog } from '@/shared/components/ConfirmDialog';
 import ValidatedInput from '@/shared/components/ValidatedInput';
 import ValidatedTextarea from '@/shared/components/ValidatedTextarea';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface MarkAsWonModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export default function MarkAsWonModal({
   onSuccess,
 }: MarkAsWonModalProps) {
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [dealValue, setDealValue] = useState('');
   const [notes, setNotes] = useState('');
@@ -77,6 +79,7 @@ export default function MarkAsWonModal({
           status: 'won',
           notes: wonNotes,
           metadata: dealValue ? { dealValue: parseFloat(dealValue) } : undefined,
+          updatedById: user?.id,
         }),
       });
 

@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
-import { notifyFollowUpDue } from '@/shared/lib/utils/notification-service';
+import { notifyFollowUpDue, notifyLeadFollowUpStageChange, notifyFollowUpRescheduled, notifyFollowUpAdded } from '@/shared/lib/utils/notification-service';
 import { randomUUID } from 'crypto';
 
 // GET follow-ups with optional filters
@@ -120,8 +120,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Separate future and past follow-ups
-    const futureFollowUps = allPendingFollowUps.filter(f => new Date(f.scheduledAt) >= now);
-    const pastFollowUps = allPendingFollowUps.filter(f => new Date(f.scheduledAt) < now);
+    const futureFollowUps = allPendingFollowUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+    const pastFollowUps = allPendingFollowUps.filter((f: any) => new Date(f.scheduledAt) < now);
 
     // Determine which follow-up to update (prefer future, otherwise most recent past)
     let followUpToUpdate = futureFollowUps[0] || pastFollowUps[pastFollowUps.length - 1];
@@ -144,8 +144,8 @@ export async function POST(request: NextRequest) {
 
       // Delete all other pending follow-ups for this lead (clean up duplicates)
       const otherFollowUpIds = allPendingFollowUps
-        .filter(f => f.id !== followUpToUpdate.id)
-        .map(f => f.id);
+        .filter((f: any) => f.id !== followUpToUpdate.id)
+        .map((f: any) => f.id);
 
       if (otherFollowUpIds.length > 0) {
         await prisma.followUp.deleteMany({
@@ -165,6 +165,27 @@ export async function POST(request: NextRequest) {
           description: `Follow-up rescheduled to ${scheduledDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')} ${scheduledDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
         },
       });
+
+      // Send notification for follow-up reschedule
+      const leadData = await prisma.lead.findUnique({
+        where: { id: body.leadId },
+        select: { assignedToId: true, name: true },
+      });
+
+      const notificationRecipient = leadData?.assignedToId || createdById;
+      if (notificationRecipient) {
+        try {
+          await notifyFollowUpRescheduled(
+            body.leadId,
+            leadData?.name || 'Lead',
+            notificationRecipient,
+            scheduledDateTime
+          );
+          console.log('Follow-up reschedule notification sent successfully to:', notificationRecipient);
+        } catch (error) {
+          console.error('Failed to send follow-up reschedule notification:', error);
+        }
+      }
 
       return NextResponse.json(
         { success: true, data: updatedFollowUp },
@@ -190,17 +211,62 @@ export async function POST(request: NextRequest) {
     });
 
     // Update lead status to 'followup' if it's not already won, lost, or unqualified
+    // Allow override for won status if explicitly requested (for rescheduling won leads)
     const currentLead = await prisma.lead.findUnique({
       where: { id: body.leadId },
-      select: { status: true },
+      select: { status: true, assignedToId: true, name: true },
     });
 
-    const nonUpdatableStatuses = ['won', 'lost', 'unqualified'];
-    if (currentLead && !nonUpdatableStatuses.includes(currentLead.status)) {
+    const nonUpdatableStatuses = ['lost', 'unqualified'];
+    const allowWonOverride = body.allowWonOverride === true; // New flag to allow rescheduling won leads
+    
+    // Check if we should update the status
+    const shouldUpdateStatus = currentLead && (
+      !nonUpdatableStatuses.includes(currentLead.status) || 
+      (currentLead.status === 'won' && allowWonOverride)
+    );
+    
+    if (shouldUpdateStatus) {
+      const oldStatus = currentLead.status;
+      
+      // If it was won and we're overriding, store the won status in metadata
+      const updateData: any = { 
+        status: 'followup',
+        updatedAt: new Date(),
+      };
+      
+      // Store previous won status in notes/metadata if it was won
+      if (oldStatus === 'won' && allowWonOverride) {
+        const existingNotes = (await prisma.lead.findUnique({
+          where: { id: body.leadId },
+          select: { notes: true }
+        }))?.notes || '';
+        
+        const wonRescheduleNote = `[Previous Status: WON - Rescheduled for follow-up on ${new Date().toLocaleDateString()}]`;
+        updateData.notes = existingNotes 
+          ? `${existingNotes}\n${wonRescheduleNote}` 
+          : wonRescheduleNote;
+      }
+      
       await prisma.lead.update({
         where: { id: body.leadId },
-        data: { status: 'followup' },
+        data: updateData,
       });
+
+      // Send notification if status changed and lead is assigned
+      if (oldStatus !== 'followup' && currentLead.assignedToId) {
+        try {
+          await notifyLeadFollowUpStageChange(
+            body.leadId,
+            currentLead.name,
+            currentLead.assignedToId,
+            oldStatus,
+            'followup'
+          );
+        } catch (notificationError) {
+          console.error('Failed to send lead follow-up stage change notification:', notificationError);
+        }
+      }
     }
 
     // Log activity
@@ -214,26 +280,67 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send notification if follow-up is due within 24 hours
+    // Get lead data for notifications
+    const leadData = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { assignedToId: true, name: true },
+    });
+
+    const notificationRecipient = leadData?.assignedToId || createdById;
+
+    // Send notification for follow-up added
+    if (notificationRecipient) {
+      try {
+        await notifyFollowUpAdded(
+          body.leadId,
+          leadData?.name || 'Lead',
+          notificationRecipient,
+          scheduledDateTime
+        );
+        console.log('Follow-up added notification sent successfully to:', notificationRecipient);
+      } catch (error) {
+        console.error('Failed to send follow-up added notification:', error);
+      }
+    }
+
+    // Send notification if follow-up is due within 24 hours OR scheduled for tomorrow
     const hoursUntilDue = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (hoursUntilDue <= 24 && followUp.Lead) {
-      const leadData = await prisma.lead.findUnique({
-        where: { id: body.leadId },
-        select: { assignedToId: true, name: true },
+    const isTomorrow = scheduledDateTime.toDateString() === new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString();
+    
+    if ((hoursUntilDue <= 24 || isTomorrow) && followUp.Lead) {
+      console.log('Follow-up notification check:', {
+        leadId: body.leadId,
+        leadName: leadData?.name,
+        assignedToId: leadData?.assignedToId,
+        createdById,
+        notificationRecipient,
+        hoursUntilDue,
+        isTomorrow,
+        willSendNotification: !!notificationRecipient
       });
 
-      if (leadData?.assignedToId) {
+      if (notificationRecipient) {
         try {
           await notifyFollowUpDue(
             body.leadId,
-            leadData.name,
-            leadData.assignedToId,
+            leadData?.name || 'Lead',
+            notificationRecipient,
             scheduledDateTime
           );
+          console.log('Follow-up due notification sent successfully to:', notificationRecipient);
         } catch (error) {
-          console.error('Failed to send follow-up notification:', error);
+          console.error('Failed to send follow-up due notification:', error);
         }
+      } else {
+        console.warn('No recipient found for follow-up notification - lead not assigned and no creator ID');
       }
+    } else {
+      console.log('Follow-up due notification skipped:', {
+        hoursUntilDue,
+        isTomorrow,
+        hasLead: !!followUp.Lead,
+        reason: hoursUntilDue > 24 && !isTomorrow ? 'Too far in future' : 'Missing lead data'
+      });
     }
 
     return NextResponse.json(

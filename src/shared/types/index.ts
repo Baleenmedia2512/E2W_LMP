@@ -44,6 +44,7 @@ export interface Lead {
   updatedAt: Date;
   assignedTo?: User;
   createdBy?: User;
+  CallLog?: CallLog[];
 }
 
 export interface LeadUpdatePayload {

@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { HiArrowLeft } from 'react-icons/hi';
 import { useState } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface ConvertToUnqualifiedModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export default function ConvertToUnqualifiedModal({
   onBack,
 }: ConvertToUnqualifiedModalProps) {
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState('');
   const [competitor, setCompetitor] = useState('');
@@ -78,6 +80,7 @@ export default function ConvertToUnqualifiedModal({
           status: 'unqualified',
           customerRequirement: reason,
           notes: notes,
+          updatedById: user?.id,
         }),
       });
 

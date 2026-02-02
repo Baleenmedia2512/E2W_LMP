@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { HiArrowLeft } from 'react-icons/hi';
 import { useState } from 'react';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface ConvertToUnreachableModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export default function ConvertToUnreachableModal({
   onBack,
 }: ConvertToUnreachableModalProps) {
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -63,6 +65,7 @@ export default function ConvertToUnreachableModal({
           status: 'unreach',
           customerRequirement: reason,
           notes: `Marked as Unreachable: ${reason}`,
+          updatedById: user?.id,
         }),
       });
 

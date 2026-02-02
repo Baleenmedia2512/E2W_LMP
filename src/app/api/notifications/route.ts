@@ -49,10 +49,35 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    // Accept both userId and recipientId for flexibility
+    const userId = body.userId || body.recipientId;
+
+    // Validate required fields
+    if (!userId || !body.title || !body.message) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields: userId/recipientId, title, message' },
+        { status: 400 }
+      );
+    }
+
+    // Verify user exists
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!userExists) {
+      console.error('User not found:', userId);
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const notification = await prisma.notification.create({
       data: {
         id: randomUUID(),
-        userId: body.userId,
+        userId: userId,
         type: body.type || 'info',
         title: body.title,
         message: body.message,
@@ -124,6 +149,48 @@ export async function PATCH(request: NextRequest) {
     console.error('Error updating notification:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to update notification' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE notification(s)
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { notificationId, userId, action } = body;
+
+    if (action === 'clear-all' && userId) {
+      // Clear all notifications for user
+      const result = await prisma.notification.deleteMany({
+        where: { userId },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `${result.count} notifications cleared`,
+        data: { count: result.count },
+      });
+    } else if (notificationId) {
+      // Delete single notification
+      await prisma.notification.delete({
+        where: { id: notificationId },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Notification deleted',
+      });
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Missing required parameters' },
+        { status: 400 }
+      );
+    }
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete notification' },
       { status: 500 }
     );
   }

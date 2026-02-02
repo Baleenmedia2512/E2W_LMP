@@ -53,12 +53,13 @@ const StatCard = ({
 }) => (
   <Box 
     bg="white" 
-    p={6} 
+    p={{ base: 4, md: 5 }} 
     borderRadius="lg" 
     boxShadow="sm" 
     borderWidth="1px"
     cursor={onClick ? "pointer" : "default"}
     transition="all 0.2s"
+    minW="0"
     _hover={onClick ? { 
       boxShadow: "md", 
       transform: "translateY(-2px)",
@@ -67,17 +68,17 @@ const StatCard = ({
     onClick={onClick}
   >
     <Stat>
-      <HStack justify="space-between" mb={2}>
-        <StatLabel fontSize="sm" fontWeight="medium" color="gray.600">
+      <HStack justify="space-between" mb={{ base: 1, md: 2 }} spacing={2} align="flex-start">
+        <StatLabel fontSize={{ base: 'sm', md: 'md' }} fontWeight="medium" color="gray.600" whiteSpace="normal" lineHeight="1.3">
           {label}
         </StatLabel>
-        <Icon as={icon} boxSize={5} color={`${colorScheme}.500`} />
+        <Icon as={icon} boxSize={{ base: 5, md: 6 }} color={`${colorScheme}.500`} flexShrink={0} />
       </HStack>
-      <StatNumber fontSize="3xl" fontWeight="bold">
+      <StatNumber fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold">
         {value}
       </StatNumber>
       {helpText && (
-        <StatHelpText fontSize="sm" color="gray.500">
+        <StatHelpText fontSize={{ base: 'xs', sm: 'sm' }} color="gray.500" whiteSpace="normal">
           {helpText}
         </StatHelpText>
       )}
@@ -129,6 +130,15 @@ export default function DashboardPage() {
       revalidateOnFocus: true, // Revalidate when window regains focus
       revalidateOnReconnect: true, // Revalidate when reconnecting
       dedupingInterval: 2000, // Dedupe requests within 2 seconds
+      errorRetryCount: 3, // Retry up to 3 times on failure
+      errorRetryInterval: 1000, // Wait 1 second between retries
+      shouldRetryOnError: true, // Enable retry on errors
+      onErrorRetry: (error: any, key, config, revalidate, { retryCount }) => {
+        // Don't retry on 4xx errors (client errors)
+        if (error.status >= 400 && error.status < 500) return;
+        // Exponential backoff: 1s, 2s, 4s
+        setTimeout(() => revalidate({ retryCount }), 1000 * Math.pow(2, retryCount));
+      },
     }
   );
 
@@ -229,6 +239,7 @@ export default function DashboardPage() {
     newLeads: 0,
     wonLeads: 0,
     lostLeads: 0,
+    unqualifiedLeads: 0,
     followUpsDue: 0,
     overdue: 0,
     conversations: 0,
@@ -257,7 +268,9 @@ export default function DashboardPage() {
       <VStack spacing={4} align="stretch">
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
         <Box textAlign="center" py={8}>
+          <Icon as={FiRefreshCw} boxSize={8} color="blue.500" mb={2} className="spin" />
           <Text color="gray.500">Loading dashboard data...</Text>
+          {error && <Text fontSize="sm" color="orange.500" mt={2}>Retrying connection...</Text>}
         </Box>
       </VStack>
     );
@@ -275,142 +288,25 @@ export default function DashboardPage() {
   }
 
   return (
-    <VStack spacing={{ base: 4, md: 6 }} align="stretch">
+    <VStack spacing={{ base: 3, md: 6 }} align="stretch">
       {/* Header */}
-      <Flex justify="space-between" align="center" flexWrap="wrap" gap={3}>
+      <Flex 
+        justify="space-between" 
+        align="center" 
+        flexWrap="wrap" 
+        gap={{ base: 2, md: 3 }}
+        direction={{ base: 'column', sm: 'row' }}
+        w="full"
+      >
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
-        <HStack spacing={3} flexWrap="wrap">
-          <FormControl display="flex" alignItems="center" width="auto">
-            <FormLabel htmlFor="auto-refresh" mb="0" fontSize="sm" mr={2}>
-              Auto-refresh
-            </FormLabel>
-            <Switch
-              id="auto-refresh"
-              isChecked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              colorScheme="brand"
-            />
-          </FormControl>
-          <Button
-            leftIcon={<FiRefreshCw />}
-            size="sm"
-            variant="outline"
-            onClick={handleManualRefresh}
-            isLoading={isLoading}
-          >
-            Refresh
-          </Button>
-        </HStack>
       </Flex>
 
-      {/* Date Filter */}
-      <Card boxShadow="sm">
-        <CardBody>
-          <VStack align="stretch" spacing={3}>
-            <Box>
-              <Text fontSize="sm" fontWeight="semibold" mb={2}>
-                Quick Date Range: <Badge colorScheme={hasDateFilter ? 'blue' : 'green'} ml={2}>{dateRangeLabel}</Badge>
-              </Text>
-              <Flex gap={2} flexWrap="wrap">
-                <Button
-                  size="sm"
-                  colorScheme={dateRangeLabel === 'All Time' ? 'green' : 'gray'}
-                  variant={dateRangeLabel === 'All Time' ? 'solid' : 'outline'}
-                  onClick={clearDateFilter}
-                  fontWeight="bold"
-                >
-                  All Time
-                </Button>
-                <Button
-                  size="sm"
-                  colorScheme={dateRangeLabel === 'Today' ? 'blue' : 'gray'}
-                  variant={dateRangeLabel === 'Today' ? 'solid' : 'outline'}
-                  onClick={() => setQuickDateRange('today')}
-                >
-                  Today
-                </Button>
-                <Button
-                  size="sm"
-                  colorScheme={dateRangeLabel === 'Yesterday' ? 'blue' : 'gray'}
-                  variant={dateRangeLabel === 'Yesterday' ? 'solid' : 'outline'}
-                  onClick={() => setQuickDateRange('yesterday')}
-                >
-                  Yesterday
-                </Button>
-                <Button
-                  size="sm"
-                  colorScheme={dateRangeLabel === 'Last 7 Days' ? 'blue' : 'gray'}
-                  variant={dateRangeLabel === 'Last 7 Days' ? 'solid' : 'outline'}
-                  onClick={() => setQuickDateRange('last7days')}
-                >
-                  Last 7 Days
-                </Button>
-                <Button
-                  size="sm"
-                  colorScheme={dateRangeLabel === 'This Month' ? 'blue' : 'gray'}
-                  variant={dateRangeLabel === 'This Month' ? 'solid' : 'outline'}
-                  onClick={() => setQuickDateRange('thisMonth')}
-                >
-                  This Month
-                </Button>
-                <Button
-                  size="sm"
-                  colorScheme={dateRangeLabel === 'Last 30 Days' ? 'blue' : 'gray'}
-                  variant={dateRangeLabel === 'Last 30 Days' ? 'solid' : 'outline'}
-                  onClick={() => setQuickDateRange('last30days')}
-                >
-                  Last 30 Days
-                </Button>
-              </Flex>
-            </Box>
-            <Flex gap={3} flexWrap="wrap" align="center">
-              <Box>
-                <Text fontSize="sm" fontWeight="semibold" mb={2}>
-                  Start Date
-                </Text>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => { setStartDate(e.target.value); setDateRangeLabel('Custom'); setHasDateFilter(true); }}
-                  max={endDate}
-                  size="md"
-                />
-              </Box>
-              <Box>
-                <Text fontSize="sm" fontWeight="semibold" mb={2}>
-                  End Date
-                </Text>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => { setEndDate(e.target.value); setDateRangeLabel('Custom'); setHasDateFilter(true); }}
-                  min={startDate}
-                  size="md"
-                />
-              </Box>
-            </Flex>
-          </VStack>
-        </CardBody>
-      </Card>
-
-      {/* Info Banner for All Time View */}
-      {!hasDateFilter && (
-        <Box bg="green.50" p={3} borderRadius="md" borderWidth="1px" borderColor="green.200">
-          <HStack spacing={2}>
-            <Icon as={FiCheckCircle} color="green.600" />
-            <Text fontSize="sm" color="green.800" fontWeight="medium">
-              Showing total counts across all time. These numbers match your complete leads database.
-            </Text>
-          </HStack>
-        </Box>
-      )}
-
       {/* Stats Grid */}
-      <SimpleGrid columns={{ base: 1, sm: 2, lg: 6 }} spacing={{ base: 4, md: 6 }}>
+      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={{ base: 3, md: 4, lg: 6 }}>
         <StatCard
           label="Total Leads"
           value={stats.totalLeadsForDashboard}
-          helpText="New + Overdue + Today + Won"
+          helpText="New + Overdue + Today"
           icon={FiUsers}
           colorScheme="purple"
         />
@@ -438,74 +334,20 @@ export default function DashboardPage() {
           colorScheme="red"
           onClick={() => router.push('/dashboard/leads?filter=overdue')}
         />
-        <StatCard
-          label={getLabel('Won')}
-          value={stats.wonLeads}
-          helpText="Deals closed"
-          icon={FiCheckCircle}
-          colorScheme="green"
-          onClick={() => handleCardClick('won')}
-        />
-        <StatCard
-          label={getLabel('Conversations')}
-          value={stats.conversations}
-          helpText="Calls made"
-          icon={FiPhone}
-          colorScheme="teal"
-          onClick={() => router.push('/dashboard/calls')}
-        />
-      </SimpleGrid>
-
-      {/* Summary Stats - All Clickable */}
-      <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={{ base: 4, md: 6 }}>
-        <Box 
-          bg="white" 
-          p={6} 
-          borderRadius="lg" 
-          boxShadow="sm" 
-          borderWidth="1px"
-          cursor="pointer"
-          transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "blue.500" }}
-          onClick={() => router.push('/dashboard/reports')}
-        >
-          <Stat>
-            <StatLabel fontSize="sm">{getLabel('Conversion Rate')}</StatLabel>
-            <StatNumber color="blue.600">{stats.conversionRate}%</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Won / Total leads</StatHelpText>
-          </Stat>
-        </Box>
-        <Box 
-          bg="white" 
-          p={6} 
-          borderRadius="lg" 
-          boxShadow="sm" 
-          borderWidth="1px"
-          cursor="pointer"
-          transition="all 0.2s"
-          _hover={{ boxShadow: "md", transform: "translateY(-2px)", borderColor: "teal.500" }}
-          onClick={() => router.push('/dashboard/reports')}
-        >
-          <Stat>
-            <StatLabel fontSize="sm">{getLabel('Win Rate')}</StatLabel>
-            <StatNumber fontSize="2xl" color="teal.600">{stats.winRate}%</StatNumber>
-            <StatHelpText fontSize="xs" color="gray.500">Won / Closed deals</StatHelpText>
-          </Stat>
-        </Box>
       </SimpleGrid>
 
       {/* Upcoming Follow-ups */}
-      <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
-        <Heading size={{ base: 'sm', md: 'md' }} mb={4}>Upcoming Follow-ups</Heading>
+      <Box bg="white" p={{ base: 3, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
+        <Heading size={{ base: 'sm', md: 'md' }} mb={{ base: 3, md: 4 }}>Upcoming Follow-ups</Heading>
         {upcomingFollowUps.length > 0 ? (
-          <Box overflowX="auto">
+          <Box overflowX="auto" mx={{ base: -3, md: 0 }}>
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead>
                 <Tr>
-                  <Th>Time</Th>
-                  <Th>Lead</Th>
-                  <Th display={{ base: 'none', sm: 'table-cell' }}>Status</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }}>Notes</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Time</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Lead</Th>
+                  <Th display={{ base: 'none', sm: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Notes</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -523,18 +365,18 @@ export default function DashboardPage() {
                       _hover={{ bg: isOverdue ? 'red.100' : 'gray.50' }}
                       onClick={() => router.push(`/dashboard/leads/${followUp.leadId}`)}
                     >
-                      <Td>
+                      <Td fontSize={{ base: '2xs', sm: 'xs', md: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         {isValidDate 
-                          ? format(scheduledDate, 'dd-MMM-yy hh:mm a')
+                          ? format(scheduledDate, window.innerWidth < 640 ? 'dd-MMM\nhh:mm a' : 'dd-MMM-yy hh:mm a')
                           : 'Invalid date'
                         }
                       </Td>
-                      <Td>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         <Text color="brand.500" fontWeight="medium" noOfLines={1}>
                           {followUp.Lead?.name || 'Unknown Lead'}
                         </Text>
                       </Td>
-                      <Td display={{ base: 'none', sm: 'table-cell' }}>
+                      <Td display={{ base: 'none', sm: 'table-cell' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         {isOverdue ? (
                           <Badge colorScheme="red" fontSize="xs">
                             🔴 Overdue
@@ -545,8 +387,8 @@ export default function DashboardPage() {
                           </Badge>
                         )}
                       </Td>
-                      <Td display={{ base: 'none', md: 'table-cell' }}>
-                        <Text noOfLines={1} fontSize="sm">{followUp.notes || followUp.customerRequirement || '-'}</Text>
+                      <Td display={{ base: 'none', md: 'table-cell' }} fontSize="sm" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                        <Text noOfLines={1}>{followUp.notes || followUp.customerRequirement || '-'}</Text>
                       </Td>
                     </Tr>
                   );
@@ -555,54 +397,57 @@ export default function DashboardPage() {
             </Table>
           </Box>
         ) : (
-          <Box textAlign="center" py={8}>
-            <Text color="gray.500" fontSize="sm">No upcoming follow-ups available</Text>
+          <Box textAlign="center" py={{ base: 6, md: 8 }}>
+            <Text color="gray.500" fontSize={{ base: 'xs', sm: 'sm' }}>No upcoming follow-ups available</Text>
           </Box>
         )}
       </Box>
 
       {/* Recent Leads */}
-      <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
-        <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
+      <Box bg="white" p={{ base: 3, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
+        <HStack justify="space-between" mb={{ base: 3, md: 4 }} flexWrap="wrap" gap={2}>
           <Heading size={{ base: 'sm', md: 'md' }}>Recent Leads</Heading>
           <Button 
-            size="sm" 
+            size={{ base: 'xs', sm: 'sm' }} 
             colorScheme="blue" 
             variant="ghost"
             onClick={() => router.push('/dashboard/leads')}
+            fontSize={{ base: 'xs', sm: 'sm' }}
           >
             View All
           </Button>
         </HStack>
         {recentLeads.length > 0 ? (
-          <Box overflowX="auto">
+          <Box overflowX="auto" mx={{ base: -3, md: 0 }}>
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead>
                 <Tr>
-                  <Th>Name</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }}>Company</Th>
-                  <Th>Status</Th>
-                  <Th display={{ base: 'none', sm: 'table-cell' }}>Source</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Name</Th>
+                  <Th display={{ base: 'none', md: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Company</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
+                  <Th display={{ base: 'none', sm: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Source</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {recentLeads.map((lead: any) => (
-                  <Tr key={lead.id}>
-                    <Td>
+                  <Tr key={lead.id} _hover={{ bg: 'gray.50' }}>
+                    <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                       <Link href={`/dashboard/leads/${lead.id}`}>
                         <Text color="brand.500" fontWeight="medium" noOfLines={1}>
                           {lead.name}
                         </Text>
                       </Link>
                     </Td>
-                    <Td display={{ base: 'none', md: 'table-cell' }}>{lead.company}</Td>
-                    <Td>
-                      <Badge colorScheme={getStatusColor(lead.status)}>
+                    <Td display={{ base: 'none', md: 'table-cell' }} fontSize="sm" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                      <Text noOfLines={1}>{lead.company}</Text>
+                    </Td>
+                    <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                      <Badge colorScheme={getStatusColor(lead.status)} fontSize={{ base: '0.6rem', sm: 'xs' }}>
                         {lead.status}
                       </Badge>
                     </Td>
-                    <Td display={{ base: 'none', sm: 'table-cell' }}>
-                      <Text fontSize="sm">{lead.source}</Text>
+                    <Td display={{ base: 'none', sm: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                      <Text noOfLines={1}>{lead.source}</Text>
                     </Td>
                   </Tr>
                 ))}
@@ -610,8 +455,8 @@ export default function DashboardPage() {
             </Table>
           </Box>
         ) : (
-          <Box textAlign="center" py={8}>
-            <Text color="gray.500" fontSize="sm">
+          <Box textAlign="center" py={{ base: 6, md: 8 }}>
+            <Text color="gray.500" fontSize={{ base: 'xs', sm: 'sm' }}>
               {hasDateFilter 
                 ? `No data available for ${dateRangeLabel === 'Today' ? 'today' : dateRangeLabel.toLowerCase()}` 
                 : 'No leads found in the system'}
