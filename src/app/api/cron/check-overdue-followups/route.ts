@@ -6,7 +6,7 @@ import { notifyFollowUpOverdue, notifyFollowUpStatusChange } from '@/shared/lib/
 import { randomUUID } from 'crypto';
 
 /**
- * Cron job to check for overdue follow-ups and auto-convert won leads
+ * Cron job to check for overdue follow-ups
  * Schedule: Run daily at midnight (0 0 * * *)
  * URL: /api/cron/check-overdue-followups
  * 
@@ -14,7 +14,6 @@ import { randomUUID } from 'crypto';
  * 1. Finds all pending follow-ups that are now overdue
  * 2. Updates their status to 'overdue'
  * 3. Creates notifications for assigned agents
- * 4. Auto-converts won leads to followup (if won day matches today's day)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -129,79 +128,11 @@ export async function GET(request: NextRequest) {
     // Then execute notifications and activities (non-blocking)
     await Promise.allSettled([...notificationPromises, ...activityPromises]);
 
-    // ========================================
-    // AUTO-CONVERT WON LEADS TO FOLLOWUP
-    // ========================================
-    const currentDay = now.getDate();
-    let autoConvertedCount = 0;
-
-    try {
-      console.log(`[Auto-Convert] Checking won leads for day: ${currentDay}`);
-
-      // Find all won leads where the day of updatedAt matches today's day
-      const wonLeadsToConvert = await prisma.$queryRaw<Array<{
-        id: string;
-        name: string;
-        updatedAt: Date;
-        assignedToId: string | null;
-      }>>`
-        SELECT id, name, "updatedAt", "assignedToId"
-        FROM "Lead"
-        WHERE status = 'won'
-        AND EXTRACT(DAY FROM "updatedAt") = ${currentDay}
-      `;
-
-      if (wonLeadsToConvert.length > 0) {
-        console.log(`[Auto-Convert] Found ${wonLeadsToConvert.length} won leads to convert`);
-
-        // Schedule follow-up for tomorrow at 10 AM
-        const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(10, 0, 0, 0);
-
-        for (const lead of wonLeadsToConvert) {
-          try {
-            // Update lead status to followup
-            await prisma.lead.update({
-              where: { id: lead.id },
-              data: {
-                status: 'followup',
-                updatedAt: new Date(),
-              },
-            });
-
-            // Create a follow-up record
-            await prisma.followUp.create({
-              data: {
-                id: randomUUID(),
-                leadId: lead.id,
-                scheduledAt: tomorrow,
-                status: 'pending',
-                priority: 'medium',
-                notes: `Auto-converted from won status (matched day ${currentDay}). Please follow up with this client.`,
-                createdById: lead.assignedToId || '',
-                updatedAt: new Date(),
-              },
-            });
-
-            autoConvertedCount++;
-            console.log(`[Auto-Convert] Converted: ${lead.name}`);
-          } catch (error: any) {
-            console.error(`[Auto-Convert] Failed to convert lead ${lead.id}:`, error.message);
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('[Auto-Convert] Error:', error.message);
-    }
-
     return NextResponse.json({
       success: true,
-      message: `Processed ${pendingOverdueFollowUps.length} overdue follow-ups and auto-converted ${autoConvertedCount} won leads`,
+      message: `Processed ${pendingOverdueFollowUps.length} overdue follow-ups`,
       data: {
         overdueCount: pendingOverdueFollowUps.length,
-        autoConvertedCount,
-        currentDay,
         timestamp: now.toISOString(),
       },
     });
