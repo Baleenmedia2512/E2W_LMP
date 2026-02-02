@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { comparePassword, generateToken } from '@/shared/lib/auth/auth-utils';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email'),
@@ -76,6 +77,24 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Login error:', error);
+    
+    // Handle Prisma-specific errors for better debugging
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error('Prisma error code:', error.code, 'Message:', error.message);
+      return NextResponse.json(
+        { error: 'Database error', code: error.code },
+        { status: 500 }
+      );
+    }
+    
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      console.error('Prisma init error:', error.message);
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

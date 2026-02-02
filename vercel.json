@@ -6,9 +6,34 @@
   "regions": ["sin1"],
   "build": {
     "env": {
-      "NEXT_TELEMETRY_DISABLED": "1"
+      "NEXT_TELEMETRY_DISABLED": "1",
+      "SKIP_ENV_VALIDATION": "1",
+      "PRISMA_GENERATE_SKIP_AUTOINSTALL": "false",
+      "PRISMA_CLI_BINARY_TARGETS": "rhel-openssl-3.0.x",
+      "SKIP_DB_CONNECTION_CHECK": "true"
     }
   },
+  "functions": {
+    "app/api/dashboard/**/*.ts": {
+      "maxDuration": 20
+    },
+    "app/api/**/*.ts": {
+      "maxDuration": 15
+    },
+    "app/api/webhooks/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/check-overdue-followups",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/check-upcoming-followups",
+      "schedule": "0 12 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/webhooks/(.*)",

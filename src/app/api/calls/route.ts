@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { randomUUID } from 'crypto';
+import { notifyCallLogged, notifyCallCompleted, notifyCallLogSubmitted } from '@/shared/lib/utils/notification-service';
 
 // GET call logs with optional filters
 export async function GET(request: NextRequest) {
@@ -32,9 +33,18 @@ export async function GET(request: NextRequest) {
       prisma.callLog.count({ where }),
     ]);
 
+    // Map the data to match frontend expectations (lead and caller instead of Lead and User)
+    const formattedCallLogs = callLogs.map((log: any) => ({
+      ...log,
+      lead: log.Lead,
+      caller: log.User,
+      Lead: undefined,
+      User: undefined,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: callLogs,
+      data: formattedCallLogs,
       total,
       page,
       pageSize: limit,
@@ -92,6 +102,7 @@ export async function POST(request: NextRequest) {
       callAttempts: {
         increment: 1,
       },
+      updatedAt: new Date(), // Always update the timestamp
     };
 
     // Status is managed separately through lead updates
@@ -116,6 +127,49 @@ export async function POST(request: NextRequest) {
         description: `Call logged - Status: ${body.callStatus || 'answer'}`,
       },
     });
+
+    // Send notification to assigned user (if different from caller)
+    const lead = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { assignedToId: true, name: true },
+    });
+
+    if (lead?.assignedToId) {
+      try {
+        // Send call log submitted notification
+        await notifyCallLogSubmitted(
+          body.leadId,
+          lead.name,
+          lead.assignedToId,
+          body.callStatus || 'answer',
+          body.remarks
+        );
+
+        // Send call completed notification if call was answered
+        if (body.callStatus === 'answer' && body.duration) {
+          await notifyCallCompleted(
+            body.leadId,
+            lead.name,
+            lead.assignedToId,
+            body.duration,
+            body.remarks
+          );
+        }
+
+        // Send general call logged notification if different user
+        if (lead.assignedToId !== body.callerId) {
+          await notifyCallLogged(
+            body.leadId,
+            lead.name,
+            lead.assignedToId,
+            body.callStatus || 'answer',
+            body.duration
+          );
+        }
+      } catch (error) {
+        console.error('Failed to send call notification:', error);
+      }
+    }
 
     return NextResponse.json(
       { success: true, data: callLog },

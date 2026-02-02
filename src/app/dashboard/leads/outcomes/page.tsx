@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -37,11 +37,13 @@ import {
   FormLabel,
   Textarea,
   useDisclosure,
+  Collapse,
 } from '@chakra-ui/react';
-import { HiEye, HiSearch, HiRefresh, HiPhone } from 'react-icons/hi';
+import { HiEye, HiSearch, HiPhone, HiChevronDown, HiChevronUp } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
 
 interface Lead {
   id: string;
@@ -55,6 +57,10 @@ interface Lead {
   notes?: string;
   customerRequirement?: string;
   status: string;
+  wonDate?: string; // For historical won leads - date when it was marked as won
+  wonDates?: string[]; // For historical won leads - array of all dates when marked as won
+  wonCount?: number; // For historical won leads - count of how many times marked as won
+  currentStatus?: string; // For historical won leads - current status (might be different)
 }
 
 interface OutcomeSection {
@@ -75,13 +81,22 @@ export default function LeadOutcomesPage() {
   const initialStatusFilter = searchParams.get('status') || null;
   
   // State for filters (applies to all sections)
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Immediate input value
+  const [searchQuery, setSearchQuery] = useState(''); // Debounced search query
+  const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>('all'); // Status filter for outcomes
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month'>(initialDateFilter);
+  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>(initialDateFilter);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dataMinDate, setDataMinDate] = useState(''); // Store min date from data
+  const [dataMaxDate, setDataMaxDate] = useState(''); // Store max date from data
   const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
+  
+  // Won section view mode: 'current' or 'historical'
+  const [wonViewMode, setWonViewMode] = useState<'current' | 'historical'>('current');
+  const [historicalWonLeads, setHistoricalWonLeads] = useState<Lead[]>([]);
+  const [loadingHistoricalWon, setLoadingHistoricalWon] = useState(false);
   
   // Ref for scrolling to Won section
   const wonSectionRef = useRef<HTMLDivElement>(null);
@@ -90,6 +105,8 @@ export default function LeadOutcomesPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [owners, setOwners] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [dateRangeComputed, setDateRangeComputed] = useState(false);
   const [rescheduleLeadId, setRescheduleLeadId] = useState<string | null>(null);
   const [rescheduleLeadName, setRescheduleLeadName] = useState<string>('');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -98,7 +115,23 @@ export default function LeadOutcomesPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('tomorrow');
   const [isRescheduling, setIsRescheduling] = useState(false);
   
+  // Scroll restoration state
+  const [scrollRestored, setScrollRestored] = useState(false);
+  
+  // Won dates modal state
+  const [selectedWonDates, setSelectedWonDates] = useState<string[]>([]);
+  const [selectedLeadName, setSelectedLeadName] = useState<string>('');
+  
+  // Collapse state for each section
+  const [collapsedSections, setCollapsedSections] = useState<{[key: string]: boolean}>({
+    won: false,
+    lost: false,
+    unqualified: false,
+    unreach: false,
+  });
+  
   const { isOpen: isRescheduleOpen, onOpen: onRescheduleOpen, onClose: onRescheduleClose } = useDisclosure();
+  const { isOpen: isWonDatesOpen, onOpen: onWonDatesOpen, onClose: onWonDatesClose } = useDisclosure();
   
   // Sorting state for each section (default: newest first)
   const [sortConfig, setSortConfig] = useState<{
@@ -112,7 +145,10 @@ export default function LeadOutcomesPage() {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      // Only show full loading spinner on initial load
+      if (!initialLoadComplete) {
+        setLoading(true);
+      }
       
       // Build query params
       const params = new URLSearchParams();
@@ -121,7 +157,7 @@ export default function LeadOutcomesPage() {
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       
       // Handle date range filter
-      if (dateRangeFilter !== 'all') {
+      if (dateRangeFilter !== 'all' && dateRangeFilter !== 'custom') {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
@@ -150,11 +186,13 @@ export default function LeadOutcomesPage() {
         }
       }
       
-      // Custom date range (overrides dateRangeFilter if both are set)
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      // Custom date range (when dateRangeFilter is 'custom')
+      if (dateRangeFilter === 'custom' || startDate || endDate) {
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      }
       
-      params.append('limit', '500');
+      params.append('limit', '2000');
       
       const [leadsRes, usersRes] = await Promise.all([
         fetch(`/api/leads/outcomes?${params.toString()}`),
@@ -165,7 +203,38 @@ export default function LeadOutcomesPage() {
       const usersData = await usersRes.json();
       
       if (leadsData.success) {
-        setLeads(leadsData.data || []);
+        const fetchedLeads = leadsData.data || [];
+        setLeads(fetchedLeads);
+        
+        // On initial load, compute min and max dates from the data for display
+        // Subtract 1 day from min to ensure all leads are included when filtering
+        if (!dateRangeComputed && fetchedLeads.length > 0) {
+          const dates = fetchedLeads.map((lead: Lead) => new Date(lead.updatedAt).getTime());
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          
+          // Subtract 1 day from minDate to account for timezone differences
+          minDate.setDate(minDate.getDate() - 1);
+          
+          // Format dates as YYYY-MM-DD
+          const formatDateStr = (date: Date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          };
+          
+          const minDateStr = formatDateStr(minDate);
+          const maxDateStr = formatDateStr(maxDate);
+          
+          // Store the computed min/max dates
+          setDataMinDate(minDateStr);
+          setDataMaxDate(maxDateStr);
+          
+          setStartDate(minDateStr);
+          setEndDate(maxDateStr);
+          setDateRangeComputed(true);
+        }
       }
       
       if (usersData.success) {
@@ -180,12 +249,169 @@ export default function LeadOutcomesPage() {
       });
     } finally {
       setLoading(false);
+      setInitialLoadComplete(true);
     }
   };
+
+  // Fetch historical won leads
+  const fetchHistoricalWonLeads = async () => {
+    try {
+      setLoadingHistoricalWon(true);
+      
+      // Build query params (same as current filters)
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (ownerFilter !== 'all') params.append('assignedToId', ownerFilter);
+      if (sourceFilter !== 'all') params.append('source', sourceFilter);
+      
+      // Handle date range filter
+      if (dateRangeFilter !== 'all' && dateRangeFilter !== 'custom') {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        const formatLocalDate = (date: Date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        
+        if (dateRangeFilter === 'today') {
+          const todayStr = formatLocalDate(today);
+          params.append('startDate', todayStr);
+          params.append('endDate', todayStr);
+        } else if (dateRangeFilter === 'week') {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          params.append('startDate', formatLocalDate(weekAgo));
+          params.append('endDate', formatLocalDate(today));
+        } else if (dateRangeFilter === 'month') {
+          const monthAgo = new Date(today);
+          monthAgo.setDate(monthAgo.getDate() - 30);
+          params.append('startDate', formatLocalDate(monthAgo));
+          params.append('endDate', formatLocalDate(today));
+        }
+      }
+      
+      // Custom date range (when dateRangeFilter is 'custom')
+      if (dateRangeFilter === 'custom' || startDate || endDate) {
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+      }
+      
+      const response = await fetch(`/api/leads/outcomes/historical?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setHistoricalWonLeads(data.data || []);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load historical won leads',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setLoadingHistoricalWon(false);
+    }
+  };
+
+  // Debounce search input - only update searchQuery after 500ms of no typing
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchInput]);
+
+  // Auto-update date fields when preset date filter changes
+  useEffect(() => {
+    if (dateRangeFilter === 'all') {
+      // Restore min/max dates from data
+      if (dataMinDate && dataMaxDate) {
+        setStartDate(dataMinDate);
+        setEndDate(dataMaxDate);
+      }
+    } else if (dateRangeFilter !== 'custom') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      const formatLocalDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      if (dateRangeFilter === 'today') {
+        const todayStr = formatLocalDate(today);
+        setStartDate(todayStr);
+        setEndDate(todayStr);
+      } else if (dateRangeFilter === 'week') {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        setStartDate(formatLocalDate(weekAgo));
+        setEndDate(formatLocalDate(today));
+      } else if (dateRangeFilter === 'month') {
+        const monthAgo = new Date(today);
+        monthAgo.setDate(monthAgo.getDate() - 30);
+        setStartDate(formatLocalDate(monthAgo));
+        setEndDate(formatLocalDate(today));
+      }
+    }
+  }, [dateRangeFilter, dataMinDate, dataMaxDate]);
 
   useEffect(() => {
     fetchData();
   }, [searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]);
+
+  // Use the hook for continuous scroll tracking
+  useScrollRestoration('/dashboard/leads/outcomes', 100);
+
+  // Restore scroll position IMMEDIATELY when component mounts
+  useEffect(() => {
+    const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads/outcomes');
+    const container = document.getElementById('dashboard-scroll-container');
+    
+    if (savedPosition && container) {
+      // Restore immediately without waiting
+      const targetScroll = parseInt(savedPosition, 10);
+      container.scrollTop = targetScroll;
+      console.log(`⚡ Immediate restore to ${targetScroll}px on outcomes`);
+      setScrollRestored(true);
+    } else {
+      // No saved position, show content immediately
+      setScrollRestored(true);
+    }
+  }, []);
+  
+  // Also restore after data loads (fallback)
+  useEffect(() => {
+    if (!loading && leads.length > 0) {
+      const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads/outcomes');
+      if (savedPosition) {
+        const container = document.getElementById('dashboard-scroll-container');
+        if (container) {
+          const targetScroll = parseInt(savedPosition, 10);
+          // Only restore if not already at position
+          if (Math.abs(container.scrollTop - targetScroll) > 50) {
+            container.scrollTop = targetScroll;
+            console.log(`🔄 Fallback restore to ${targetScroll}px after data load on outcomes`);
+          }
+        }
+      }
+      setScrollRestored(true);
+    }
+  }, [loading, leads.length]);
+
+  // Fetch historical won leads when switching to historical view
+  useEffect(() => {
+    if (wonViewMode === 'historical') {
+      fetchHistoricalWonLeads();
+    }
+  }, [wonViewMode, searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]);
 
   // Auto-scroll to highlighted section on mount
   useEffect(() => {
@@ -233,43 +459,58 @@ export default function LeadOutcomesPage() {
     }));
   };
 
-  const sections: OutcomeSection[] = [
-    {
-      title: 'Unqualified',
-      status: 'unqualified',
-      colorScheme: 'gray',
-      leads: filterLeadsByStatus('unqualified'),
-    },
-    {
-      title: 'Unreachable',
-      status: 'unreach',
-      colorScheme: 'pink',
-      leads: filterLeadsByStatus('unreach'),
-    },
-    {
-      title: 'Won',
-      status: 'won',
-      colorScheme: 'green',
-      leads: filterLeadsByStatus('won'),
-    },
-    {
-      title: 'Lost',
-      status: 'lost',
-      colorScheme: 'red',
-      leads: filterLeadsByStatus('lost'),
-    },
-  ];
+  // Get sections based on status filter
+  const sections: OutcomeSection[] = useMemo(() => {
+    // For Won section, use historical leads if in historical view mode
+    const wonLeads = wonViewMode === 'historical' ? historicalWonLeads : filterLeadsByStatus('won');
+    
+    const allSections = [
+      {
+        title: 'Won',
+        status: 'won',
+        colorScheme: 'green',
+        leads: wonLeads,
+      },
+      {
+        title: 'Lost',
+        status: 'lost',
+        colorScheme: 'red',
+        leads: filterLeadsByStatus('lost'),
+      },
+      {
+        title: 'Unqualified',
+        status: 'unqualified',
+        colorScheme: 'gray',
+        leads: filterLeadsByStatus('unqualified'),
+      },
+      {
+        title: 'Unreachable',
+        status: 'unreach',
+        colorScheme: 'pink',
+        leads: filterLeadsByStatus('unreach'),
+      },
+    ];
+
+    // Filter sections based on outcomeStatusFilter
+    if (outcomeStatusFilter === 'all') {
+      return allSections;
+    }
+    return allSections.filter(section => section.status === outcomeStatusFilter);
+  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus]);
 
   const clearFilters = () => {
+    setSearchInput('');
     setSearchQuery('');
+    setOutcomeStatusFilter('all');
     setOwnerFilter('all');
     setSourceFilter('all');
     setDateRangeFilter('all');
     setStartDate('');
     setEndDate('');
+    setDateRangeComputed(false); // Reset so min/max dates can be recalculated
   };
 
-  const hasActiveFilters = searchQuery || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
+  const hasActiveFilters = searchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
 
   const openRescheduleModal = (leadId: string, leadName: string) => {
     setRescheduleLeadId(leadId);
@@ -436,17 +677,9 @@ export default function LeadOutcomesPage() {
   }
 
   return (
-    <Box>
+    <Box opacity={scrollRestored ? 1 : 0} transition="opacity 0.15s ease-in">
       <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Lead Outcomes</Heading>
-        <Button
-          size={{ base: 'sm', md: 'md' }}
-          leftIcon={<HiRefresh />}
-          onClick={fetchData}
-          variant="outline"
-        >
-          Refresh
-        </Button>
       </Flex>
 
       {/* Global Filters */}
@@ -461,14 +694,27 @@ export default function LeadOutcomesPage() {
             </InputLeftElement>
             <Input
               placeholder="Search name or phone"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               size={{ base: 'sm', md: 'md' }}
             />
           </InputGroup>
 
           {/* Filter Row */}
           <Flex gap={3} flexWrap="wrap">
+            <Select
+              value={outcomeStatusFilter}
+              onChange={(e) => setOutcomeStatusFilter(e.target.value)}
+              maxW={{ base: 'full', sm: '200px' }}
+              size={{ base: 'sm', md: 'md' }}
+            >
+              <option value="all">All Outcomes</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+              <option value="unqualified">Unqualified</option>
+              <option value="unreach">Unreachable</option>
+            </Select>
+
             <Select
               value={ownerFilter}
               onChange={(e) => setOwnerFilter(e.target.value)}
@@ -506,27 +752,38 @@ export default function LeadOutcomesPage() {
               <option value="today">Today</option>
               <option value="week">Last 7 Days</option>
               <option value="month">Last 30 Days</option>
+              <option value="custom">Custom</option>
             </Select>
           </Flex>
 
           {/* Custom Date Range */}
           <Flex gap={3} flexWrap="wrap">
             <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-              <Text fontSize="sm" mb={1}>Start Date</Text>
+              <Text fontSize="sm" mb={1}>Last Updated Start Date</Text>
               <Input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (dateRangeFilter !== 'custom') {
+                    setDateRangeFilter('custom');
+                  }
+                }}
                 size={{ base: 'sm', md: 'md' }}
                 max={endDate || undefined}
               />
             </Box>
             <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-              <Text fontSize="sm" mb={1}>End Date</Text>
+              <Text fontSize="sm" mb={1}>Last Updated End Date</Text>
               <Input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  if (dateRangeFilter !== 'custom') {
+                    setDateRangeFilter('custom');
+                  }
+                }}
                 size={{ base: 'sm', md: 'md' }}
                 min={startDate || undefined}
               />
@@ -538,6 +795,11 @@ export default function LeadOutcomesPage() {
               Clear All Filters
             </Button>
           )}
+
+          {/* Results Count */}
+          <Text fontSize="sm" fontWeight="medium" color="gray.700">
+            Showing {sections.reduce((acc, section) => acc + section.leads.length, 0)} of {leads.length} leads
+          </Text>
         </VStack>
       </Box>
 
@@ -555,21 +817,60 @@ export default function LeadOutcomesPage() {
           >
             <Flex
               align="center"
+              justify="space-between"
               mb={4}
               p={3}
               bg={`${section.colorScheme}.50`}
               borderRadius="md"
               borderLeft="4px"
               borderColor={`${section.colorScheme}.500`}
+              _hover={{ bg: `${section.colorScheme}.100` }}
+              transition="all 0.2s"
             >
-              <Heading size={{ base: 'sm', md: 'md' }} color={`${section.colorScheme}.700`}>
-                {section.title}
-              </Heading>
-              <Badge ml={3} colorScheme={section.colorScheme} fontSize={{ base: 'sm', md: 'md' }}>
-                {section.leads.length}
-              </Badge>
+              <Flex align="center" gap={3} flexWrap="wrap">
+                <Flex align="center">
+                  <Heading size={{ base: 'sm', md: 'md' }} color={`${section.colorScheme}.700`}>
+                    {section.title}
+                  </Heading>
+                  <Badge ml={3} colorScheme={section.colorScheme} fontSize={{ base: 'sm', md: 'md' }}>
+                    {loadingHistoricalWon && section.status === 'won' && wonViewMode === 'historical' ? (
+                      <Spinner size="xs" />
+                    ) : (
+                      section.leads.length
+                    )}
+                  </Badge>
+                </Flex>
+                
+                {/* Won section dropdown to switch between current and historical view */}
+                {section.status === 'won' && (
+                  <Select
+                    value={wonViewMode}
+                    onChange={(e) => setWonViewMode(e.target.value as 'current' | 'historical')}
+                    size="sm"
+                    maxW="220px"
+                    bg="white"
+                    borderColor="green.300"
+                    _hover={{ borderColor: 'green.400' }}
+                  >
+                    <option value="current">Current Status (Won)</option>
+                    <option value="historical">Historical (Marked as Won)</option>
+                  </Select>
+                )}
+              </Flex>
+              <IconButton
+                aria-label={collapsedSections[section.status] ? 'Show' : 'Hide'}
+                icon={<Icon as={collapsedSections[section.status] ? HiChevronDown : HiChevronUp} />}
+                size="sm"
+                variant="ghost"
+                colorScheme={section.colorScheme}
+                onClick={() => setCollapsedSections(prev => ({
+                  ...prev,
+                  [section.status]: !prev[section.status]
+                }))}
+              />
             </Flex>
 
+            {!collapsedSections[section.status] && (
             <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
               {section.leads.length > 0 ? (
                 <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
@@ -590,12 +891,15 @@ export default function LeadOutcomesPage() {
                         Phone {sortConfig[section.status]?.field === 'phone' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
                       <Th>Status</Th>
+                      {section.status === 'won' && wonViewMode === 'historical' && (
+                        <Th>Count</Th>
+                      )}
                       <Th 
                         cursor="pointer" 
                         onClick={() => handleSort(section.status, 'updatedAt')}
                         _hover={{ bg: 'gray.100' }}
                       >
-                        Last Updated {sortConfig[section.status]?.field === 'updatedAt' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
+                        {section.status === 'won' && wonViewMode === 'historical' ? 'Marked Won On' : 'Last Updated'} {sortConfig[section.status]?.field === 'updatedAt' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
                       <Th 
                         cursor="pointer" 
@@ -609,50 +913,86 @@ export default function LeadOutcomesPage() {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {section.leads.map((lead) => (
-                      <Tr 
-                        key={lead.id} 
-                        _hover={{ bg: 'gray.50', cursor: 'pointer' }}
-                        onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                      >
-                        <Td fontWeight="medium">{lead.name}</Td>
-                        <Td>{formatPhoneForDisplay(lead.phone)}</Td>
-                        <Td>
-                          <Badge colorScheme={section.colorScheme}>
-                            {section.title}
-                          </Badge>
-                        </Td>
-                        <Td>{formatDate(lead.updatedAt)}</Td>
-                        <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
-                        <Td>
-                          <Text noOfLines={2} fontSize="sm" maxW="250px" title={lead.customerRequirement || lead.notes || '-'}>
-                            {lead.customerRequirement || lead.notes || '-'}
-                          </Text>
-                        </Td>
-                        <Td onClick={(e) => e.stopPropagation()}>
-                          <HStack spacing={1}>
-                            <IconButton
-                              aria-label="View details"
-                              icon={<HiEye />}
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                            />
-                            {section.status === 'unreach' && (
+                    {section.leads.map((lead: any) => {
+                      const isHistoricalWon = section.status === 'won' && wonViewMode === 'historical';
+                      const currentStatus = isHistoricalWon ? lead.currentStatus : lead.status;
+                      const isStatusDifferent = isHistoricalWon && currentStatus !== 'won';
+                      
+                      return (
+                        <Tr 
+                          key={lead.id} 
+                          _hover={{ bg: 'gray.50', cursor: 'pointer' }}
+                          onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                        >
+                          <Td fontWeight="medium">{lead.name}</Td>
+                          <Td>{formatPhoneForDisplay(lead.phone)}</Td>
+                          <Td>
+                            <VStack align="start" spacing={1}>
+                              <Badge colorScheme={section.colorScheme}>
+                                {section.title}
+                              </Badge>
+                              {isStatusDifferent && (
+                                <Badge colorScheme="orange" variant="outline" fontSize="xs">
+                                  Now: {currentStatus === 'followup' ? 'Follow-up' : currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                                </Badge>
+                              )}
+                            </VStack>
+                          </Td>
+                          {section.status === 'won' && wonViewMode === 'historical' && (
+                            <Td onClick={(e) => e.stopPropagation()}>
+                              <Badge 
+                                colorScheme="blue" 
+                                fontSize="md" 
+                                px={3} 
+                                py={1}
+                                cursor="pointer"
+                                _hover={{ bg: 'blue.600', transform: 'scale(1.05)' }}
+                                transition="all 0.2s"
+                                onClick={() => {
+                                  setSelectedWonDates(lead.wonDates || [lead.wonDate || '']);
+                                  setSelectedLeadName(lead.name);
+                                  onWonDatesOpen();
+                                }}
+                                title="Click to view all won dates"
+                              >
+                                {lead.wonCount || 1}
+                              </Badge>
+                            </Td>
+                          )}
+                          <Td>
+                            {isHistoricalWon && lead.wonDate ? formatDate(lead.wonDate) : formatDate(lead.updatedAt)}
+                          </Td>
+                          <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
+                          <Td>
+                            <Text noOfLines={2} fontSize="sm" maxW="250px" title={lead.customerRequirement || lead.notes || '-'}>
+                              {lead.customerRequirement || lead.notes || '-'}
+                            </Text>
+                          </Td>
+                          <Td onClick={(e) => e.stopPropagation()}>
+                            <HStack spacing={1}>
                               <IconButton
-                                aria-label="Reschedule"
-                                icon={<HiPhone />}
+                                aria-label="View details"
+                                icon={<HiEye />}
                                 size="sm"
-                                colorScheme="green"
                                 variant="ghost"
-                                onClick={() => handleReschedule(lead.id, lead.name)}
-                                title="Move to Follow-up and reschedule"
+                                onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                               />
-                            )}
-                          </HStack>
-                        </Td>
-                      </Tr>
-                    ))}
+                              {section.status === 'unreach' && (
+                                <IconButton
+                                  aria-label="Reschedule"
+                                  icon={<HiPhone />}
+                                  size="sm"
+                                  colorScheme="green"
+                                  variant="ghost"
+                                  onClick={() => handleReschedule(lead.id, lead.name)}
+                                  title="Move to Follow-up and reschedule"
+                                />
+                              )}
+                            </HStack>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
                   </Tbody>
                 </Table>
               ) : (
@@ -663,6 +1003,7 @@ export default function LeadOutcomesPage() {
                 </Box>
               )}
             </Box>
+            )}
           </Box>
         ))}
       </VStack>
@@ -773,6 +1114,62 @@ export default function LeadOutcomesPage() {
               _hover={{ bg: 'orange.700' }}
             >
               Schedule Follow-up
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Won Dates History Modal */}
+      <Modal isOpen={isWonDatesOpen} onClose={onWonDatesClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <VStack align="start" spacing={1}>
+              <Text>Won History</Text>
+              <Text fontSize="sm" fontWeight="normal" color="gray.600">
+                {selectedLeadName}
+              </Text>
+            </VStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <VStack spacing={3} align="stretch">
+              <Text fontWeight="medium" color="gray.700">
+                This lead was marked as Won {selectedWonDates.length} time{selectedWonDates.length > 1 ? 's' : ''}:
+              </Text>
+              {selectedWonDates.map((date, index) => (
+                <Box
+                  key={index}
+                  p={3}
+                  bg="green.50"
+                  borderRadius="md"
+                  borderLeft="4px"
+                  borderColor="green.500"
+                >
+                  <HStack justify="space-between">
+                    <VStack align="start" spacing={0}>
+                      <Text fontWeight="semibold" color="green.700">
+                        Won #{index + 1}
+                      </Text>
+                      <Text fontSize="sm" color="gray.600">
+                        {formatDate(date)}
+                      </Text>
+                    </VStack>
+                    <Badge colorScheme="green" fontSize="xs">
+                      {new Date(date).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </Badge>
+                  </HStack>
+                </Box>
+              ))}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={onWonDatesClose} colorScheme="blue" w="full">
+              Close
             </Button>
           </ModalFooter>
         </ModalContent>

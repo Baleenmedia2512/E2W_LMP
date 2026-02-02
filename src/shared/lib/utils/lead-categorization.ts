@@ -79,24 +79,24 @@ export function categorizeAndSortLeads(
       
       console.log(`Lead ${lead.name}: Future=${futureFollowUps.length}, Past=${pastFollowUps.length}`);
       if (futureFollowUps.length > 0) {
-        console.log(`  Future dates:`, futureFollowUps.map(f => f.scheduledAt));
+        console.log(`  Future dates:`, futureFollowUps.map((f: any) => f.scheduledAt));
       }
       if (pastFollowUps.length > 0) {
-        console.log(`  Past dates:`, pastFollowUps.map(f => f.scheduledAt));
+        console.log(`  Past dates:`, pastFollowUps.map((f: any) => f.scheduledAt));
       }
       
       let nextFollowUp;
       
       // Prefer earliest future followup
       if (futureFollowUps.length > 0) {
-        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+        nextFollowUp = futureFollowUps.reduce((earliest: any, current: any) => {
           const earliestDate = ensureDate(earliest.scheduledAt);
           const currentDate = ensureDate(current.scheduledAt);
           return currentDate < earliestDate ? current : earliest;
         });
       } else if (pastFollowUps.length > 0) {
         // If no future followups, use most recent overdue one
-        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+        nextFollowUp = pastFollowUps.reduce((latest: any, current: any) => {
           const latestDate = ensureDate(latest.scheduledAt);
           const currentDate = ensureDate(current.scheduledAt);
           return currentDate > latestDate ? current : latest;

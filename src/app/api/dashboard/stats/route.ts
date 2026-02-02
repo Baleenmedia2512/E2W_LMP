@@ -3,6 +3,7 @@ import prisma from '@/shared/lib/db/prisma';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const runtime = 'nodejs';
 
 /**
  * GET /api/dashboard/stats
@@ -30,12 +31,24 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
 
     // Build date filter for the selected range
+    // CRITICAL: Handle timezone correctly - dates come as YYYY-MM-DD in local timezone
     const dateFilter: any = {};
     if (startDateParam && endDateParam) {
-      const startDate = new Date(startDateParam);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(endDateParam);
-      endDate.setHours(23, 59, 59, 999);
+      // Parse date strings as local dates (not UTC)
+      const [startYear, startMonth, startDay] = startDateParam.split('-').map(Number);
+      const [endYear, endMonth, endDay] = endDateParam.split('-').map(Number);
+      
+      const startDate = new Date(startYear!, startMonth! - 1, startDay!, 0, 0, 0, 0);
+      const endDate = new Date(endYear!, endMonth! - 1, endDay!, 23, 59, 59, 999);
+      
+      console.log('[Dashboard Stats] Date filter:', {
+        startDateParam,
+        endDateParam,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        localStart: startDate.toString(),
+        localEnd: endDate.toString()
+      });
       
       dateFilter.gte = startDate;
       dateFilter.lte = endDate;
@@ -78,13 +91,19 @@ export async function GET(request: NextRequest) {
       lostLeadsWhere.updatedAt = dateFilter;
     }
 
-    // 5. TOTAL LEADS - updated (last edited) in date range
+    // 5. UNQUALIFIED LEADS - marked as unqualified (by updatedAt) in date range
+    const unqualifiedLeadsWhere: any = { status: 'unqualified', ...userFilter };
+    if (hasDateFilter) {
+      unqualifiedLeadsWhere.updatedAt = dateFilter;
+    }
+
+    // 6. TOTAL LEADS - updated (last edited) in date range
     const totalLeadsWhere: any = { ...userFilter };
     if (hasDateFilter) {
       totalLeadsWhere.updatedAt = dateFilter;
     }
 
-    // 6. CALLS/CONVERSATIONS - made in date range
+    // 7. CALLS/CONVERSATIONS - made in date range
     const callsWhere: any = {};
     if (hasDateFilter) {
       callsWhere.createdAt = dateFilter;
@@ -93,13 +112,45 @@ export async function GET(request: NextRequest) {
       callsWhere.callerId = userId;
     }
 
+    // CRITICAL: Use consistent timezone handling for accurate date/time comparisons
+    // All calculations should use the server's local timezone (configured via TZ env var)
+    // Calculate current time and "today" boundaries in IST (UTC+5:30)
+    // Database stores timestamps in UTC, so we need to calculate IST boundaries in UTC terms
     const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    
+    // Get IST date components
+    const istTime = new Date(now.getTime() + istOffset);
+    const istYear = istTime.getUTCFullYear();
+    const istMonth = istTime.getUTCMonth();
+    const istDate = istTime.getUTCDate();
+    
+    // Create today's boundaries in IST, then convert back to UTC for database comparison
+    // IST today start: IST midnight = UTC (midnight - 5:30)
+    const todayStartIST = new Date(Date.UTC(istYear, istMonth, istDate, 0, 0, 0, 0));
+    const todayEndIST = new Date(Date.UTC(istYear, istMonth, istDate, 23, 59, 59, 999));
+    
+    // Convert to UTC equivalents (subtract IST offset)
+    const todayStart = new Date(todayStartIST.getTime() - istOffset);
+    const todayEnd = new Date(todayEndIST.getTime() - istOffset);
+    
+    // For comparison, use current time in UTC (database stores UTC timestamps)
+    const istNow = now; // We compare DB timestamps (UTC) directly
+    
+    console.log('[Dashboard Stats] Server timezone info:', {
+      serverTime: now.toISOString(),
+      serverLocalTime: now.toString(),
+      timezone: process.env.TZ || 'default',
+      todayStart: todayStart.toISOString(),
+      todayEnd: todayEnd.toISOString()
+    });
 
     // Fetch all stats in parallel for optimal performance
     const [
       newLeadsCount,
       wonLeadsCount,
       lostLeadsCount,
+      unqualifiedLeadsCount,
       totalLeadsCount,
       conversationsCount,
       followUpsScheduled,
@@ -116,19 +167,22 @@ export async function GET(request: NextRequest) {
       // 3. Lost leads in date range
       prisma.lead.count({ where: lostLeadsWhere }),
 
-      // 4. Total leads (created or updated in date range)
+      // 4. Unqualified leads in date range
+      prisma.lead.count({ where: unqualifiedLeadsWhere }),
+
+      // 5. Total leads (created or updated in date range)
       prisma.lead.count({ where: totalLeadsWhere }),
 
-      // 5. Conversations/Calls in date range
+      // 6. Conversations/Calls in date range
       prisma.callLog.count({ where: callsWhere }),
 
-      // 6. Follow-ups scheduled in date range - get all to count unique leads
+      // 7. Follow-ups scheduled in date range - get all to count unique leads
       prisma.followUp.findMany({ 
         where: followUpsScheduledWhere,
         select: { leadId: true, scheduledAt: true }
       }),
 
-      // 7. All pending follow-ups (for overdue calculation) - CRITICAL: only for ACTIVE leads
+      // 8. All pending follow-ups (for overdue calculation) - CRITICAL: only for ACTIVE leads
       // This matches the lead categorization logic which filters by active statuses
       prisma.followUp.findMany({
         where: {
@@ -142,7 +196,7 @@ export async function GET(request: NextRequest) {
         orderBy: { scheduledAt: 'desc' },
       }),
 
-      // 8. Recent leads (from date range)
+      // 9. Recent leads (from date range)
       prisma.lead.findMany({
         where: newLeadsWhere,
         include: {
@@ -153,7 +207,7 @@ export async function GET(request: NextRequest) {
         take: 5,
       }),
 
-      // 9. Upcoming follow-ups for display - CRITICAL: only for ACTIVE leads
+      // 10. Upcoming follow-ups for display - CRITICAL: only for ACTIVE leads
       prisma.followUp.findMany({
         where: {
           Lead: {
@@ -176,9 +230,14 @@ export async function GET(request: NextRequest) {
     // Prefer FUTURE follow-ups over past ones when determining the "next" follow-up
     const leadFollowUpMap = new Map<string, any>();
     
-    // Define today's date range
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    console.log('[Dashboard Stats] Today range for follow-up calculation (IST):', {
+      istDate: `${istYear}-${istMonth + 1}-${istDate}`,
+      todayStartUTC: todayStart.toISOString(),
+      todayEndUTC: todayEnd.toISOString(),
+      currentTimeUTC: now.toISOString(),
+      todayStartIST: todayStartIST.toISOString(),
+      todayEndIST: todayEndIST.toISOString()
+    });
     
     // Group all follow-ups by lead
     const followUpsByLeadForToday = new Map<string, any[]>();
@@ -191,8 +250,8 @@ export async function GET(request: NextRequest) {
     
     // Find the NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLeadForToday.entries()) {
-      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
-      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
@@ -214,14 +273,23 @@ export async function GET(request: NextRequest) {
     }
     
     // Count only leads whose NEXT follow-up is scheduled for TODAY with FUTURE time
+    // Compare database timestamps (UTC) against IST today boundaries (converted to UTC)
     let followUpsDueCount = 0;
     for (const followUp of leadFollowUpMap.values()) {
       const scheduledDate = new Date(followUp.scheduledAt);
-      // Count only TODAY's follow-ups that are in the FUTURE (time not passed yet)
+      // Count only TODAY's follow-ups (in IST) that are in the FUTURE
       if (scheduledDate >= now && scheduledDate >= todayStart && scheduledDate <= todayEnd) {
+        console.log('[Dashboard Stats] Follow-up counted for today:', {
+          leadId: followUp.leadId,
+          scheduledAtUTC: scheduledDate.toISOString(),
+          currentTimeUTC: now.toISOString(),
+          isFuture: scheduledDate >= now,
+          inTodayRange: scheduledDate >= todayStart && scheduledDate <= todayEnd
+        });
         followUpsDueCount++;
       }
     }
+    console.log('[Dashboard Stats] Total follow-ups due today:', followUpsDueCount);
 
     // Calculate OVERDUE LEADS (count unique leads with overdue follow-ups)
     // CRITICAL: Must match lead-categorization.ts logic exactly
@@ -242,19 +310,19 @@ export async function GET(request: NextRequest) {
     
     // Then, find NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLead.entries()) {
-      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
-      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
       if (futureFollowUps.length > 0) {
         // Prefer earliest future follow-up
-        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+        nextFollowUp = futureFollowUps.reduce((earliest: any, current: any) => {
           return new Date(current.scheduledAt) < new Date(earliest.scheduledAt) ? current : earliest;
         });
       } else if (pastFollowUps.length > 0) {
         // If no future, use most recent past
-        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+        nextFollowUp = pastFollowUps.reduce((latest: any, current: any) => {
           return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
         });
       }
@@ -289,19 +357,19 @@ export async function GET(request: NextRequest) {
     
     // Find the NEXT follow-up per lead (prefer earliest future, else most recent past)
     for (const [leadId, followUps] of followUpsByLeadForDisplay.entries()) {
-      const futureFollowUps = followUps.filter(f => new Date(f.scheduledAt) >= now);
-      const pastFollowUps = followUps.filter(f => new Date(f.scheduledAt) < now);
+      const futureFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) >= now);
+      const pastFollowUps = followUps.filter((f: any) => new Date(f.scheduledAt) < now);
       
       let nextFollowUp;
       
       if (futureFollowUps.length > 0) {
         // Prefer earliest future follow-up
-        nextFollowUp = futureFollowUps.reduce((earliest, current) => {
+        nextFollowUp = futureFollowUps.reduce((earliest: any, current: any) => {
           return new Date(current.scheduledAt) < new Date(earliest.scheduledAt) ? current : earliest;
         });
       } else if (pastFollowUps.length > 0) {
         // If no future, use most recent past
-        nextFollowUp = pastFollowUps.reduce((latest, current) => {
+        nextFollowUp = pastFollowUps.reduce((latest: any, current: any) => {
           return new Date(current.scheduledAt) > new Date(latest.scheduledAt) ? current : latest;
         });
       }
@@ -335,11 +403,12 @@ export async function GET(request: NextRequest) {
       ? Math.round((wonLeadsCount / totalLeadsCount) * 100) 
       : 0;
 
-    // Calculate Total Leads for dashboard (New + Overdue + Today Follow-ups + Won)
-    const totalLeadsForDashboard = newLeadsCount + overdueCount + followUpsDueCount + wonLeadsCount;
+    // Calculate Total Leads for dashboard (New + Overdue + Today Follow-ups)
+    // Note: Won leads are excluded from this total as they are completed
+    const totalLeadsForDashboard = newLeadsCount + overdueCount + followUpsDueCount;
 
     // Transform recentLeads to match frontend expectations
-    const transformedRecentLeads = recentLeads.map(lead => ({
+    const transformedRecentLeads = recentLeads.map((lead: any) => ({
       ...lead,
       assignedTo: lead.User_Lead_assignedToIdToUser,
       createdBy: lead.User_Lead_createdByIdToUser,
@@ -358,6 +427,7 @@ export async function GET(request: NextRequest) {
           totalLeadsForDashboard, // New + Overdue + Today Follow-ups
           wonLeads: wonLeadsCount,
           lostLeads: lostLeadsCount,
+          unqualifiedLeads: unqualifiedLeadsCount,
           conversations: conversationsCount,
           conversionRate,
           winRate,

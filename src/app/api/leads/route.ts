@@ -3,6 +3,7 @@ import prisma from '@/shared/lib/db/prisma';
 import { notifyLeadAssigned } from '@/shared/lib/utils/notification-service';
 import { normalizePhoneForStorage, isValidPhone, getPhoneValidationError } from '@/shared/utils/phone';
 import { randomUUID } from 'crypto';
+import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-utils';
 
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
@@ -10,17 +11,65 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const source = searchParams.get('source');
+    const assignedTo = searchParams.get('assigned_to');
     const assignedToId = searchParams.get('assignedToId');
     const search = searchParams.get('search');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
+
+    // Extract user from JWT token for authentication and filtering
+    const authHeader = request.headers.get('authorization');
+    const token = extractTokenFromHeader(authHeader);
+    let currentUserId: string | null = null;
+    let currentUserRole: string | null = null;
+    
+    if (token) {
+      const payload = verifyToken(token);
+      if (payload && payload.userId) {
+        currentUserId = payload.userId;
+        currentUserRole = payload.roleName;
+      }
+    }
 
     const where: any = {};
 
     if (status) where.status = status;
     if (source) where.source = source;
-    if (assignedToId) where.assignedToId = assignedToId;
+    
+    // Date range filter for createdAt
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lt = new Date(endDate);
+      }
+    }
+    
+    // Handle assigned_to filtering
+    if (assignedTo === 'me') {
+      // Explicit filter: show only leads assigned to current user
+      if (currentUserId) {
+        where.assignedToId = currentUserId;
+      }
+    } else if (assignedToId) {
+      // Explicit assignedToId parameter
+      where.assignedToId = assignedToId;
+    } else if (currentUserId) {
+      // DEFAULT BEHAVIOR: Always filter by current user UNLESS they are Team Lead or Super Agent
+      // Team Lead and Super Agent can see all leads by default (unless "Assigned to Me" is checked)
+      const canSeeAllLeads = currentUserRole === 'Team Lead' || currentUserRole === 'Super Agent';
+      
+      if (!canSeeAllLeads) {
+        // Normal agents (Sales Agent) ALWAYS see only their assigned leads
+        where.assignedToId = currentUserId;
+      }
+      // Team Lead and Super Agent: no filter applied, they see all leads
+    }
 
     if (search) {
       where.OR = [
@@ -36,6 +85,20 @@ export async function GET(request: NextRequest) {
         include: {
           User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
           User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
+          CallLog: { 
+            orderBy: { createdAt: 'desc' }, 
+            take: 10,
+            select: {
+              id: true,
+              remarks: true,
+              callStatus: true,
+              createdAt: true,
+              startedAt: true,
+              endedAt: true,
+              duration: true,
+              attemptNumber: true,
+            }
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -45,7 +108,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Transform the response to match frontend expectations
-    const transformedLeads = leads.map(lead => ({
+    const transformedLeads = leads.map((lead: any) => ({
       ...lead,
       assignedTo: lead.User_Lead_assignedToIdToUser,
       createdBy: lead.User_Lead_createdByIdToUser,
@@ -111,7 +174,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
     }
 
     // Find current agent's index
-    const currentIndex = agents.findIndex(a => a.id === lastLead.assignedToId);
+    const currentIndex = agents.findIndex((a: any) => a.id === lastLead.assignedToId);
     
     // If agent not found or is last, start from beginning; otherwise next agent
     const nextIndex = currentIndex === -1 || currentIndex === agents.length - 1 
@@ -190,9 +253,11 @@ export async function POST(request: NextRequest) {
       });
 
       // Send notification if lead is assigned
-      if (assignedToId) {
+      if (assignedToId && assignedToId !== null) {
         try {
-          await notifyLeadAssigned(lead.id, lead.name, assignedToId);
+          const assignerName = body.createdById ? 
+            (await prisma.user.findUnique({ where: { id: body.createdById } }))?.name ?? undefined : undefined;
+          await notifyLeadAssigned(lead.id, lead.name, String(assignedToId), assignerName);
         } catch (error) {
           console.error('Failed to send lead assignment notification:', error);
         }
