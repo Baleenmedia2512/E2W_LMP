@@ -94,7 +94,7 @@ export default function LeadOutcomesPage() {
   const [dataMinDate, setDataMinDate] = useState(''); // Store min date from data
   const [dataMaxDate, setDataMaxDate] = useState(''); // Store max date from data
   const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
-  const [showExistingOnly, setShowExistingOnly] = useState<boolean>(false); // Filter for existing clients
+  const [clientTypeFilter, setClientTypeFilter] = useState<string>('all'); // Filter: 'all', 'existing', 'non-existing'
   
   // Won section view mode: 'current' or 'historical'
   const [wonViewMode, setWonViewMode] = useState<'current' | 'historical'>('current');
@@ -430,9 +430,11 @@ export default function LeadOutcomesPage() {
     // Only filter by status - other filters are already applied by the API
     let filtered = leads.filter(lead => lead.status === status);
 
-    // Apply existing clients filter
-    if (showExistingOnly) {
+    // Apply client type filter
+    if (clientTypeFilter === 'existing') {
       filtered = filtered.filter(lead => (lead as any).is_existing === true);
+    } else if (clientTypeFilter === 'non-existing') {
+      filtered = filtered.filter(lead => !(lead as any).is_existing || (lead as any).is_existing === false);
     }
 
     // Apply sorting
@@ -504,7 +506,7 @@ export default function LeadOutcomesPage() {
       return allSections;
     }
     return allSections.filter(section => section.status === outcomeStatusFilter);
-  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus, showExistingOnly]);
+  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus, clientTypeFilter]);
 
   const clearFilters = () => {
     setSearchInput('');
@@ -515,11 +517,11 @@ export default function LeadOutcomesPage() {
     setDateRangeFilter('all');
     setStartDate('');
     setEndDate('');
-    setShowExistingOnly(false);
+    setClientTypeFilter('all');
     setDateRangeComputed(false); // Reset so min/max dates can be recalculated
   };
 
-  const hasActiveFilters = searchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate || showExistingOnly;
+  const hasActiveFilters = searchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate || clientTypeFilter !== 'all';
 
   const openRescheduleModal = (leadId: string, leadName: string) => {
     setRescheduleLeadId(leadId);
@@ -710,15 +712,17 @@ export default function LeadOutcomesPage() {
           </InputGroup>
 
           {/* Filter Row */}
-          <Flex gap={3} flexWrap="wrap" align="center">
-            <Checkbox
-              isChecked={showExistingOnly}
-              onChange={(e) => setShowExistingOnly(e.target.checked)}
+          <Flex gap={3} flexWrap="wrap">
+            <Select
+              value={clientTypeFilter}
+              onChange={(e) => setClientTypeFilter(e.target.value)}
+              maxW={{ base: 'full', sm: '200px' }}
               size={{ base: 'sm', md: 'md' }}
-              colorScheme="green"
             >
-              <Text fontSize={{ base: 'sm', md: 'md' }}>Existing Clients</Text>
-            </Checkbox>
+              <option value="all">All Clients</option>
+              <option value="existing">Existing Clients</option>
+              <option value="non-existing">Non-Existing Clients</option>
+            </Select>
 
             <Select
               value={outcomeStatusFilter}

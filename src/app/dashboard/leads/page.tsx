@@ -273,7 +273,7 @@ export default function LeadsPage() {
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
   const [showOnlyToday, setShowOnlyToday] = useState<boolean>(true); // Default: show only today's leads
-  const [showExistingOnly, setShowExistingOnly] = useState<boolean>(false); // Filter for existing clients
+  const [clientTypeFilter, setClientTypeFilter] = useState<string>('all'); // Filter: 'all', 'existing', 'non-existing'
   const [visibleCount, setVisibleCount] = useState<number>(50); // Lazy loading: initially show 50 leads
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
@@ -588,9 +588,11 @@ export default function LeadsPage() {
       );
     }
 
-    // Existing clients filter
-    if (showExistingOnly) {
+    // Client type filter
+    if (clientTypeFilter === 'existing') {
       filtered = filtered.filter(lead => lead.is_existing === true);
+    } else if (clientTypeFilter === 'non-existing') {
+      filtered = filtered.filter(lead => !lead.is_existing || lead.is_existing === false);
     }
 
     // Date range filter
@@ -630,7 +632,7 @@ export default function LeadsPage() {
     }
 
     return filtered;
-  }, [searchQuery, statusFilter, sourceFilter, dateRangeFilter, attemptsFilter, leads, showExistingOnly]);
+  }, [searchQuery, statusFilter, sourceFilter, dateRangeFilter, attemptsFilter, leads, clientTypeFilter]);
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
@@ -847,14 +849,17 @@ export default function LeadsPage() {
               <option value="scheduled">Scheduled Follow-up</option>
             </Select>
 
-            <Checkbox
-              isChecked={showExistingOnly}
-              onChange={(e) => setShowExistingOnly(e.target.checked)}
+            <Select
+              value={clientTypeFilter}
+              onChange={(e) => setClientTypeFilter(e.target.value)}
               size={{ base: 'sm', md: 'md' }}
-              colorScheme="green"
+              maxW={{ base: 'full', sm: '200px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
             >
-              <Text fontSize={{ base: 'sm', md: 'md' }}>Existing Clients</Text>
-            </Checkbox>
+              <option value="all">All Clients</option>
+              <option value="existing">Existing Clients</option>
+              <option value="non-existing">Non-Existing Clients</option>
+            </Select>
 
             <Select
               value={sourceFilter}
