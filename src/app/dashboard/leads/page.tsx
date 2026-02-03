@@ -1034,7 +1034,7 @@ export default function LeadsPage() {
                           <Text
                             fontWeight="bold"
                             fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
-                            color="blue.600"
+                            color={lead.is_existing ? "green.600" : "blue.600"}
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}
@@ -1289,7 +1289,7 @@ export default function LeadsPage() {
                           <Text
                             fontWeight="bold"
                             fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
-                            color="blue.600"
+                            color={lead.is_existing ? "green.600" : "blue.600"}
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}
@@ -1542,7 +1542,7 @@ export default function LeadsPage() {
                           <Text
                             fontWeight="bold"
                             fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
-                            color="blue.600"
+                            color={lead.is_existing ? "green.600" : "blue.600"}
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}
@@ -1839,7 +1839,7 @@ export default function LeadsPage() {
                           <Text
                             fontWeight="bold"
                             fontSize={{ base: 'md', md: 'lg' }}
-                            color="blue.600"
+                            color={lead.is_existing ? "green.600" : "blue.600"}
                             cursor="pointer"
                             onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                             _hover={{ textDecoration: 'underline' }}

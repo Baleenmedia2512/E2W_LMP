@@ -112,6 +112,7 @@ model Lead {
   createdAt                    DateTime          @default(now())
   updatedAt                    DateTime
   callAttempts                 Int               @default(0)
+  is_existing                  Boolean           @default(false)
   ActivityHistory              ActivityHistory[]
   CallLog                      CallLog[]
   FollowUp                     FollowUp[]
