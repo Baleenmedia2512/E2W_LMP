@@ -942,7 +942,7 @@ export default function LeadOutcomesPage() {
                           _hover={{ bg: 'gray.50', cursor: 'pointer' }}
                           onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                         >
-                          <Td fontWeight="medium">{lead.name}</Td>
+                          <Td fontWeight="medium" color={lead.is_existing ? "green.600" : "blue.600"}>{lead.name}</Td>
                           <Td>{formatPhoneForDisplay(lead.phone)}</Td>
                           <Td>
                             <VStack align="start" spacing={1}>
