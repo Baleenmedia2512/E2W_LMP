@@ -856,9 +856,9 @@ export default function LeadsPage() {
               maxW={{ base: 'full', sm: '200px' }}
               flex={{ base: '1 1 100%', sm: '0 1 auto' }}
             >
-              <option value="all">All Clients</option>
-              <option value="existing">Existing Clients</option>
-              <option value="non-existing">Non-Existing Clients</option>
+              <option value="all">Both Clients and Leads</option>
+              <option value="existing">Clients Only</option>
+              <option value="non-existing">Leads Only</option>
             </Select>
 
             <Select
