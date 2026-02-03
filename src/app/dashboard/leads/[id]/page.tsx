@@ -585,7 +585,7 @@ export default function LeadDetailPage() {
           <CardBody>
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
-                <Heading size="md">{lead.name}</Heading>
+                <Heading size="md" color={lead.is_existing ? "green.600" : "blue.600"}>{lead.name}</Heading>
                 <HStack spacing={2}>
                   <Badge colorScheme={getStatusColor(lead.status)}>
                     {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status.toUpperCase()}
