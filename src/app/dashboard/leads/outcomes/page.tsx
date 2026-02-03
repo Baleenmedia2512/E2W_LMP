@@ -38,6 +38,7 @@ import {
   Textarea,
   useDisclosure,
   Collapse,
+  Checkbox,
 } from '@chakra-ui/react';
 import { HiEye, HiSearch, HiPhone, HiChevronDown, HiChevronUp } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
@@ -57,6 +58,7 @@ interface Lead {
   notes?: string;
   customerRequirement?: string;
   status: string;
+  is_existing?: boolean | null;
   wonDate?: string; // For historical won leads - date when it was marked as won
   wonDates?: string[]; // For historical won leads - array of all dates when marked as won
   wonCount?: number; // For historical won leads - count of how many times marked as won
@@ -92,6 +94,7 @@ export default function LeadOutcomesPage() {
   const [dataMinDate, setDataMinDate] = useState(''); // Store min date from data
   const [dataMaxDate, setDataMaxDate] = useState(''); // Store max date from data
   const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
+  const [showExistingOnly, setShowExistingOnly] = useState<boolean>(false); // Filter for existing clients
   
   // Won section view mode: 'current' or 'historical'
   const [wonViewMode, setWonViewMode] = useState<'current' | 'historical'>('current');
@@ -427,6 +430,11 @@ export default function LeadOutcomesPage() {
     // Only filter by status - other filters are already applied by the API
     let filtered = leads.filter(lead => lead.status === status);
 
+    // Apply existing clients filter
+    if (showExistingOnly) {
+      filtered = filtered.filter(lead => (lead as any).is_existing === true);
+    }
+
     // Apply sorting
     const config = sortConfig[status];
     if (config) {
@@ -496,7 +504,7 @@ export default function LeadOutcomesPage() {
       return allSections;
     }
     return allSections.filter(section => section.status === outcomeStatusFilter);
-  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus]);
+  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus, showExistingOnly]);
 
   const clearFilters = () => {
     setSearchInput('');
@@ -507,10 +515,11 @@ export default function LeadOutcomesPage() {
     setDateRangeFilter('all');
     setStartDate('');
     setEndDate('');
+    setShowExistingOnly(false);
     setDateRangeComputed(false); // Reset so min/max dates can be recalculated
   };
 
-  const hasActiveFilters = searchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate;
+  const hasActiveFilters = searchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate || showExistingOnly;
 
   const openRescheduleModal = (leadId: string, leadName: string) => {
     setRescheduleLeadId(leadId);
@@ -701,7 +710,16 @@ export default function LeadOutcomesPage() {
           </InputGroup>
 
           {/* Filter Row */}
-          <Flex gap={3} flexWrap="wrap">
+          <Flex gap={3} flexWrap="wrap" align="center">
+            <Checkbox
+              isChecked={showExistingOnly}
+              onChange={(e) => setShowExistingOnly(e.target.checked)}
+              size={{ base: 'sm', md: 'md' }}
+              colorScheme="green"
+            >
+              <Text fontSize={{ base: 'sm', md: 'md' }}>Existing Clients</Text>
+            </Checkbox>
+
             <Select
               value={outcomeStatusFilter}
               onChange={(e) => setOutcomeStatusFilter(e.target.value)}

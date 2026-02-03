@@ -273,6 +273,7 @@ export default function LeadsPage() {
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
   const [showOnlyToday, setShowOnlyToday] = useState<boolean>(true); // Default: show only today's leads
+  const [showExistingOnly, setShowExistingOnly] = useState<boolean>(false); // Filter for existing clients
   const [visibleCount, setVisibleCount] = useState<number>(50); // Lazy loading: initially show 50 leads
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
@@ -587,6 +588,11 @@ export default function LeadsPage() {
       );
     }
 
+    // Existing clients filter
+    if (showExistingOnly) {
+      filtered = filtered.filter(lead => lead.is_existing === true);
+    }
+
     // Date range filter
     if (dateRangeFilter !== 'all') {
       const now = new Date();
@@ -624,7 +630,7 @@ export default function LeadsPage() {
     }
 
     return filtered;
-  }, [searchQuery, statusFilter, sourceFilter, dateRangeFilter, attemptsFilter, leads]);
+  }, [searchQuery, statusFilter, sourceFilter, dateRangeFilter, attemptsFilter, leads, showExistingOnly]);
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
@@ -840,6 +846,15 @@ export default function LeadsPage() {
               <option value="overdue">Overdue</option>
               <option value="scheduled">Scheduled Follow-up</option>
             </Select>
+
+            <Checkbox
+              isChecked={showExistingOnly}
+              onChange={(e) => setShowExistingOnly(e.target.checked)}
+              size={{ base: 'sm', md: 'md' }}
+              colorScheme="green"
+            >
+              <Text fontSize={{ base: 'sm', md: 'md' }}>Existing Clients</Text>
+            </Checkbox>
 
             <Select
               value={sourceFilter}
