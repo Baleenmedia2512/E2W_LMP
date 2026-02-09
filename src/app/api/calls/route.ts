@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
         callStatus: body.callStatus || 'answer',
         attemptNumber: body.attemptNumber || 1,
         customerRequirement: body.customerRequirement || null,
+        phoneDialed: body.phoneDialed || null,
+        recordingStatus: body.recordingStatus || 'pending',
+        recordingAppCallId: body.recordingAppCallId || null,
       },
       include: {
         Lead: { select: { id: true, name: true } },
