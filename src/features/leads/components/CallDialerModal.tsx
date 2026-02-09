@@ -287,6 +287,9 @@ export default function CallDialerModal({
         }
       }
 
+      // Normalize phone number for Call Monitor matching (remove spaces, +, etc.)
+      const normalizedPhone = leadPhone.replace(/[\s\-\(\)\+]/g, '');
+
       // Save call log via API
       const response = await fetch('/api/calls', {
         method: 'POST',
@@ -300,6 +303,8 @@ export default function CallDialerModal({
           callStatus,
           customerRequirement: remarks || 'Call logged',
           remarks: remarks || null,
+          phoneDialed: normalizedPhone, // For Call Monitor app matching
+          recordingStatus: 'pending', // Will be updated when recording is available
         }),
       });
 
