@@ -9,6 +9,11 @@ export async function POST(request: Request) {
   try {
     const { callLogId, recordingUrl, duration, recordingAppCallId, apiKey } = await request.json();
 
+    console.log('[Update Recording] Request received:');
+    console.log(`  Call Log ID: ${callLogId}`);
+    console.log(`  Recording URL: ${recordingUrl}`);
+    console.log(`  Duration: ${duration}s`);
+
     // Validate API key (optional security)
     const expectedApiKey = process.env.CALL_MONITOR_API_KEY;
     if (expectedApiKey && apiKey !== expectedApiKey) {
@@ -48,6 +53,11 @@ export async function POST(request: Request) {
         duration: duration || existingCallLog.duration, // Update duration if provided
       },
     });
+
+    console.log('[Update Recording] ✅ Recording URL updated successfully!');
+    console.log(`  Call Log: ${updatedCallLog.id}`);
+    console.log(`  Lead: ${existingCallLog.leadId}`);
+    console.log(`  Status: ${updatedCallLog.recordingStatus}`);
 
     return NextResponse.json({
       success: true,
