@@ -1,5 +1,5 @@
-import { Box, IconButton, Text, HStack, Spinner } from '@chakra-ui/react';
-import { FaPlay, FaPause, FaDownload } from 'react-icons/fa';
+import { Box, IconButton, Text, HStack, Spinner, Tooltip } from '@chakra-ui/react';
+import { FaPlay, FaPause, FaDownload, FaExclamationTriangle } from 'react-icons/fa';
 import { useState, useRef, useEffect } from 'react';
 
 interface CallRecordingPlayerProps {
@@ -21,6 +21,7 @@ export default function CallRecordingPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize audio element
@@ -30,6 +31,7 @@ export default function CallRecordingPlayer({
       
       audioRef.current.addEventListener('loadedmetadata', () => {
         setDuration(audioRef.current?.duration || 0);
+        setHasError(false);
       });
 
       audioRef.current.addEventListener('timeupdate', () => {
@@ -47,6 +49,13 @@ export default function CallRecordingPlayer({
 
       audioRef.current.addEventListener('canplay', () => {
         setIsLoading(false);
+        setHasError(false);
+      });
+
+      audioRef.current.addEventListener('error', (e) => {
+        console.error('Audio loading error:', e);
+        setIsLoading(false);
+        setHasError(true);
       });
     }
 
@@ -58,26 +67,29 @@ export default function CallRecordingPlayer({
     };
   }, [recordingUrl]);
 
-  const togglePlayPause = () => {
+  const togglePlayPause = async () => {
     if (!audioRef.current) return;
 
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
+    try {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        await audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+      setHasError(false);
+    } catch (error) {
+      console.error('Playback error:', error);
+      setHasError(true);
+      setIsPlaying(false);
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleDownload = () => {
     if (!recordingUrl) return;
     
-    const link = document.createElement('a');
-    link.href = recordingUrl;
-    link.download = `call-recording-${Date.now()}.m4a`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Open in new tab - let browser handle download
+    window.open(recordingUrl, '_blank');
   };
 
   const formatTime = (seconds: number): string => {
@@ -103,6 +115,30 @@ export default function CallRecordingPlayer({
           Recording pending...
         </Text>
       </HStack>
+    );
+  }
+
+  // Show error state if file couldn't be loaded
+  if (hasError) {
+    return (
+      <Tooltip 
+        label="Recording file not found or inaccessible. The Supabase storage bucket may not be configured. Check FIX_RECORDING_PLAYBACK.md for setup instructions."
+        placement="top"
+        hasArrow
+      >
+        <HStack spacing={2} color="orange.500">
+          <FaExclamationTriangle />
+          <Text fontSize="xs">Recording unavailable</Text>
+          <IconButton
+            aria-label="Open recording URL"
+            icon={<FaDownload />}
+            size="xs"
+            variant="ghost"
+            colorScheme="orange"
+            onClick={handleDownload}
+          />
+        </HStack>
+      </Tooltip>
     );
   }
 
@@ -140,14 +176,16 @@ export default function CallRecordingPlayer({
           </HStack>
         </Box>
 
-        <IconButton
-          aria-label="Download recording"
-          icon={<FaDownload />}
-          size="sm"
-          colorScheme="gray"
-          variant="ghost"
-          onClick={handleDownload}
-        />
+        <Tooltip label="Open recording in new tab" placement="top">
+          <IconButton
+            aria-label="Download recording"
+            icon={<FaDownload />}
+            size="sm"
+            colorScheme="gray"
+            variant="ghost"
+            onClick={handleDownload}
+          />
+        </Tooltip>
       </HStack>
     </Box>
   );
