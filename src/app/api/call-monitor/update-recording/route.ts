@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/shared/lib/prisma';
+import { prisma } from '@/shared/lib/db/prisma';
 
 /**
  * API endpoint for Call Monitor app to update a call log with
