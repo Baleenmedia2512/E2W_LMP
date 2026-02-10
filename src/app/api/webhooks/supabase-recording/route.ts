@@ -37,9 +37,11 @@ export async function POST(request: Request) {
       const { name: fName, bucket_id, metadata } = payload.record;
       fileName = fName;
       
-      // Construct the public URL
+      // Construct the public URL with proper encoding
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wkwrrdcjknvupwsfdjtd.supabase.co';
-      recordingUrl = `${supabaseUrl}/storage/v1/object/public/${bucket_id}/${fName}`;
+      // Encode the filename to handle spaces and special characters
+      const encodedFileName = encodeURIComponent(fName);
+      recordingUrl = `${supabaseUrl}/storage/v1/object/public/${bucket_id}/${encodedFileName}`;
       
       // Try to extract phone from metadata first, then filename
       phoneNumber = metadata?.phoneNumber;
