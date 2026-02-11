@@ -43,23 +43,59 @@ export async function POST(request: Request) {
       const encodedFileName = encodeURIComponent(fName);
       recordingUrl = `${supabaseUrl}/storage/v1/object/public/${bucket_id}/${encodedFileName}`;
       
-      // Try to extract phone from metadata first, then filename
+      // Try to extract phone from metadata first
       phoneNumber = metadata?.phoneNumber;
       
       if (!phoneNumber) {
-        // Extract phone number from filename
-        // Expected format: "1770723282215_Call recording Ramesh Easy2work_260210_170348.m4a"
-        const phoneMatch = fName.match(/(\d{10,})/);
-        if (!phoneMatch) {
-          console.log('[Recording Sync Webhook] ⚠️ Could not extract phone number');
+        console.log('[Recording Sync Webhook] ⚠️ No phone number in metadata');
+        console.log('[Recording Sync Webhook] ℹ️ Filename format: TIMESTAMP_TIMESTAMP_Call recording NAME...');
+        console.log('[Recording Sync Webhook] ℹ️ Attempting to extract contact name from filename');
+        
+        // Filename format: "1770789394301_1770789394111_Call recording Adthi E2W_260211_112454.m4a"
+        // Extract name after "Call recording" and before date/extension
+        const nameMatch = fName.match(/Call recording\s+([^_]+)/i);
+        
+        if (!nameMatch) {
+          console.log('[Recording Sync Webhook] ❌ Could not extract name from filename:', fName);
           return NextResponse.json({ 
             success: false, 
-            message: 'Could not extract phone number from filename or metadata',
-            recordingUrl 
+            message: 'Phone number required. Send payload with phoneNumber field or include in metadata.',
+            recordingUrl,
+            fileName: fName,
+            hint: 'Use format: { phoneNumber: "9360515518", recordingUrl: "..." }'
           });
         }
-        // Get last 10 digits
-        phoneNumber = phoneMatch[1].slice(-10);
+        
+        const contactName = nameMatch[1].trim();
+        console.log('[Recording Sync Webhook] 👤 Extracted contact name:', contactName);
+        
+        // Try to find lead by name
+        const leadByName = await prisma.lead.findFirst({
+          where: {
+            name: { contains: contactName, mode: 'insensitive' }
+          },
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            assignedToId: true,
+          }
+        });
+        
+        if (!leadByName) {
+          console.log('[Recording Sync Webhook] ❌ No lead found with name containing:', contactName);
+          return NextResponse.json({ 
+            success: false, 
+            message: 'No lead found matching contact name',
+            contactName,
+            recordingUrl,
+            fileName: fName,
+            hint: 'Send phoneNumber in payload for accurate matching'
+          });
+        }
+        
+        console.log('[Recording Sync Webhook] ✅ Found lead by name:', leadByName.name);
+        phoneNumber = leadByName.phone;
       }
     } else {
       return NextResponse.json({ 
@@ -75,6 +111,7 @@ export async function POST(request: Request) {
     console.log('[Recording Sync Webhook] 📞 Phone:', phoneNumber);
     console.log('[Recording Sync Webhook] 📁 File:', fileName);
     console.log('[Recording Sync Webhook] 🔗 URL:', recordingUrl);
+    
     // Normalize phone number (last 10 digits)
     const normalizedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
 
