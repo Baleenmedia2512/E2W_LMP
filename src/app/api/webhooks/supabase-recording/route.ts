@@ -53,7 +53,8 @@ export async function POST(request: Request) {
         
         // Filename format: "1770789394301_1770789394111_Call recording Adthi E2W_260211_112454.m4a"
         // Extract name after "Call recording" and before date/extension
-        const nameMatch = fName.match(/Call recording\s+([^_]+)/i);
+        // Name might be: "Adthi E2W", "Adthi", etc.
+        const nameMatch = fName.match(/Call recording\s+([A-Za-z\s]+)/i);
         
         if (!nameMatch) {
           console.log('[Recording Sync Webhook] ❌ Could not extract name from filename:', fName);
@@ -66,10 +67,14 @@ export async function POST(request: Request) {
           });
         }
         
-        const contactName = nameMatch[1].trim();
+        let contactName = nameMatch[1].trim();
         console.log('[Recording Sync Webhook] 👤 Extracted contact name:', contactName);
         
-        // Try to find lead by name
+        // Clean up name - remove "E2W" suffix if present
+        contactName = contactName.replace(/\s*E2W\s*$/i, '').trim();
+        console.log('[Recording Sync Webhook] 👤 Cleaned contact name:', contactName);
+        
+        // Try to find lead by name (partial match)
         const leadByName = await prisma.lead.findFirst({
           where: {
             name: { contains: contactName, mode: 'insensitive' }
@@ -171,7 +176,6 @@ export async function POST(request: Request) {
           recordingUrl,
           recordingStatus: 'available',
           duration: duration || callLog.duration,
-          updatedAt: new Date(),
         }
       });
 
