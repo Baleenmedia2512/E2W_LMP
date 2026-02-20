@@ -155,14 +155,14 @@ export async function POST(request: Request) {
     let callLog = await prisma.callLog.findFirst({
       where: {
         leadId: lead.id,
-        createdAt: { gte: thirtyMinutesAgo },
+        startedAt: { gte: thirtyMinutesAgo },
         OR: [
           { recordingUrl: null },
           { recordingStatus: 'pending' }
         ]
       },
       orderBy: {
-        createdAt: 'desc'
+        startedAt: 'desc'
       }
     });
 
