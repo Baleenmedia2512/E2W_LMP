@@ -122,12 +122,13 @@ export async function POST(request: Request) {
     console.log(`[Call Monitor] ✅ Lead found: ${lead.name} (${lead.id})`);
 
     // STEP 3: Check if there's a recent call log for this lead without recording
+    // Use a wider 30-minute window to catch manually logged calls
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     const recentCallLog = await prisma.callLog.findFirst({
       where: {
         leadId: lead.id,
         startedAt: {
-          gte: startWindow,
-          lte: endWindow,
+          gte: thirtyMinutesAgo,
         },
         OR: [
           { recordingStatus: 'pending' },
