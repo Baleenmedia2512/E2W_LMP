@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     let recordingUrl: string;
     let duration: number | undefined;
     let fileName: string = '';
+    let callTimestamp: Date | undefined;
 
     // Handle direct payload from Call Monitor app
     if (payload.phoneNumber && payload.recordingUrl) {
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
       phoneNumber = payload.phoneNumber;
       recordingUrl = payload.recordingUrl;
       duration = payload.duration;
+      callTimestamp = payload.timestamp ? new Date(payload.timestamp) : undefined;
       fileName = payload.fileName || recordingUrl.split('/').pop() || 'unknown';
     }
     // Handle Supabase webhook format
@@ -149,18 +151,51 @@ export async function POST(request: Request) {
 
     console.log('[Recording Sync Webhook] ✅ Found lead:', lead.name, `(${lead.id})`);
 
-    // Check if there's a recent call log (within last 30 minutes) without recording
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    // Determine time window for matching call logs
+    let timeWindowStart: Date;
+    let timeWindowEnd: Date;
+    
+    if (callTimestamp) {
+      // If we have the actual call timestamp, use a narrow ±2 minute window for precise matching
+      const twoMinutes = 2 * 60 * 1000;
+      timeWindowStart = new Date(callTimestamp.getTime() - twoMinutes);
+      timeWindowEnd = new Date(callTimestamp.getTime() + twoMinutes);
+      console.log('[Recording Sync Webhook] 🎯 Using precise timestamp matching (±2 min)');
+      console.log(`  Call timestamp: ${callTimestamp.toISOString()}`);
+      console.log(`  Search window: ${timeWindowStart.toISOString()} to ${timeWindowEnd.toISOString()}`);
+    } else {
+      // No timestamp provided, use wider 30-minute window (legacy behavior)
+      const thirtyMinutes = 30 * 60 * 1000;
+      timeWindowStart = new Date(Date.now() - thirtyMinutes);
+      timeWindowEnd = new Date();
+      console.log('[Recording Sync Webhook] ⏰ Using 30-minute window (no timestamp in payload)');
+    }
+    
+    // Build query conditions
+    const queryConditions: any = {
+      leadId: lead.id,
+      startedAt: {
+        gte: timeWindowStart,
+        lte: timeWindowEnd,
+      },
+      OR: [
+        { recordingUrl: null },
+        { recordingStatus: 'pending' }
+      ]
+    };
+    
+    // If duration is provided, add it as an additional filter for better matching
+    if (duration) {
+      // Allow ±3 seconds tolerance for duration matching
+      queryConditions.duration = {
+        gte: duration - 3,
+        lte: duration + 3,
+      };
+      console.log(`[Recording Sync Webhook] 🎯 Also matching by duration: ${duration}s (±3s tolerance)`);
+    }
     
     let callLog = await prisma.callLog.findFirst({
-      where: {
-        leadId: lead.id,
-        startedAt: { gte: thirtyMinutesAgo },
-        OR: [
-          { recordingUrl: null },
-          { recordingStatus: 'pending' }
-        ]
-      },
+      where: queryConditions,
       orderBy: {
         startedAt: 'desc'
       }
@@ -168,7 +203,11 @@ export async function POST(request: Request) {
 
     if (callLog) {
       // Update existing call log with recording
-      console.log('[Recording Sync Webhook] 📝 Updating existing call log:', callLog.id);
+      console.log('[Recording Sync Webhook] ✅ Found matching call log!');
+      console.log(`  Call Log ID: ${callLog.id}`);
+      console.log(`  Call started: ${callLog.startedAt.toISOString()}`);
+      console.log(`  Call duration: ${callLog.duration}s`);
+      console.log(`  Time diff from recording: ${callTimestamp ? Math.abs(callLog.startedAt.getTime() - callTimestamp.getTime()) / 1000 : 'N/A'}s`);
       
       await prisma.callLog.update({
         where: { id: callLog.id },
@@ -183,6 +222,8 @@ export async function POST(request: Request) {
       
       return NextResponse.json({
         success: true,
+        matched: true,
+        updated: true,
         message: 'Recording linked to existing call log',
         callLogId: callLog.id,
         leadId: lead.id,
@@ -192,14 +233,18 @@ export async function POST(request: Request) {
     }
 
     // No recent call log found - create a new one
-    console.log('[Recording Sync Webhook] 📝 Creating new call log for lead:', lead.name);
+    console.log('[Recording Sync Webhook] ⚠️ No matching call log found - creating new one');
+    if (callTimestamp) {
+      console.log(`  Expected call around: ${callTimestamp.toISOString()}`);
+      console.log(`  This usually means the call wasn't logged in LMS before the recording arrived`);
+    }
     
     const newCallLog = await prisma.callLog.create({
       data: {
         id: randomUUID(),
         leadId: lead.id,
         callerId: lead.assignedToId || 'system',
-        startedAt: new Date(),
+        startedAt: callTimestamp || new Date(),
         phoneDialed: normalizedPhone,
         callStatus: 'answer', // Assuming call was answered since we have a recording
         recordingUrl,
