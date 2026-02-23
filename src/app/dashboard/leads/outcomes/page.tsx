@@ -893,15 +893,56 @@ export default function LeadOutcomesPage() {
             </Flex>
 
             {!collapsedSections[section.status] && (
-            <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+            <Box 
+              bg="white" 
+              borderRadius="lg" 
+              boxShadow="sm" 
+              overflow="hidden"
+            >
               {section.leads.length > 0 ? (
-                <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+                <>
+                <Text 
+                  fontSize="xs" 
+                  color="gray.500" 
+                  px={4} 
+                  py={2} 
+                  display={{ base: 'block', md: 'none' }}
+                  bg="gray.50"
+                  borderBottom="1px"
+                  borderColor="gray.200"
+                >
+                  ← Scroll horizontally to view all columns →
+                </Text>
+                <Box 
+                  overflowX="auto" 
+                  w="full"
+                  css={{
+                    '&::-webkit-scrollbar': {
+                      height: '8px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      background: '#f1f1f1',
+                      borderRadius: '10px',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      background: '#888',
+                      borderRadius: '10px',
+                    },
+                    '&::-webkit-scrollbar-thumb:hover': {
+                      background: '#555',
+                    },
+                  }}
+                >
+                <Table variant="simple" size={{ base: 'sm', md: 'md' }} minW={{ base: '900px', md: 'auto' }}>
                   <Thead bg="gray.50">
                     <Tr>
                       <Th 
                         cursor="pointer" 
                         onClick={() => handleSort(section.status, 'name')}
                         _hover={{ bg: 'gray.100' }}
+                        fontSize={{ base: 'xs', md: 'sm' }}
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 4 }}
                       >
                         Lead Name {sortConfig[section.status]?.field === 'name' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
@@ -909,17 +950,23 @@ export default function LeadOutcomesPage() {
                         cursor="pointer" 
                         onClick={() => handleSort(section.status, 'phone')}
                         _hover={{ bg: 'gray.100' }}
+                        fontSize={{ base: 'xs', md: 'sm' }}
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 4 }}
                       >
                         Phone {sortConfig[section.status]?.field === 'phone' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
-                      <Th>Status</Th>
+                      <Th fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>Status</Th>
                       {section.status === 'won' && wonViewMode === 'historical' && (
-                        <Th>Count</Th>
+                        <Th fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>Count</Th>
                       )}
                       <Th 
                         cursor="pointer" 
                         onClick={() => handleSort(section.status, 'updatedAt')}
                         _hover={{ bg: 'gray.100' }}
+                        fontSize={{ base: 'xs', md: 'sm' }}
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 4 }}
                       >
                         {section.status === 'won' && wonViewMode === 'historical' ? 'Marked Won On' : 'Last Updated'} {sortConfig[section.status]?.field === 'updatedAt' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
@@ -927,11 +974,14 @@ export default function LeadOutcomesPage() {
                         cursor="pointer" 
                         onClick={() => handleSort(section.status, 'assignedTo')}
                         _hover={{ bg: 'gray.100' }}
+                        fontSize={{ base: 'xs', md: 'sm' }}
+                        py={{ base: 2, md: 3 }}
+                        px={{ base: 2, md: 4 }}
                       >
                         Owner {sortConfig[section.status]?.field === 'assignedTo' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
-                      <Th>Remarks</Th>
-                      <Th width="120px">Actions</Th>
+                      <Th fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>Remarks</Th>
+                      <Th width={{ base: '80px', md: '120px' }} fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>Actions</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -946,26 +996,35 @@ export default function LeadOutcomesPage() {
                           _hover={{ bg: 'gray.50', cursor: 'pointer' }}
                           onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                         >
-                          <Td fontWeight="medium" color={lead.is_existing ? "green.600" : "blue.600"}>{lead.name}</Td>
-                          <Td>{formatPhoneForDisplay(lead.phone)}</Td>
-                          <Td>
+                          <Td 
+                            fontWeight="medium" 
+                            color={lead.is_existing ? "green.600" : "blue.600"}
+                            fontSize={{ base: 'xs', md: 'sm' }}
+                            py={{ base: 2, md: 3 }}
+                            px={{ base: 2, md: 4 }}
+                            whiteSpace="nowrap"
+                          >
+                            {lead.name}
+                          </Td>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">{formatPhoneForDisplay(lead.phone)}</Td>
+                          <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>
                             <VStack align="start" spacing={1}>
-                              <Badge colorScheme={section.colorScheme}>
+                              <Badge colorScheme={section.colorScheme} fontSize={{ base: '2xs', md: 'xs' }}>
                                 {section.title}
                               </Badge>
                               {isStatusDifferent && (
-                                <Badge colorScheme="orange" variant="outline" fontSize="xs">
+                                <Badge colorScheme="orange" variant="outline" fontSize="2xs">
                                   Now: {currentStatus === 'followup' ? 'Follow-up' : currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
                                 </Badge>
                               )}
                             </VStack>
                           </Td>
                           {section.status === 'won' && wonViewMode === 'historical' && (
-                            <Td onClick={(e) => e.stopPropagation()}>
+                            <Td onClick={(e) => e.stopPropagation()} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>
                               <Badge 
                                 colorScheme="blue" 
-                                fontSize="md" 
-                                px={3} 
+                                fontSize={{ base: 'xs', md: 'md' }}
+                                px={{ base: 2, md: 3 }}
                                 py={1}
                                 cursor="pointer"
                                 _hover={{ bg: 'blue.600', transform: 'scale(1.05)' }}
@@ -981,21 +1040,21 @@ export default function LeadOutcomesPage() {
                               </Badge>
                             </Td>
                           )}
-                          <Td>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">
                             {isHistoricalWon && lead.wonDate ? formatDate(lead.wonDate) : formatDate(lead.updatedAt)}
                           </Td>
-                          <Td>{lead.assignedTo?.name || 'Unassigned'}</Td>
-                          <Td>
-                            <Text noOfLines={2} fontSize="sm" maxW="250px" title={lead.customerRequirement || lead.notes || '-'}>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">{lead.assignedTo?.name || 'Unassigned'}</Td>
+                          <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>
+                            <Text noOfLines={2} fontSize={{ base: 'xs', md: 'sm' }} maxW={{ base: '150px', md: '250px' }} title={lead.customerRequirement || lead.notes || '-'}>
                               {lead.customerRequirement || lead.notes || '-'}
                             </Text>
                           </Td>
-                          <Td onClick={(e) => e.stopPropagation()}>
+                          <Td onClick={(e) => e.stopPropagation()} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>
                             <HStack spacing={1}>
                               <IconButton
                                 aria-label="View details"
                                 icon={<HiEye />}
-                                size="sm"
+                                size={{ base: 'xs', md: 'sm' }}
                                 variant="ghost"
                                 onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                               />
@@ -1003,7 +1062,7 @@ export default function LeadOutcomesPage() {
                                 <IconButton
                                   aria-label="Reschedule"
                                   icon={<HiPhone />}
-                                  size="sm"
+                                  size={{ base: 'xs', md: 'sm' }}
                                   colorScheme="green"
                                   variant="ghost"
                                   onClick={() => handleReschedule(lead.id, lead.name)}
@@ -1017,6 +1076,8 @@ export default function LeadOutcomesPage() {
                     })}
                   </Tbody>
                 </Table>
+                </Box>
+                </>
               ) : (
                 <Box p={8} textAlign="center">
                   <Text color="gray.500">
