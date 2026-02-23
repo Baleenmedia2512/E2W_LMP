@@ -340,14 +340,43 @@ export default function DashboardPage() {
       <Box bg="white" p={{ base: 3, md: 6 }} borderRadius="lg" boxShadow="sm" borderWidth="1px">
         <Heading size={{ base: 'sm', md: 'md' }} mb={{ base: 3, md: 4 }}>Upcoming Follow-ups</Heading>
         {upcomingFollowUps.length > 0 ? (
-          <Box overflowX="auto" mx={{ base: -3, md: 0 }}>
-            <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+          <Box>
+            <Text 
+              display={{ base: 'block', md: 'none' }} 
+              fontSize="xs" 
+              color="gray.500" 
+              textAlign="center" 
+              mb={2}
+            >
+              ← Scroll horizontally to view all columns →
+            </Text>
+            <Box 
+              overflowX="auto" 
+              mx={{ base: -3, md: 0 }}
+              css={{
+                '&::-webkit-scrollbar': {
+                  height: '8px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: '#f1f1f1',
+                  borderRadius: '10px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  background: '#888',
+                  borderRadius: '10px',
+                },
+                '&::-webkit-scrollbar-thumb:hover': {
+                  background: '#555',
+                },
+              }}
+            >
+            <Table variant="simple" size={{ base: 'sm', md: 'md' }} minW={{ base: '600px', md: 'auto' }}>
               <Thead>
                 <Tr>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Time</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Lead</Th>
-                  <Th display={{ base: 'none', sm: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Notes</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">Time</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">Lead</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">Status</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">Notes</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -365,9 +394,9 @@ export default function DashboardPage() {
                       _hover={{ bg: isOverdue ? 'red.100' : 'gray.50' }}
                       onClick={() => router.push(`/dashboard/leads/${followUp.leadId}`)}
                     >
-                      <Td fontSize={{ base: '2xs', sm: 'xs', md: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                      <Td fontSize={{ base: '9px', sm: 'xs', md: 'sm' }} px={{ base: 1, sm: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         {isValidDate 
-                          ? format(scheduledDate, window.innerWidth < 640 ? 'dd-MMM\nhh:mm a' : 'dd-MMM-yy hh:mm a')
+                          ? format(scheduledDate, window.innerWidth < 640 ? 'dd-MMM h:mma' : 'dd-MMM-yy hh:mm a')
                           : 'Invalid date'
                         }
                       </Td>
@@ -376,7 +405,7 @@ export default function DashboardPage() {
                           {followUp.Lead?.name || 'Unknown Lead'}
                         </Text>
                       </Td>
-                      <Td display={{ base: 'none', sm: 'table-cell' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         {isOverdue ? (
                           <Badge colorScheme="red" fontSize="xs">
                             🔴 Overdue
@@ -387,7 +416,7 @@ export default function DashboardPage() {
                           </Badge>
                         )}
                       </Td>
-                      <Td display={{ base: 'none', md: 'table-cell' }} fontSize="sm" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         <Text noOfLines={1}>{followUp.notes || followUp.customerRequirement || '-'}</Text>
                       </Td>
                     </Tr>
@@ -395,6 +424,7 @@ export default function DashboardPage() {
                 })}
               </Tbody>
             </Table>
+            </Box>
           </Box>
         ) : (
           <Box textAlign="center" py={{ base: 6, md: 8 }}>
@@ -418,14 +448,14 @@ export default function DashboardPage() {
           </Button>
         </HStack>
         {recentLeads.length > 0 ? (
-          <Box overflowX="auto" mx={{ base: -3, md: 0 }}>
+          <Box overflowX="auto">
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead>
                 <Tr>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Name</Th>
-                  <Th display={{ base: 'none', md: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Company</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display="none">Company</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
-                  <Th display={{ base: 'none', sm: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Source</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Source</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -438,7 +468,7 @@ export default function DashboardPage() {
                         </Text>
                       </Link>
                     </Td>
-                    <Td display={{ base: 'none', md: 'table-cell' }} fontSize="sm" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                    <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display="none">
                       <Text noOfLines={1}>{lead.company}</Text>
                     </Td>
                     <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
@@ -446,7 +476,7 @@ export default function DashboardPage() {
                         {lead.status}
                       </Badge>
                     </Td>
-                    <Td display={{ base: 'none', sm: 'table-cell' }} fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                    <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                       <Text noOfLines={1}>{lead.source}</Text>
                     </Td>
                   </Tr>
