@@ -1044,7 +1044,7 @@ export default function LeadsPage() {
                       boxShadow="sm"
                       p={{ base: 2.5, sm: 3, md: 4 }}
                       borderLeft={{ base: '4px', md: '4px' }}
-                      borderColor="blue.500"
+                      borderColor={{ base: 'blue.500', md: 'blue.500' }}
                       _hover={{ boxShadow: 'md' }}
                       transition="all 0.2s"
                     >
@@ -1294,7 +1294,7 @@ export default function LeadsPage() {
                       boxShadow="md"
                       p={{ base: 2.5, sm: 3, md: 4 }}
                       borderLeft={{ base: '4px', md: '6px' }}
-                      borderColor="red.600"
+                      borderColor={{ base: 'red.600', md: 'red.600' }}
                       _hover={{ boxShadow: 'lg', bg: 'red.100' }}
                       transition="all 0.2s"
                     >
@@ -1552,7 +1552,7 @@ export default function LeadsPage() {
                       boxShadow="sm"
                       p={{ base: 2.5, sm: 3, md: 4 }}
                       borderLeft={{ base: '4px', md: '4px' }}
-                      borderColor="green.500"
+                      borderColor={{ base: 'green.500', md: 'green.500' }}
                       _hover={{ boxShadow: 'md' }}
                       transition="all 0.2s"
                     >
@@ -1848,14 +1848,20 @@ export default function LeadsPage() {
                       boxShadow="sm"
                       p={{ base: 2.5, sm: 3, md: 4 }}
                       borderLeft={{ base: '4px', md: '6px' }}
-                      borderColor={
-                        statusFilter === 'unqualified' ? 'purple.400' :
+                      borderColor={{
+                        base: statusFilter === 'unqualified' ? 'purple.400' :
+                        statusFilter === 'won' ? 'green.400' :
+                        statusFilter === 'lost' ? 'red.400' :
+                        statusFilter === 'qualified' ? 'cyan.400' :
+                        statusFilter === 'unreach' ? 'pink.400' :
+                        'gray.400',
+                        md: statusFilter === 'unqualified' ? 'purple.400' :
                         statusFilter === 'won' ? 'green.400' :
                         statusFilter === 'lost' ? 'red.400' :
                         statusFilter === 'qualified' ? 'cyan.400' :
                         statusFilter === 'unreach' ? 'pink.400' :
                         'gray.400'
-                      }
+                      }}
                       _hover={{ boxShadow: 'md' }}
                       transition="all 0.2s"
                     >
