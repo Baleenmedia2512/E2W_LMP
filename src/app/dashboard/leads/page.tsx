@@ -46,6 +46,7 @@ import {
   HiExclamation,
   HiChevronUp,
   HiChevronDown,
+  HiRefresh,
 } from 'react-icons/hi';
 import { FaWhatsapp } from 'react-icons/fa';
 import AddLeadModal from '@/features/leads/components/AddLeadModal';
@@ -53,6 +54,7 @@ import AssignLeadModal from '@/features/leads/components/AssignLeadModal';
 import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnreachableModal';
 import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
+import ChangeStatusModal from '@/features/leads/components/ChangeStatusModal';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatDateTime } from '@/shared/lib/date-utils';
 import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils/lead-categorization';
@@ -286,6 +288,11 @@ export default function LeadsPage() {
     name: string;
     phone: string;
   } | null>(null);
+  const [leadToChangeStatus, setLeadToChangeStatus] = useState<{
+    id: string;
+    name: string;
+    status: string;
+  } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -456,6 +463,7 @@ export default function LeadsPage() {
   const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
   const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
   const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
+  const { isOpen: isChangeStatusOpen, onOpen: onChangeStatusOpen, onClose: onChangeStatusClose } = useDisclosure();
 
   // US-8: Auto-reopen Call Dialer Modal if there's unsaved call data after page refresh
   useEffect(() => {
@@ -1209,6 +1217,24 @@ export default function LeadsPage() {
                               transition="all 0.2s"
                             />
                           </Tooltip>
+                          <Tooltip label="Change Status" placement="top">
+                            <IconButton
+                              aria-label="Change status"
+                              icon={<HiRefresh />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="purple"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLeadToChangeStatus({
+                                  id: lead.id,
+                                  name: lead.name,
+                                  status: lead.status
+                                });
+                                onChangeStatusOpen();
+                              }}
+                            />
+                          </Tooltip>
                           <IconButton
                             aria-label="Assign lead"
                             icon={<HiUserAdd />}
@@ -1455,6 +1481,24 @@ export default function LeadsPage() {
                               onClick={(e) => handleWhatsAppClick(lead.phone, e)}
                               _hover={{ transform: 'scale(1.05)' }}
                               transition="all 0.2s"
+                            />
+                          </Tooltip>
+                          <Tooltip label="Change Status" placement="top">
+                            <IconButton
+                              aria-label="Change status"
+                              icon={<HiRefresh />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="purple"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLeadToChangeStatus({
+                                  id: lead.id,
+                                  name: lead.name,
+                                  status: lead.status
+                                });
+                                onChangeStatusOpen();
+                              }}
                             />
                           </Tooltip>
                           <IconButton
@@ -1719,6 +1763,24 @@ export default function LeadsPage() {
                               onClick={(e) => handleWhatsAppClick(lead.phone, e)}
                               _hover={{ transform: 'scale(1.05)' }}
                               transition="all 0.2s"
+                            />
+                          </Tooltip>
+                          <Tooltip label="Change Status" placement="top">
+                            <IconButton
+                              aria-label="Change status"
+                              icon={<HiRefresh />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="purple"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLeadToChangeStatus({
+                                  id: lead.id,
+                                  name: lead.name,
+                                  status: lead.status
+                                });
+                                onChangeStatusOpen();
+                              }}
                             />
                           </Tooltip>
                           <IconButton
@@ -1991,6 +2053,24 @@ export default function LeadsPage() {
                               transition="all 0.2s"
                             />
                           </Tooltip>
+                          <Tooltip label="Change Status" placement="top">
+                            <IconButton
+                              aria-label="Change status"
+                              icon={<HiRefresh />}
+                              size={{ base: 'xs', sm: 'sm' }}
+                              colorScheme="purple"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLeadToChangeStatus({
+                                  id: lead.id,
+                                  name: lead.name,
+                                  status: lead.status
+                                });
+                                onChangeStatusOpen();
+                              }}
+                            />
+                          </Tooltip>
                           <IconButton
                             aria-label="Assign lead"
                             icon={<HiUserAdd />}
@@ -2116,6 +2196,21 @@ export default function LeadsPage() {
               onUnqualifiedOpen();
             }, 100);
           }}
+        />
+      )}
+
+      {/* Change Status Modal */}
+      {leadToChangeStatus && (
+        <ChangeStatusModal
+          isOpen={isChangeStatusOpen}
+          onClose={() => {
+            onChangeStatusClose();
+            setLeadToChangeStatus(null);
+          }}
+          leadId={leadToChangeStatus.id}
+          leadName={leadToChangeStatus.name}
+          currentStatus={leadToChangeStatus.status}
+          onSuccess={handleRefreshLeads}
         />
       )}
         </>
