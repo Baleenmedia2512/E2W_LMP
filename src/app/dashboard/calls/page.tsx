@@ -329,24 +329,56 @@ export default function CallsPage() {
 
       {!loading && viewMode === 'table' && (
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-          <Box overflowX="auto" mx={{ base: -4, md: 0 }}>
-            <Table variant="simple" size={{ base: 'sm', md: 'sm' }}>
+          <Text 
+            fontSize="xs" 
+            color="gray.500" 
+            px={4} 
+            py={2} 
+            display={{ base: 'block', md: 'none' }}
+            bg="gray.50"
+            borderBottom="1px"
+            borderColor="gray.200"
+            textAlign="center"
+          >
+            ← Scroll horizontally to view all columns →
+          </Text>
+          <Box 
+            overflowX="auto" 
+            w="full"
+            css={{
+              '&::-webkit-scrollbar': {
+                height: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+                borderRadius: '10px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#888',
+                borderRadius: '10px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: '#555',
+              },
+            }}
+          >
+            <Table variant="simple" size={{ base: 'sm', md: 'sm' }} minW={{ base: '800px', md: 'auto' }}>
               <Thead bg="gray.50">
                 <Tr>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Lead Name</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', sm: 'table-cell' }}>Last Called</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Attempts</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', md: 'table-cell' }}>Duration (min)</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', lg: 'table-cell' }}>Agent Name</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Actions</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Lead Name</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Last Called</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Attempts</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Duration (min)</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Status</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Agent Name</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {filteredCalls.length > 0 ? (
                   filteredCalls.map((group) => (
                     <Tr key={group.leadId} _hover={{ bg: 'gray.50' }}>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         <Text
                           fontWeight="medium"
                           cursor="pointer"
@@ -358,7 +390,7 @@ export default function CallsPage() {
                           {group.leadName}
                         </Text>
                       </Td>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} whiteSpace="nowrap" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', sm: 'table-cell' }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} whiteSpace="nowrap" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         {formatDateTime(group.latestCall.createdAt)}
                       </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
@@ -366,7 +398,7 @@ export default function CallsPage() {
                           {group.totalAttempts}
                         </Badge>
                       </Td>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', md: 'table-cell' }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         {formatDuration(group.latestCall.duration)}
                       </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
@@ -374,7 +406,7 @@ export default function CallsPage() {
                           {getCallStatusLabel(group.latestCall.callStatus)}
                         </Badge>
                       </Td>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', lg: 'table-cell' }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         <Text noOfLines={1}>{group.latestCall.caller.name || 'N/A'}</Text>
                       </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
@@ -410,7 +442,7 @@ export default function CallsPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={8} textAlign="center" py={8}>
+                    <Td colSpan={7} textAlign="center" py={8}>
                       <Text color="gray.500" fontSize={{ base: 'xs', sm: 'sm' }}>
                         {searchQuery || statusFilter !== 'all'
                           ? 'No call logs match your filters'
