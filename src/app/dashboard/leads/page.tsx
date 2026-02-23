@@ -699,10 +699,10 @@ export default function LeadsPage() {
         return scheduledDate >= todayStart && scheduledDate <= todayEnd;
       });
       
-      // Always show ALL overdue follow-ups (they should be addressed regardless of date)
+      // Always show ALL overdue follow-ups and ALL new leads (they should be addressed regardless of date)
       return { 
         overdue: categorized.overdue, 
-        newLeads: todayNewLeads, 
+        newLeads: categorized.newLeads, 
         future: todayScheduled, 
         statusFiltered: [] 
       };
