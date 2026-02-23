@@ -43,6 +43,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
 import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
+import CallRecordingPlayer from '@/shared/components/CallRecordingPlayer';
 
 interface CallLog {
   id: string;
@@ -63,6 +64,8 @@ interface CallLog {
   customerRequirement: string | null;
   startedAt: string;
   createdAt: string;
+  recordingUrl?: string | null;
+  recordingStatus?: string | null;
 }
 
 interface CallHistoryGroup {
@@ -371,6 +374,7 @@ export default function CallsPage() {
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Duration (min)</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Status</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Agent Name</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">Recording</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Actions</Th>
                 </Tr>
               </Thead>
@@ -409,6 +413,13 @@ export default function CallsPage() {
                       <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         <Text noOfLines={1}>{group.latestCall.caller.name || 'N/A'}</Text>
                       </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">
+                        <CallRecordingPlayer
+                          recordingUrl={group.latestCall.recordingUrl}
+                          recordingStatus={group.latestCall.recordingStatus}
+                          callDuration={group.latestCall.duration}
+                        />
+                      </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         <Menu>
                           <MenuButton
@@ -442,7 +453,7 @@ export default function CallsPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={7} textAlign="center" py={8}>
+                    <Td colSpan={8} textAlign="center" py={8}>
                       <Text color="gray.500" fontSize={{ base: 'xs', sm: 'sm' }}>
                         {searchQuery || statusFilter !== 'all'
                           ? 'No call logs match your filters'
@@ -574,6 +585,18 @@ export default function CallsPage() {
                       </Text>
                     </Box>
 
+                    {/* Recording */}
+                    <Box>
+                      <Text fontSize="xs" color="gray.500" mb={1}>
+                        Recording
+                      </Text>
+                      <CallRecordingPlayer
+                        recordingUrl={group.latestCall.recordingUrl}
+                        recordingStatus={group.latestCall.recordingStatus}
+                        callDuration={group.latestCall.duration}
+                      />
+                    </Box>
+
                     {/* Remarks */}
                     {group.latestCall.customerRequirement && (
                       <Box>
@@ -664,6 +687,7 @@ export default function CallsPage() {
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', sm: 'table-cell' }}>Duration (min)</Th>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', md: 'table-cell' }}>Agent Name</Th>
+                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} minW="180px">Recording</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -685,6 +709,13 @@ export default function CallsPage() {
                       </Td>
                       <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', md: 'table-cell' }}>
                         <Text noOfLines={1}>{call.caller.name || 'N/A'}</Text>
+                      </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">
+                        <CallRecordingPlayer
+                          recordingUrl={call.recordingUrl}
+                          recordingStatus={call.recordingStatus}
+                          callDuration={call.duration}
+                        />
                       </Td>
                     </Tr>
                   ))}
