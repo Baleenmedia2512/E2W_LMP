@@ -729,27 +729,43 @@ export default function LeadsPage() {
         ...categorizedLeads,
         totalItems,
         visibleItems: totalItems,
-        hasMore: false
+        hasMore: false,
+        // Per-category totals and hasMore flags
+        totalOverdue: categorizedLeads.overdue.length,
+        totalNewLeads: categorizedLeads.newLeads.length,
+        totalFuture: categorizedLeads.future.length,
+        totalStatusFiltered: categorizedLeads.statusFiltered.length,
+        hasMoreOverdue: false,
+        hasMoreNewLeads: false,
+        hasMoreFuture: false,
+        hasMoreStatusFiltered: false,
       };
     }
 
-    // Combine all leads for lazy loading when showing all
-    const allItems = [
-      ...categorizedLeads.overdue.map(item => ({ ...item, category: 'overdue' as const })),
-      ...categorizedLeads.future.map(item => ({ ...item, category: 'future' as const })),
-      ...categorizedLeads.newLeads.map(item => ({ ...item, category: 'newLeads' as const })),
-      ...categorizedLeads.statusFiltered.map(item => ({ ...item, category: 'statusFiltered' as const })),
-    ];
+    // Per-category lazy loading - show proportionally from each category
+    // Calculate items per category (distribute visibleCount across categories)
+    const itemsPerCategory = Math.ceil(visibleCount / 4); // Show equal amount from each category
+    
+    // Slice each category independently
+    const overdue = categorizedLeads.overdue.slice(0, itemsPerCategory);
+    const newLeads = categorizedLeads.newLeads.slice(0, itemsPerCategory);
+    const future = categorizedLeads.future.slice(0, itemsPerCategory);
+    const statusFiltered = categorizedLeads.statusFiltered.slice(0, itemsPerCategory);
 
-    const totalItems = allItems.length;
-    const visibleItems = allItems.slice(0, visibleCount);
-    const hasMore = visibleCount < totalItems;
-
-    // Separate back into categories for rendering
-    const overdue = visibleItems.filter(item => item.category === 'overdue').map(({ category, ...rest }) => rest);
-    const future = visibleItems.filter(item => item.category === 'future').map(({ category, ...rest }) => rest);
-    const newLeads = visibleItems.filter(item => item.category === 'newLeads').map(({ category, ...rest }) => rest);
-    const statusFiltered = visibleItems.filter(item => item.category === 'statusFiltered').map(({ category, ...rest }) => rest);
+    // Calculate totals and hasMore per category
+    const totalOverdue = categorizedLeads.overdue.length;
+    const totalNewLeads = categorizedLeads.newLeads.length;
+    const totalFuture = categorizedLeads.future.length;
+    const totalStatusFiltered = categorizedLeads.statusFiltered.length;
+    
+    const hasMoreOverdue = overdue.length < totalOverdue;
+    const hasMoreNewLeads = newLeads.length < totalNewLeads;
+    const hasMoreFuture = future.length < totalFuture;
+    const hasMoreStatusFiltered = statusFiltered.length < totalStatusFiltered;
+    
+    const totalItems = totalOverdue + totalNewLeads + totalFuture + totalStatusFiltered;
+    const displayedItems = overdue.length + newLeads.length + future.length + statusFiltered.length;
+    const hasMore = hasMoreOverdue || hasMoreNewLeads || hasMoreFuture || hasMoreStatusFiltered;
 
     return {
       overdue,
@@ -757,8 +773,17 @@ export default function LeadsPage() {
       newLeads,
       statusFiltered,
       totalItems,
-      visibleItems: visibleCount,
-      hasMore
+      visibleItems: displayedItems,
+      hasMore,
+      // Per-category totals and hasMore flags
+      totalOverdue,
+      totalNewLeads,
+      totalFuture,
+      totalStatusFiltered,
+      hasMoreOverdue,
+      hasMoreNewLeads,
+      hasMoreFuture,
+      hasMoreStatusFiltered,
     };
   }, [categorizedLeads, visibleCount, showOnlyToday]);
 
@@ -1024,7 +1049,7 @@ export default function LeadsPage() {
                   New Leads
                 </Heading>
                 <Badge ml={{ base: 2, md: 3 }} colorScheme="blue" fontSize={{ base: 'xs', sm: 'sm', md: 'md' }}>
-                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.newLeads.length}+` : lazyLoadedLeads.newLeads.length}
+                  {lazyLoadedLeads.totalNewLeads}
                 </Badge>
               </Flex>
               <IconButton
@@ -1292,7 +1317,7 @@ export default function LeadsPage() {
                   Overdue Follow-ups
                 </Heading>
                 <Badge ml={{ base: 2, md: 3 }} colorScheme="red" fontSize={{ base: 'xs', sm: 'sm', md: 'md' }}>
-                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.overdue.length}+` : lazyLoadedLeads.overdue.length}
+                  {lazyLoadedLeads.totalOverdue}
                 </Badge>
               </Flex>
               <IconButton
@@ -1562,7 +1587,7 @@ export default function LeadsPage() {
                   Scheduled Follow-ups
                 </Heading>
                 <Badge ml={{ base: 2, md: 3 }} colorScheme="green" fontSize={{ base: 'xs', sm: 'sm', md: 'md' }}>
-                  {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.future.length}+` : lazyLoadedLeads.future.length}
+                  {lazyLoadedLeads.totalFuture}
                 </Badge>
               </Flex>
               <IconButton
@@ -1876,7 +1901,7 @@ export default function LeadsPage() {
                     statusFilter === 'unreach' ? 'pink' :
                     'gray'
                   } fontSize={{ base: 'xs', sm: 'sm', md: 'md' }}>
-                    {lazyLoadedLeads.hasMore ? `${lazyLoadedLeads.statusFiltered.length}+` : lazyLoadedLeads.statusFiltered.length}
+                    {lazyLoadedLeads.totalStatusFiltered}
                   </Badge>
                 </Flex>
                 <IconButton
