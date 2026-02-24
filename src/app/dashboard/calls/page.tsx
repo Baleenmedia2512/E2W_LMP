@@ -368,7 +368,22 @@ export default function CallsPage() {
             <Table variant="simple" size={{ base: 'sm', md: 'sm' }} minW={{ base: '800px', md: 'auto' }}>
               <Thead bg="gray.50">
                 <Tr>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Lead Name</Th>
+                  <Th 
+                    fontSize={{ base: 'xs', sm: 'sm' }} 
+                    px={{ base: 2, md: 4 }} 
+                    py={{ base: 2, md: 3 }}
+                    position="sticky"
+                    left={0}
+                    zIndex={2}
+                    bg="gray.50"
+                    boxShadow="2px 0 5px -1px rgba(0,0,0,0.15)"
+                    minW={{ base: '140px', md: '200px' }}
+                    maxW={{ base: '140px', md: '200px' }}
+                    borderRight="2px solid"
+                    borderRightColor="gray.200"
+                  >
+                    Lead Name
+                  </Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Last Called</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Attempts</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Duration (min)</Th>
@@ -381,15 +396,38 @@ export default function CallsPage() {
               <Tbody>
                 {filteredCalls.length > 0 ? (
                   filteredCalls.map((group) => (
-                    <Tr key={group.leadId} _hover={{ bg: 'gray.50' }}>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
+                    <Tr 
+                      key={group.leadId} 
+                      _hover={{ 
+                        bg: 'gray.50',
+                        '& td:first-of-type': {
+                          bg: 'gray.50'
+                        }
+                      }}
+                    >
+                      <Td 
+                        fontSize={{ base: 'xs', sm: 'sm' }} 
+                        px={{ base: 2, md: 4 }} 
+                        py={{ base: 2, md: 3 }} 
+                        position="sticky"
+                        left={0}
+                        zIndex={1}
+                        bg="white"
+                        boxShadow="2px 0 5px -1px rgba(0,0,0,0.15)"
+                        minW={{ base: '140px', md: '200px' }}
+                        maxW={{ base: '140px', md: '200px' }}
+                        borderRight="2px solid"
+                        borderRightColor="gray.200"
+                      >
                         <Text
                           fontWeight="medium"
                           cursor="pointer"
                           color="blue.600"
                           onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
                           _hover={{ textDecoration: 'underline' }}
-                          noOfLines={1}
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          lineHeight="shorter"
                         >
                           {group.leadName}
                         </Text>

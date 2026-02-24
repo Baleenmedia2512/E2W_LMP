@@ -939,10 +939,19 @@ export default function LeadOutcomesPage() {
                       <Th 
                         cursor="pointer" 
                         onClick={() => handleSort(section.status, 'name')}
-                        _hover={{ bg: 'gray.100' }}
+                        _hover={{ bg: 'gray.100 !important' }}
                         fontSize={{ base: 'xs', md: 'sm' }}
                         py={{ base: 2, md: 3 }}
                         px={{ base: 2, md: 4 }}
+                        position="sticky"
+                        left={0}
+                        zIndex={2}
+                        bg="gray.50"
+                        boxShadow="2px 0 5px -1px rgba(0,0,0,0.15)"
+                        minW={{ base: '140px', md: '200px' }}
+                        maxW={{ base: '140px', md: '200px' }}
+                        borderRight="2px solid"
+                        borderRightColor="gray.200"
                       >
                         Lead Name {sortConfig[section.status]?.field === 'name' && (sortConfig[section.status]?.direction === 'asc' ? '↑' : '↓')}
                       </Th>
@@ -993,7 +1002,13 @@ export default function LeadOutcomesPage() {
                       return (
                         <Tr 
                           key={lead.id} 
-                          _hover={{ bg: 'gray.50', cursor: 'pointer' }}
+                          _hover={{ 
+                            bg: 'gray.50', 
+                            cursor: 'pointer',
+                            '& td:first-of-type': {
+                              bg: 'gray.50'
+                            }
+                          }}
                           onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                         >
                           <Td 
@@ -1002,9 +1017,23 @@ export default function LeadOutcomesPage() {
                             fontSize={{ base: 'xs', md: 'sm' }}
                             py={{ base: 2, md: 3 }}
                             px={{ base: 2, md: 4 }}
-                            whiteSpace="nowrap"
+                            position="sticky"
+                            left={0}
+                            zIndex={1}
+                            bg="white"
+                            boxShadow="2px 0 5px -1px rgba(0,0,0,0.15)"
+                            minW={{ base: '140px', md: '200px' }}
+                            maxW={{ base: '140px', md: '200px' }}
+                            borderRight="2px solid"
+                            borderRightColor="gray.200"
                           >
-                            {lead.name}
+                            <Text
+                              whiteSpace="normal"
+                              wordBreak="break-word"
+                              lineHeight="shorter"
+                            >
+                              {lead.name}
+                            </Text>
                           </Td>
                           <Td fontSize={{ base: 'xs', md: 'sm' }} py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }} whiteSpace="nowrap">{formatPhoneForDisplay(lead.phone)}</Td>
                           <Td py={{ base: 2, md: 3 }} px={{ base: 2, md: 4 }}>
