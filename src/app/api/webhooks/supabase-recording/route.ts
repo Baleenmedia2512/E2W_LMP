@@ -164,61 +164,118 @@ export async function POST(request: Request) {
       console.log(`  Call timestamp: ${callTimestamp.toISOString()}`);
       console.log(`  Search window: ${timeWindowStart.toISOString()} to ${timeWindowEnd.toISOString()}`);
     } else {
-      // No timestamp provided, use wider 30-minute window (legacy behavior)
-      const thirtyMinutes = 30 * 60 * 1000;
-      timeWindowStart = new Date(Date.now() - thirtyMinutes);
+      // No timestamp provided, use wider 10-minute window for recent calls
+      const tenMinutes = 10 * 60 * 1000;
+      timeWindowStart = new Date(Date.now() - tenMinutes);
       timeWindowEnd = new Date();
-      console.log('[Recording Sync Webhook] ⏰ Using 30-minute window (no timestamp in payload)');
+      console.log('[Recording Sync Webhook] ⏰ Using 10-minute window (no timestamp in payload)');
     }
     
-    // Build query conditions
-    const queryConditions: any = {
-      leadId: lead.id,
-      startedAt: {
-        gte: timeWindowStart,
-        lte: timeWindowEnd,
+    // STRATEGY: Try multiple search strategies to find the existing call log
+    // This prevents duplicate rows from being created
+    
+    let callLog = null;
+    
+    // Strategy 1: Find call log WITHOUT recording (highest priority)
+    console.log('[Recording Sync Webhook] 🔍 Strategy 1: Looking for call WITHOUT recording...');
+    callLog = await prisma.callLog.findFirst({
+      where: {
+        leadId: lead.id,
+        startedAt: {
+          gte: timeWindowStart,
+          lte: timeWindowEnd,
+        },
+        OR: [
+          { recordingUrl: null },
+          { recordingStatus: 'pending' }
+        ]
       },
-      OR: [
-        { recordingUrl: null },
-        { recordingStatus: 'pending' }
-      ]
-    };
-    
-    // If duration is provided, add it as an additional filter for better matching
-    if (duration) {
-      // Allow ±3 seconds tolerance for duration matching
-      queryConditions.duration = {
-        gte: duration - 3,
-        lte: duration + 3,
-      };
-      console.log(`[Recording Sync Webhook] 🎯 Also matching by duration: ${duration}s (±3s tolerance)`);
-    }
-    
-    let callLog = await prisma.callLog.findFirst({
-      where: queryConditions,
       orderBy: {
         startedAt: 'desc'
       }
     });
+    
+    // Strategy 2: If not found, search for ANY call log in the time window
+    // This handles edge cases where recordingStatus might have unexpected values
+    if (!callLog) {
+      console.log('[Recording Sync Webhook] 🔍 Strategy 2: Looking for ANY call in time window...');
+      callLog = await prisma.callLog.findFirst({
+        where: {
+          leadId: lead.id,
+          startedAt: {
+            gte: timeWindowStart,
+            lte: timeWindowEnd,
+          }
+        },
+        orderBy: {
+          startedAt: 'desc'
+        }
+      });
+      
+      // If found a call that already has a recording, skip it to avoid overwriting
+      if (callLog && callLog.recordingUrl && callLog.recordingUrl !== recordingUrl) {
+        console.log('[Recording Sync Webhook] ⚠️ Found call but it already has a different recording - skipping');
+        callLog = null;
+      }
+    }
+    
+    // Strategy 3: If duration provided, try matching by duration too (for precision)
+    if (!callLog && duration) {
+      console.log('[Recording Sync Webhook] 🔍 Strategy 3: Looking for call by duration match...');
+      callLog = await prisma.callLog.findFirst({
+        where: {
+          leadId: lead.id,
+          startedAt: {
+            gte: timeWindowStart,
+            lte: timeWindowEnd,
+          },
+          duration: {
+            gte: duration - 5,
+            lte: duration + 5,
+          }
+        },
+        orderBy: {
+          startedAt: 'desc'
+        }
+      });
+      
+      if (callLog && callLog.recordingUrl && callLog.recordingUrl !== recordingUrl) {
+        console.log('[Recording Sync Webhook] ⚠️ Found call by duration but it already has a different recording - skipping');
+        callLog = null;
+      }
+    }
 
     if (callLog) {
       // Update existing call log with recording
-      console.log('[Recording Sync Webhook] ✅ Found matching call log!');
+      console.log('[Recording Sync Webhook] ✅✅✅ Found matching call log - UPDATING instead of creating duplicate!');
       console.log(`  Call Log ID: ${callLog.id}`);
       console.log(`  Call started: ${callLog.startedAt.toISOString()}`);
-      console.log(`  Call duration: ${callLog.duration}s`);
+      console.log(`  Call status: ${callLog.callStatus}`);
+      console.log(`  Current duration: ${callLog.duration}s`);
+      console.log(`  Current recording: ${callLog.recordingUrl ? 'EXISTS' : 'NULL'}`);
       console.log(`  Time diff from recording: ${callTimestamp ? Math.abs(callLog.startedAt.getTime() - callTimestamp.getTime()) / 1000 : 'N/A'}s`);
+      
+      // Update with recording details
+      // Preserve existing remarks if they exist (from LMS), otherwise use auto-sync message
+      const updateData: any = {
+        recordingUrl,
+        recordingStatus: 'available',
+        duration: duration || callLog.duration,
+      };
+      
+      // Only update remarks if it was auto-generated or empty
+      if (!callLog.remarks || callLog.remarks === 'Auto-synced from Call Monitor app') {
+        updateData.remarks = callLog.remarks; // Keep existing or set nothing
+      }
+      // If current remarks exist and are meaningful, keep them
       
       await prisma.callLog.update({
         where: { id: callLog.id },
-        data: {
-          recordingUrl,
-          recordingStatus: 'available',
-          duration: duration || callLog.duration,
-        }
+        data: updateData
       });
 
-      console.log('[Recording Sync Webhook] ✅ Call log updated with recording!');
+      console.log('[Recording Sync Webhook] ✅ Call log updated successfully! No duplicate created.');
+      console.log('[Recording Sync Webhook] 📝 Preserved existing call details (status, remarks, etc.)');
       
       return NextResponse.json({
         success: true,
@@ -228,16 +285,23 @@ export async function POST(request: Request) {
         callLogId: callLog.id,
         leadId: lead.id,
         leadName: lead.name,
-        recordingUrl
+        recordingUrl,
+        action: 'updated_existing'
       });
     }
 
-    // No recent call log found - create a new one
-    console.log('[Recording Sync Webhook] ⚠️ No matching call log found - creating new one');
+    // No recent call log found - CREATE ONLY AS LAST RESORT
+    console.log('[Recording Sync Webhook] ⚠️⚠️⚠️ No matching call log found in any strategy!');
+    console.log('[Recording Sync Webhook] Creating new call log (this should be rare)');
     if (callTimestamp) {
       console.log(`  Expected call around: ${callTimestamp.toISOString()}`);
-      console.log(`  This usually means the call wasn't logged in LMS before the recording arrived`);
     }
+    console.log(`  Search window was: ${timeWindowStart.toISOString()} to ${timeWindowEnd.toISOString()}`);
+    console.log(`  This usually means:`);
+    console.log(`    1. Call wasn't logged in LMS before recording arrived`);
+    console.log(`    2. OR time window doesn't overlap`);
+    console.log(`    3. OR this is a standalone recording (not from LMS call)`);
+    
     
     const newCallLog = await prisma.callLog.create({
       data: {
@@ -275,15 +339,17 @@ export async function POST(request: Request) {
       }
     });
 
-    console.log('[Recording Sync Webhook] ✅ New call log created:', newCallLog.id);
+    console.log('[Recording Sync Webhook] ✅ New call log created (fallback):', newCallLog.id);
 
     return NextResponse.json({
       success: true,
-      message: 'Recording synced and new call log created',
+      message: 'Recording synced - new call log created (no existing call found)',
       callLogId: newCallLog.id,
       leadId: lead.id,
       leadName: lead.name,
-      recordingUrl
+      recordingUrl,
+      action: 'created_new',
+      note: 'No existing call log found within time window. This is normal for standalone recordings.'
     });
 
   } catch (error) {
