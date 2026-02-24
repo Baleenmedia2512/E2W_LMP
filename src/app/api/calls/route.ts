@@ -72,21 +72,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const callLog = await prisma.callLog.create({
-      data: {
-        id: randomUUID(),
+    const callStartTime = body.startedAt ? new Date(body.startedAt) : new Date();
+    
+    // 🔍 DUPLICATE PREVENTION: Check if a call log already exists for this lead around this time
+    // This prevents duplicates when webhook creates call log before LMS submission
+    const twoMinutes = 2 * 60 * 1000;
+    const existingCallLog = await prisma.callLog.findFirst({
+      where: {
         leadId: body.leadId,
-        callerId: body.callerId,
-        startedAt: body.startedAt ? new Date(body.startedAt) : new Date(),
-        endedAt: body.endedAt ? new Date(body.endedAt) : null,
-        duration: body.duration || null,
-        remarks: body.remarks || null,
-        callStatus: body.callStatus || 'answer',
-        attemptNumber: body.attemptNumber || 1,
-        customerRequirement: body.customerRequirement || null,
-        phoneDialed: body.phoneDialed || null,
-        recordingStatus: body.recordingStatus || 'pending',
-        recordingAppCallId: body.recordingAppCallId || null,
+        startedAt: {
+          gte: new Date(callStartTime.getTime() - twoMinutes),
+          lte: new Date(callStartTime.getTime() + twoMinutes),
+        }
+      },
+      orderBy: {
+        startedAt: 'desc'
       },
       include: {
         Lead: { select: { id: true, name: true } },
@@ -94,19 +94,85 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    let callLog;
+    
+    if (existingCallLog) {
+      // Found existing call log (likely from webhook) - UPDATE it instead of creating duplicate
+      console.log('[Call Log API] ✅ Found existing call log - UPDATING instead of creating duplicate');
+      console.log(`  Existing Call ID: ${existingCallLog.id}`);
+      console.log(`  Existing has recording: ${existingCallLog.recordingUrl ? 'YES' : 'NO'}`);
+      console.log(`  Time difference: ${Math.abs(existingCallLog.startedAt.getTime() - callStartTime.getTime()) / 1000}s`);
+      
+      // Update existing call log with LMS details (preserve recording if exists)
+      callLog = await prisma.callLog.update({
+        where: { id: existingCallLog.id },
+        data: {
+          callerId: body.callerId, // Update with actual caller
+          endedAt: body.endedAt ? new Date(body.endedAt) : existingCallLog.endedAt,
+          duration: body.duration || existingCallLog.duration,
+          remarks: body.remarks || existingCallLog.remarks, // Use LMS remarks if provided
+          callStatus: body.callStatus || existingCallLog.callStatus,
+          customerRequirement: body.customerRequirement || existingCallLog.customerRequirement,
+          phoneDialed: body.phoneDialed || existingCallLog.phoneDialed,
+          recordingStatus: existingCallLog.recordingUrl ? 'available' : (body.recordingStatus || 'pending'),
+          recordingAppCallId: body.recordingAppCallId || existingCallLog.recordingAppCallId,
+          // Keep existing recordingUrl if it exists (from webhook)
+        },
+        include: {
+          Lead: { select: { id: true, name: true } },
+          User: { select: { id: true, name: true, email: true } },
+        },
+      });
+      
+      console.log('[Call Log API] ✅ Updated existing call log - no duplicate created!');
+    } else {
+      // No existing call log found - create new one (normal flow)
+      console.log('[Call Log API] 📝 No existing call found - creating new call log');
+      
+      callLog = await prisma.callLog.create({
+        data: {
+          id: randomUUID(),
+          leadId: body.leadId,
+          callerId: body.callerId,
+          startedAt: callStartTime,
+          endedAt: body.endedAt ? new Date(body.endedAt) : null,
+          duration: body.duration || null,
+          remarks: body.remarks || null,
+          callStatus: body.callStatus || 'answer',
+          attemptNumber: body.attemptNumber || 1,
+          customerRequirement: body.customerRequirement || null,
+          phoneDialed: body.phoneDialed || null,
+          recordingStatus: body.recordingStatus || 'pending',
+          recordingAppCallId: body.recordingAppCallId || null,
+        },
+        include: {
+          Lead: { select: { id: true, name: true } },
+          User: { select: { id: true, name: true, email: true } },
+        },
+      });
+    }
+
     // Get current lead to check status
     const currentLead = await prisma.lead.findUnique({
       where: { id: body.leadId },
       select: { status: true },
     });
 
-    // Update lead: increment call attempts and update status if it's still 'new'
+    // Only increment call attempts if we created a NEW call log (not updated existing)
+    const isNewCall = !existingCallLog;
+    
+    // Update lead: increment call attempts only for new calls, always update timestamp
     const updateData: any = {
-      callAttempts: {
-        increment: 1,
-      },
       updatedAt: new Date(), // Always update the timestamp
     };
+    
+    // Only increment call attempts if this is a brand new call
+    if (isNewCall) {
+      updateData.callAttempts = { increment: 1 };
+      console.log('[Call Log API] 📈 Incrementing call attempts (new call)');
+    } else {
+      console.log('[Call Log API] ⏭️  Skipping call attempt increment (updated existing call)');
+    }
 
     // Status is managed separately through lead updates
 
@@ -120,16 +186,20 @@ export async function POST(request: NextRequest) {
       data: updateData,
     });
 
-    // Log activity
-    await prisma.activityHistory.create({
-      data: {
-        id: randomUUID(),
-        leadId: body.leadId,
-        userId: body.callerId,
-        action: 'call_logged',
-        description: `Call logged - Status: ${body.callStatus || 'answer'}`,
-      },
-    });
+    // Log activity only for new calls (avoid duplicate activity logs)
+    if (isNewCall) {
+      await prisma.activityHistory.create({
+        data: {
+          id: randomUUID(),
+          leadId: body.leadId,
+          userId: body.callerId,
+          action: 'call_logged',
+          description: `Call logged - Status: ${body.callStatus || 'answer'}`,
+        },
+      });
+    } else {
+      console.log('[Call Log API] ⏭️  Skipping activity log (updated existing call)');
+    }
 
     // Send notification to assigned user (if different from caller)
     const lead = await prisma.lead.findUnique({
