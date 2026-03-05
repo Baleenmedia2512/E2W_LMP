@@ -2,6 +2,8 @@
 export type {
   AdvertisementMedium,
   ChennaiZone,
+  NewspaperAdType,
+  NewspaperCategory,
   Location,
   MediumOption,
   QuotationItem,
@@ -24,15 +26,21 @@ export {
   RADIO_CHANNELS,
   TV_CHANNELS,
   NEWSPAPERS,
+  CHENNAI_NEWSPAPERS,
+  NEWSPAPER_CATEGORIES,
+  NEWSPAPER_AD_DIMENSIONS,
   ADVERTISEMENT_MEDIUMS,
   getMediumOptions,
   getMediumDisplayName,
+  calculateAdArea,
+  formatDimensions,
 } from './constants/mediums';
 
 // Export components
 export {
   MediumSelector,
   LocationSelector,
+  NewspaperSelector,
   QuotationForm,
   QuotationPDFPreview,
   CreateQuotationButton,

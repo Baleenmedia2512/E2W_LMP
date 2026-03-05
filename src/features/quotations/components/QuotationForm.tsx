@@ -10,8 +10,12 @@ import {
   Divider,
   FormControl,
   FormLabel,
+  FormErrorMessage,
+  FormHelperText,
   Heading,
   Input,
+  InputGroup,
+  InputLeftAddon,
   NumberInput,
   NumberInputField,
   NumberInputStepper,
@@ -32,13 +36,19 @@ import {
   useToast,
   HStack,
   Textarea,
+  Alert,
+  AlertIcon,
+  AlertDescription,
+  Tooltip,
+  Spinner,
 } from '@chakra-ui/react';
-import { DeleteIcon, AddIcon } from '@chakra-ui/icons';
+import { DeleteIcon, AddIcon, InfoIcon } from '@chakra-ui/icons';
 import { AdvertisementMedium, QuotationItem } from '../types';
 import { getMediumOptions, getMediumDisplayName } from '../constants/mediums';
 import { useQuotationCalculator } from '../hooks/useQuotationCalculator';
 import { MediumSelector } from './MediumSelector';
 import { LocationSelector } from './LocationSelector';
+import { NewspaperSelector } from './NewspaperSelector';
 
 interface QuotationFormProps {
   leadId?: string;
@@ -67,6 +77,10 @@ export const QuotationForm = ({
   const [customerCompany, setCustomerCompany] = useState('');
   const [notes, setNotes] = useState('');
   const [validDays, setValidDays] = useState(30);
+  
+  // Validation states
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Current item being added
   const [currentMedium, setCurrentMedium] = useState<AdvertisementMedium | ''>('');
@@ -76,15 +90,66 @@ export const QuotationForm = ({
   const [currentDuration, setCurrentDuration] = useState(1);
   const [currentQuantity, setCurrentQuantity] = useState(1);
   const [currentUnitPrice, setCurrentUnitPrice] = useState(0);
+  
+  // Newspaper-specific fields
+  const [currentNewspaper, setCurrentNewspaper] = useState('');
+  const [currentNewspaperLanguage, setCurrentNewspaperLanguage] = useState<'english' | 'tamil'>('tamil');
+  const [currentNewspaperCategory, setCurrentNewspaperCategory] = useState('');
+  const [currentLines, setCurrentLines] = useState(1); // For line ads
 
   const mediumOptions = currentMedium ? getMediumOptions(currentMedium) : [];
   const selectedOption = mediumOptions.find(opt => opt.id === currentOption);
+
+  // Validation functions
+  const validateEmail = (email: string): boolean => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  };
+
+  const validatePhone = (phone: string): boolean => {
+    const regex = /^[0-9]{10}$/;
+    return regex.test(phone.replace(/[\s-]/g, ''));
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!customerName.trim()) {
+      newErrors.customerName = 'Customer name is required';
+    }
+
+    if (!customerEmail.trim()) {
+      newErrors.customerEmail = 'Email is required';
+    } else if (!validateEmail(customerEmail)) {
+      newErrors.customerEmail = 'Invalid email format';
+    }
+
+    if (!customerPhone.trim()) {
+      newErrors.customerPhone = 'Phone number is required';
+    } else if (!validatePhone(customerPhone)) {
+      newErrors.customerPhone = 'Invalid phone number (10 digits required)';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleAddItem = () => {
     if (!currentMedium || !currentOption) {
       toast({
         title: 'Missing information',
         description: 'Please select medium and option',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Validate newspaper-specific fields
+    if (currentMedium === 'newspaper' && !currentNewspaper) {
+      toast({
+        title: 'Missing newspaper',
+        description: 'Please select a newspaper',
         status: 'warning',
         duration: 3000,
       });
@@ -104,13 +169,24 @@ export const QuotationForm = ({
     addItem({
       medium: currentMedium,
       mediumOption: currentOption,
-      location: currentLocationName || undefined,
+      location: currentLocationName || currentNewspaper || undefined,
       duration: currentDuration,
       quantity: currentQuantity,
       unitPrice: currentUnitPrice,
       specifications: {
         optionName: selectedOption?.name,
         ...(currentLocationName && { location: currentLocationName }),
+        ...(selectedOption?.specifications && {
+          dimensions: selectedOption.specifications.dimensions,
+          size: selectedOption.specifications.size,
+          color: selectedOption.specifications.color,
+          area: selectedOption.specifications.area,
+        }),
+        ...(currentMedium === 'newspaper' && {
+          newspaper: currentNewspaper,
+          category: currentNewspaperCategory,
+          lines: currentOption.includes('line_ad') ? currentLines : undefined,
+        }),
       },
     });
 
@@ -118,6 +194,9 @@ export const QuotationForm = ({
     setCurrentOption('');
     setCurrentLocation('');
     setCurrentLocationName('');
+    setCurrentNewspaper('');
+    setCurrentNewspaperCategory('');
+    setCurrentLines(1);
     setCurrentDuration(1);
     setCurrentQuantity(1);
     setCurrentUnitPrice(0);
@@ -130,6 +209,16 @@ export const QuotationForm = ({
   };
 
   const handlePreview = () => {
+    if (!validateForm()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors in customer information',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     if (items.length === 0) {
       toast({
         title: 'No items',
@@ -156,12 +245,12 @@ export const QuotationForm = ({
     onPreview?.(quotationData);
   };
 
-  const handleSave = () => {
-    if (!customerName || !customerEmail || !customerPhone) {
+  const handleSave = async () => {
+    if (!validateForm()) {
       toast({
-        title: 'Missing customer information',
-        description: 'Please fill in all customer details',
-        status: 'warning',
+        title: 'Validation Error',
+        description: 'Please fix the errors in customer information',
+        status: 'error',
         duration: 3000,
       });
       return;
@@ -177,73 +266,140 @@ export const QuotationForm = ({
       return;
     }
 
-    const quotationData = {
-      customerName,
-      customerEmail,
-      customerPhone,
-      customerCompany,
-      leadId,
-      items,
-      discount,
-      notes,
-      validDays,
-      calculations,
-    };
+    setIsSubmitting(true);
 
-    onSave?.(quotationData);
+    try {
+      const quotationData = {
+        customerName,
+        customerEmail,
+        customerPhone,
+        customerCompany,
+        leadId,
+        items,
+        discount,
+        notes,
+        validDays,
+        calculations,
+      };
+
+      await onSave?.(quotationData);
+      
+      toast({
+        title: 'Success',
+        description: 'Quotation saved successfully',
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save quotation',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <Stack spacing={6}>
       {/* Customer Information */}
-      <Card>
-        <CardHeader>
-          <Heading size="md">Customer Information</Heading>
+      <Card variant="outline" borderColor="blue.200" borderWidth="2px">
+        <CardHeader bg="blue.50">
+          <Heading size="md" color="blue.800">Customer Information</Heading>
+          <Text fontSize="sm" color="gray.600" mt={1}>
+            Please provide accurate customer details for the quotation
+          </Text>
         </CardHeader>
         <CardBody>
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-            <FormControl isRequired>
+            <FormControl isRequired isInvalid={!!errors.customerName}>
               <FormLabel>Customer Name</FormLabel>
               <Input
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+                onChange={(e) => {
+                  setCustomerName(e.target.value);
+                  if (errors.customerName) {
+                    setErrors({ ...errors, customerName: '' });
+                  }
+                }}
                 placeholder="Enter customer name"
+                size="lg"
               />
+              <FormErrorMessage>{errors.customerName}</FormErrorMessage>
             </FormControl>
+
             <FormControl>
-              <FormLabel>Company Name</FormLabel>
+              <FormLabel>
+                Company Name
+                <Tooltip label="Optional - Add if customer represents a company">
+                  <InfoIcon ml={2} boxSize={3} color="gray.400" />
+                </Tooltip>
+              </FormLabel>
               <Input
                 value={customerCompany}
                 onChange={(e) => setCustomerCompany(e.target.value)}
                 placeholder="Enter company name (optional)"
+                size="lg"
               />
+              <FormHelperText>Optional field</FormHelperText>
             </FormControl>
-            <FormControl isRequired>
-              <FormLabel>Email</FormLabel>
-              <Input
-                type="email"
-                value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
-                placeholder="customer@example.com"
-              />
+
+            <FormControl isRequired isInvalid={!!errors.customerEmail}>
+              <FormLabel>Email Address</FormLabel>
+              <InputGroup size="lg">
+                <InputLeftAddon>📧</InputLeftAddon>
+                <Input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => {
+                    setCustomerEmail(e.target.value);
+                    if (errors.customerEmail) {
+                      setErrors({ ...errors, customerEmail: '' });
+                    }
+                  }}
+                  placeholder="customer@example.com"
+                />
+              </InputGroup>
+              <FormErrorMessage>{errors.customerEmail}</FormErrorMessage>
+              {!errors.customerEmail && customerEmail && validateEmail(customerEmail) && (
+                <FormHelperText color="green.600">✓ Valid email</FormHelperText>
+              )}
             </FormControl>
-            <FormControl isRequired>
-              <FormLabel>Phone</FormLabel>
-              <Input
-                type="tel"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="Enter phone number"
-              />
+
+            <FormControl isRequired isInvalid={!!errors.customerPhone}>
+              <FormLabel>Phone Number</FormLabel>
+              <InputGroup size="lg">
+                <InputLeftAddon>📱</InputLeftAddon>
+                <Input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    if (errors.customerPhone) {
+                      setErrors({ ...errors, customerPhone: '' });
+                    }
+                  }}
+                  placeholder="10-digit phone number"
+                />
+              </InputGroup>
+              <FormErrorMessage>{errors.customerPhone}</FormErrorMessage>
+              {!errors.customerPhone && customerPhone && validatePhone(customerPhone) && (
+                <FormHelperText color="green.600">✓ Valid phone number</FormHelperText>
+              )}
             </FormControl>
           </SimpleGrid>
         </CardBody>
       </Card>
 
       {/* Add Items */}
-      <Card>
-        <CardHeader>
-          <Heading size="md">Add Advertisement Items</Heading>
+      <Card variant="outline" borderColor="purple.200" borderWidth="2px">
+        <CardHeader bg="purple.50">
+          <Heading size="md" color="purple.800">Add Advertisement Items</Heading>
+          <Text fontSize="sm" color="gray.600" mt={1}>
+            Select medium and configure advertisement options
+          </Text>
         </CardHeader>
         <CardBody>
           <Stack spacing={6}>
@@ -276,11 +432,87 @@ export const QuotationForm = ({
                     ))}
                   </Select>
                   {selectedOption && (
-                    <Text fontSize="sm" color="gray.600" mt={2}>
-                      {selectedOption.description}
-                    </Text>
+                    <Box mt={3} p={3} bg="blue.50" borderRadius="md" borderLeft="3px solid" borderLeftColor="blue.500">
+                      <Text fontSize="sm" color="gray.700" mb={2}>
+                        {selectedOption.description}
+                      </Text>
+                      {selectedOption.specifications && (
+                        <HStack spacing={3} flexWrap="wrap">
+                          {selectedOption.specifications.dimensions && (
+                            <Badge colorScheme="teal" fontSize="xs" px={2} py={1}>
+                              📏 {selectedOption.specifications.dimensions.displayText || 
+                                  `${selectedOption.specifications.dimensions.width}${selectedOption.specifications.dimensions.unit} × ${selectedOption.specifications.dimensions.height}${selectedOption.specifications.dimensions.unit}`}
+                            </Badge>
+                          )}
+                          {selectedOption.specifications.size && (
+                            <Badge colorScheme="orange" fontSize="xs" px={2} py={1}>
+                              📐 {selectedOption.specifications.size}
+                            </Badge>
+                          )}
+                          {selectedOption.specifications.area && (
+                            <Badge colorScheme="purple" fontSize="xs" px={2} py={1}>
+                              📊 {selectedOption.specifications.area} sq{selectedOption.specifications.dimensions?.unit || 'ft'}
+                            </Badge>
+                          )}
+                          {selectedOption.specifications.color && (
+                            <Badge colorScheme="pink" fontSize="xs" px={2} py={1}>
+                              🎨 {selectedOption.specifications.color}
+                            </Badge>
+                          )}
+                          {selectedOption.specifications.position && (
+                            <Badge colorScheme="cyan" fontSize="xs" px={2} py={1}>
+                              📍 {selectedOption.specifications.position}
+                            </Badge>
+                          )}
+                          {selectedOption.specifications.duration && (
+                            <Badge colorScheme="yellow" fontSize="xs" px={2} py={1}>
+                              ⏱️ {selectedOption.specifications.duration}
+                            </Badge>
+                          )}
+                        </HStack>
+                      )}
+                    </Box>
                   )}
                 </FormControl>
+
+                {/* Newspaper Selector - shown only for newspaper medium */}
+                {currentMedium === 'newspaper' && (
+                  <>
+                    <Divider />
+                    <NewspaperSelector
+                      selectedNewspaper={currentNewspaper}
+                      selectedLanguage={currentNewspaperLanguage}
+                      selectedCategory={currentNewspaperCategory}
+                      onNewspaperChange={setCurrentNewspaper}
+                      onLanguageChange={setCurrentNewspaperLanguage}
+                      onCategoryChange={setCurrentNewspaperCategory}
+                      showLanguageFilter={true}
+                      showCategoryFilter={true}
+                    />
+                    
+                    {/* For line ads, show number of lines input */}
+                    {currentOption.includes('line_ad') && (
+                      <FormControl>
+                        <FormLabel>Number of Lines</FormLabel>
+                        <NumberInput
+                          min={1}
+                          max={50}
+                          value={currentLines}
+                          onChange={(_, val) => setCurrentLines(val)}
+                        >
+                          <NumberInputField />
+                          <NumberInputStepper>
+                            <NumberIncrementStepper />
+                            <NumberDecrementStepper />
+                          </NumberInputStepper>
+                        </NumberInput>
+                        <Text fontSize="xs" color="gray.500" mt={1}>
+                          Pricing is per line. Total: ₹{(currentUnitPrice * currentLines * currentDuration).toLocaleString()}
+                        </Text>
+                      </FormControl>
+                    )}
+                  </>
+                )}
 
                 {currentMedium && ['hoarding', 'bus_shelter', 'auto', 'van_branding'].includes(currentMedium) && (
                   <LocationSelector
@@ -356,9 +588,21 @@ export const QuotationForm = ({
 
       {/* Items List */}
       {items.length > 0 && (
-        <Card>
-          <CardHeader>
-            <Heading size="md">Quotation Items ({items.length})</Heading>
+        <Card variant="outline" borderColor="green.200" borderWidth="2px">
+          <CardHeader bg="green.50">
+            <HStack justify="space-between">
+              <Box>
+                <Heading size="md" color="green.800">
+                  Quotation Items ({items.length})
+                </Heading>
+                <Text fontSize="sm" color="gray.600" mt={1}>
+                  Review and manage your quotation items
+                </Text>
+              </Box>
+              <Badge colorScheme="green" fontSize="lg" px={4} py={2}>
+                ₹{calculations.subtotal.toLocaleString()}
+              </Badge>
+            </HStack>
           </CardHeader>
           <CardBody>
             <Box overflowX="auto">
@@ -366,8 +610,8 @@ export const QuotationForm = ({
                 <Thead>
                   <Tr>
                     <Th>Medium</Th>
-                    <Th>Option</Th>
-                    <Th>Location</Th>
+                    <Th>Option & Specs</Th>
+                    <Th>Location/Details</Th>
                     <Th isNumeric>Duration</Th>
                     <Th isNumeric>Qty</Th>
                     <Th isNumeric>Unit Price</Th>
@@ -381,8 +625,37 @@ export const QuotationForm = ({
                       <Td>
                         <Badge colorScheme="blue">{getMediumDisplayName(item.medium)}</Badge>
                       </Td>
-                      <Td fontSize="sm">{item.specifications?.optionName}</Td>
-                      <Td fontSize="sm">{item.location || '-'}</Td>
+                      <Td fontSize="sm">
+                        <VStack align="start" spacing={1}>
+                          <Text fontWeight="semibold">{item.specifications?.optionName}</Text>
+                          {item.specifications?.dimensions && (
+                            <Badge colorScheme="teal" fontSize="xs">
+                              {item.specifications.dimensions.displayText || 
+                               `${item.specifications.dimensions.width}×${item.specifications.dimensions.height}${item.specifications.dimensions.unit}`}
+                            </Badge>
+                          )}
+                          {item.specifications?.size && (
+                            <Badge colorScheme="orange" fontSize="xs">
+                              {item.specifications.size}
+                            </Badge>
+                          )}
+                        </VStack>
+                      </Td>
+                      <Td fontSize="sm">
+                        <VStack align="start" spacing={1}>
+                          {item.location && <Text>{item.location}</Text>}
+                          {item.specifications?.lines && (
+                            <Badge colorScheme="blue" fontSize="xs">
+                              {item.specifications.lines} lines
+                            </Badge>
+                          )}
+                          {item.specifications?.color && (
+                            <Badge colorScheme="pink" fontSize="xs">
+                              {item.specifications.color}
+                            </Badge>
+                          )}
+                        </VStack>
+                      </Td>
                       <Td isNumeric>{item.duration}</Td>
                       <Td isNumeric>{item.quantity}</Td>
                       <Td isNumeric>₹{item.unitPrice.toLocaleString()}</Td>
@@ -485,27 +758,60 @@ export const QuotationForm = ({
       )}
 
       {/* Actions */}
-      <HStack justify="flex-end" spacing={4}>
-        <Button variant="outline" size="lg">
-          Cancel
-        </Button>
-        <Button
-          colorScheme="green"
-          size="lg"
-          onClick={handlePreview}
-          isDisabled={items.length === 0}
-        >
-          Preview PDF
-        </Button>
-        <Button
-          colorScheme="blue"
-          size="lg"
-          onClick={handleSave}
-          isDisabled={items.length === 0}
-        >
-          Save Quotation
-        </Button>
-      </HStack>
+      <Card bg="gray.50" variant="outline">
+        <CardBody>
+          {items.length === 0 && (
+            <Alert status="info" mb={4} borderRadius="md">
+              <AlertIcon />
+              <AlertDescription>
+                Add at least one advertisement item to generate a quotation
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          <HStack justify="space-between" flexWrap="wrap" gap={4}>
+            <HStack spacing={2}>
+              <Badge colorScheme="blue" fontSize="md" px={3} py={1}>
+                {items.length} {items.length === 1 ? 'Item' : 'Items'}
+              </Badge>
+              {items.length > 0 && (
+                <Badge colorScheme="green" fontSize="md" px={3} py={1}>
+                  Total: ₹{calculations.total.toLocaleString()}
+                </Badge>
+              )}
+            </HStack>
+            
+            <HStack spacing={4}>
+              <Button 
+                variant="outline" 
+                size="lg"
+                onClick={() => window.history.back()}
+              >
+                Cancel
+              </Button>
+              <Button
+                colorScheme="green"
+                size="lg"
+                onClick={handlePreview}
+                isDisabled={items.length === 0}
+                leftIcon={items.length === 0 ? undefined : <InfoIcon />}
+              >
+                Preview PDF
+              </Button>
+              <Button
+                colorScheme="blue"
+                size="lg"
+                onClick={handleSave}
+                isDisabled={items.length === 0}
+                isLoading={isSubmitting}
+                loadingText="Saving..."
+              >
+                Save Quotation
+              </Button>
+            </HStack>
+          </HStack>
+        </CardBody>
+      </Card>
     </Stack>
   );
 };
