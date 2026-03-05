@@ -60,12 +60,16 @@ model CallLog {
   customerRequirement String?
   metadata            String?
   createdAt           DateTime  @default(now())
+  phoneDialed         String?
+  recordingStatus     String?   @default("pending")
+  recordingAppCallId  String?
   User                User      @relation(fields: [callerId], references: [id], onDelete: Cascade)
   Lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@index([callerId])
   @@index([createdAt])
   @@index([leadId])
+  @@index([phoneDialed, startedAt])
 }
 
 model FollowUp {
@@ -112,6 +116,7 @@ model Lead {
   createdAt                    DateTime          @default(now())
   updatedAt                    DateTime
   callAttempts                 Int               @default(0)
+  is_existing                  Boolean           @default(false)
   ActivityHistory              ActivityHistory[]
   CallLog                      CallLog[]
   FollowUp                     FollowUp[]

@@ -55,6 +55,8 @@ export async function GET(
       duration: log.duration,
       callStatus: log.callStatus,
       remarks: log.remarks || log.customerRequirement,
+      recordingUrl: log.recordingUrl,
+      recordingStatus: log.recordingStatus,
       caller: {
         name: log.User.name,
         email: log.User.email,

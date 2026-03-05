@@ -54,6 +54,7 @@ import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqu
 import MarkAsWonModal from '@/features/leads/components/MarkAsWonModal';
 import MarkAsLostModal from '@/features/leads/components/MarkAsLostModal';
 import CallAttemptsModal from '@/shared/components/CallAttemptsModal';
+import CallRecordingPlayer from '@/shared/components/CallRecordingPlayer';
 
 interface Lead {
   id: string;
@@ -83,6 +84,9 @@ interface CallLog {
   callStatus?: string;
   remarks?: string;
   createdAt: string;
+  recordingUrl?: string;
+  recordingStatus?: string;
+  caller?: { name: string };
 }
 
 interface FollowUp {
@@ -585,7 +589,7 @@ export default function LeadDetailPage() {
           <CardBody>
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
-                <Heading size="md">{lead.name}</Heading>
+                <Heading size="md" color={lead.is_existing ? "green.600" : "blue.600"}>{lead.name}</Heading>
                 <HStack spacing={2}>
                   <Badge colorScheme={getStatusColor(lead.status)}>
                     {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status.toUpperCase()}
@@ -792,6 +796,7 @@ export default function LeadDetailPage() {
                               <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Duration</Th>
                               <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
                               <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Agent</Th>
+                              <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Recording</Th>
                               <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Remarks</Th>
                             </Tr>
                           </Thead>
@@ -832,6 +837,13 @@ export default function LeadDetailPage() {
                                     <Text fontSize={{ base: 'xs', sm: 'sm' }} noOfLines={1}>
                                       {call.caller?.name || 'N/A'}
                                     </Text>
+                                  </Td>
+                                  <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">
+                                    <CallRecordingPlayer
+                                      recordingUrl={call.recordingUrl}
+                                      recordingStatus={call.recordingStatus}
+                                      callDuration={call.duration}
+                                    />
                                   </Td>
                                   <Td maxW={{ base: '120px', sm: '200px', md: '300px' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                                     {call.remarks ? (

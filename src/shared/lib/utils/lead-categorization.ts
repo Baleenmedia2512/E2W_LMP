@@ -42,18 +42,23 @@ export function categorizeAndSortLeads(
   // Filter out leads with terminal statuses (unqualified, unreachable, won, lost)
   const activeStatuses = ['new', 'followup', 'qualified'];
 
+  // PERFORMANCE: Create Map for O(1) follow-up lookups
+  const followUpsByLeadId = new Map<string, FollowUp[]>();
+  followUps.forEach((fu) => {
+    if (!followUpsByLeadId.has(fu.leadId)) {
+      followUpsByLeadId.set(fu.leadId, []);
+    }
+    followUpsByLeadId.get(fu.leadId)!.push(fu);
+  });
+
   leads.forEach((lead) => {
     // Skip leads with terminal statuses
     if (!activeStatuses.includes(lead.status)) {
       return;
     }
     
-    // Find the next follow-up for this lead
-    const leadFollowUps = followUps.filter(
-      (f) => f.leadId === lead.id
-    );
-
-    console.log(`Lead ${lead.name} (${lead.id}): Found ${leadFollowUps.length} follow-ups`);
+    // Use Map for instant lookup instead of filtering entire array
+    const leadFollowUps = followUpsByLeadId.get(lead.id) || [];
 
     if (leadFollowUps.length === 0) {
       // No follow-up history = New lead
@@ -77,14 +82,6 @@ export function categorizeAndSortLeads(
         (f) => ensureDate(f.scheduledAt) < now
       );
       
-      console.log(`Lead ${lead.name}: Future=${futureFollowUps.length}, Past=${pastFollowUps.length}`);
-      if (futureFollowUps.length > 0) {
-        console.log(`  Future dates:`, futureFollowUps.map((f: any) => f.scheduledAt));
-      }
-      if (pastFollowUps.length > 0) {
-        console.log(`  Past dates:`, pastFollowUps.map((f: any) => f.scheduledAt));
-      }
-      
       let nextFollowUp;
       
       // Prefer earliest future followup
@@ -107,13 +104,10 @@ export function categorizeAndSortLeads(
       }
 
       if (!nextFollowUp) {
-        console.warn(`Lead ${lead.name}: No valid followup found, skipping`);
         return;
       }
 
       const dueDate = ensureDate(nextFollowUp.scheduledAt);
-      
-      console.log(`Lead ${lead.name}: Selected followup = ${nextFollowUp.scheduledAt}, isOverdue = ${dueDate < now}`);
 
       if (dueDate < now) {
         // Overdue - past current time - sort by oldest first (most overdue first)
