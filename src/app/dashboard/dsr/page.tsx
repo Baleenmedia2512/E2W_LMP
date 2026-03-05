@@ -457,6 +457,7 @@ export default function DSRPage() {
         callStatus: call.callStatus,
         duration: call.duration,
         activityFlags: { hadCallToday: true },
+        is_existing: call.Lead?.is_existing || false,
       }));
       
       // Apply search filter if needed
