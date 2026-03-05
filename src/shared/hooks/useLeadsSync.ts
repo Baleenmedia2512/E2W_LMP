@@ -89,8 +89,8 @@ export function useLeadsSync(
   }, [setFollowUps]);
 
   useEffect(() => {
-    // Check if Supabase is configured
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    // Check if Supabase client is available
+    if (!supabase) {
       console.warn('⚠️ Supabase not configured. Realtime sync disabled.');
       return;
     }
