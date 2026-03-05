@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, memo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -246,10 +246,10 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
 
 // Lead management page with multiple view modes and categorization
 interface LeadsTabContentProps {
-  globalSearchQuery?: string;
+  // Component uses only local search
 }
 
-function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
+function LeadsTabContent({}: LeadsTabContentProps = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -258,11 +258,11 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
   // Get filter from URL if present
   const urlFilter = searchParams.get('filter');
   
-  // State - use global search if provided, otherwise use local state
+  // State - local search only
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   
-  // Use the already-debounced global search or local search
-  const searchQuery = globalSearchQuery || localSearchQuery;
+  // Use local search only
+  const searchQuery = localSearchQuery;
   const [statusFilter, setStatusFilter] = useState<string>(() => {
     // Apply filter from URL (e.g., 'new', 'won', 'overdue', 'today')
     if (urlFilter) {
@@ -447,9 +447,7 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
 
   // Handler to reset all filters
   const handleResetFilters = () => {
-    if (!globalSearchQuery) {
-      setLocalSearchQuery('');
-    }
+    setLocalSearchQuery('');
     setStatusFilter('all');
     setSourceFilter('all');
     setDateRangeFilter('all');
@@ -592,6 +590,9 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
 
   // Filter leads based on all filters
   const filteredLeads = useMemo(() => {
+    // Define outcome statuses that should NOT appear in active leads (they belong in Lead Outcomes tab)
+    const outcomeStatuses = ['won', 'lost', 'unqualified', 'unreach', 'unreachable'];
+    
     // PERFORMANCE FIX: Early return if no filters applied
     const hasSearch = searchQuery.trim() !== '';
     const hasStatusFilter = statusFilter !== 'all' && statusFilter !== 'overdue' && statusFilter !== 'scheduled' && statusFilter !== 'today';
@@ -600,8 +601,12 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
     const hasDateFilter = dateRangeFilter !== 'all';
     const hasAttemptsFilter = attemptsFilter !== 'all';
     
+    // Always exclude outcome statuses from active leads UNLESS specifically filtering for them
+    const shouldExcludeOutcomes = !hasStatusFilter || !outcomeStatuses.includes(statusFilter);
+    
     if (!hasSearch && !hasStatusFilter && !hasSourceFilter && !hasClientTypeFilter && !hasDateFilter && !hasAttemptsFilter) {
-      return leads; // No filtering needed - return original array
+      // Even with no filters, exclude outcome statuses from active leads
+      return leads.filter(lead => !outcomeStatuses.includes(lead.status));
     }
     
     // Optimize: Pre-process search query and dates once (outside the filter loop)
@@ -613,16 +618,21 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
     
     // Single-pass filter for maximum performance
     return leads.filter((lead) => {
+      // FIRST: Exclude outcome statuses from active leads (unless specifically filtering for them)
+      if (shouldExcludeOutcomes && outcomeStatuses.includes(lead.status)) {
+        return false;
+      }
+      
       // Search filter - fastest checks first
       if (hasSearch) {
-        // Quick check: phone numbers are usually searched exactly
-        if (lead.phone.includes(searchLower)) return true;
-        // Name search is case-insensitive
-        if (lead.name.toLowerCase().includes(searchLower)) return true;
-        // Email is less common, check last
-        if (lead.email && lead.email.toLowerCase().includes(searchLower)) return true;
+        // Check if lead matches search query
+        const matchesSearch = 
+          lead.phone.includes(searchLower) || 
+          lead.name.toLowerCase().includes(searchLower) || 
+          (lead.email && lead.email.toLowerCase().includes(searchLower));
+        
         // If search doesn't match, exclude this lead
-        return false;
+        if (!matchesSearch) return false;
       }
 
       // Status filter
@@ -891,8 +901,7 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
       {/* Search and Filters */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
-          {/* Search Bar - Hide when global search is active */}
-          {!globalSearchQuery && (
+          {/* Local Search Bar */}
           <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch">
             <DebouncedSearchInput
               placeholder="Search name or phone number"
@@ -902,7 +911,6 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
               maxW="full"
             />
           </Flex>
-          )}
 
           {/* Filters Row */}
           <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch" flexWrap="wrap">
@@ -1568,12 +1576,8 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
   );
 }
 
-// PERFORMANCE FIX: Memoize the component to prevent unnecessary re-renders
-// This ensures the component only re-renders when globalSearchQuery actually changes
-// Use custom comparison to ensure string props are compared by value
-export default memo(LeadsTabContent, (prevProps, nextProps) => {
-  return prevProps.globalSearchQuery === nextProps.globalSearchQuery;
-});
+// Export the component
+export default LeadsTabContent;
 
 
 
