@@ -43,6 +43,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
 import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
+import CallRecordingPlayer from '@/shared/components/CallRecordingPlayer';
 
 interface CallLog {
   id: string;
@@ -63,6 +64,8 @@ interface CallLog {
   customerRequirement: string | null;
   startedAt: string;
   createdAt: string;
+  recordingUrl?: string | null;
+  recordingStatus?: string | null;
 }
 
 interface CallHistoryGroup {
@@ -329,36 +332,107 @@ export default function CallsPage() {
 
       {!loading && viewMode === 'table' && (
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-          <Box overflowX="auto" mx={{ base: -4, md: 0 }}>
-            <Table variant="simple" size={{ base: 'sm', md: 'sm' }}>
+          <Text 
+            fontSize="xs" 
+            color="gray.500" 
+            px={4} 
+            py={2} 
+            display={{ base: 'block', md: 'none' }}
+            bg="gray.50"
+            borderBottom="1px"
+            borderColor="gray.200"
+            textAlign="center"
+          >
+            ← Scroll horizontally to view all columns →
+          </Text>
+          <Box 
+            overflowX="auto" 
+            w="full"
+            css={{
+              '&::-webkit-scrollbar': {
+                height: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+                borderRadius: '10px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#888',
+                borderRadius: '10px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: '#555',
+              },
+            }}
+          >
+            <Table variant="simple" size={{ base: 'sm', md: 'sm' }} minW={{ base: '800px', md: 'auto' }}>
               <Thead bg="gray.50">
                 <Tr>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Lead Name</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', sm: 'table-cell' }}>Last Called</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Attempts</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', md: 'table-cell' }}>Duration (min)</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', lg: 'table-cell' }}>Agent Name</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Actions</Th>
+                  <Th 
+                    fontSize={{ base: 'xs', sm: 'sm' }} 
+                    px={{ base: 2, md: 4 }} 
+                    py={{ base: 2, md: 3 }}
+                    position="sticky"
+                    left={0}
+                    zIndex={2}
+                    bg="gray.50"
+                    boxShadow="2px 0 5px -1px rgba(0,0,0,0.15)"
+                    minW={{ base: '140px', md: '200px' }}
+                    maxW={{ base: '140px', md: '200px' }}
+                    borderRight="2px solid"
+                    borderRightColor="gray.200"
+                  >
+                    Lead Name
+                  </Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Last Called</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Attempts</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Duration (min)</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Status</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Agent Name</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">Recording</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {filteredCalls.length > 0 ? (
                   filteredCalls.map((group) => (
-                    <Tr key={group.leadId} _hover={{ bg: 'gray.50' }}>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                    <Tr 
+                      key={group.leadId} 
+                      _hover={{ 
+                        bg: 'gray.50',
+                        '& td:first-of-type': {
+                          bg: 'gray.50'
+                        }
+                      }}
+                    >
+                      <Td 
+                        fontSize={{ base: 'xs', sm: 'sm' }} 
+                        px={{ base: 2, md: 4 }} 
+                        py={{ base: 2, md: 3 }} 
+                        position="sticky"
+                        left={0}
+                        zIndex={1}
+                        bg="white"
+                        boxShadow="2px 0 5px -1px rgba(0,0,0,0.15)"
+                        minW={{ base: '140px', md: '200px' }}
+                        maxW={{ base: '140px', md: '200px' }}
+                        borderRight="2px solid"
+                        borderRightColor="gray.200"
+                      >
                         <Text
                           fontWeight="medium"
                           cursor="pointer"
                           color="blue.600"
                           onClick={() => router.push(`/dashboard/leads/${group.leadId}`)}
                           _hover={{ textDecoration: 'underline' }}
-                          noOfLines={1}
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          lineHeight="shorter"
                         >
                           {group.leadName}
                         </Text>
                       </Td>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} whiteSpace="nowrap" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', sm: 'table-cell' }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} whiteSpace="nowrap" px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         {formatDateTime(group.latestCall.createdAt)}
                       </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
@@ -366,7 +440,7 @@ export default function CallsPage() {
                           {group.totalAttempts}
                         </Badge>
                       </Td>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', md: 'table-cell' }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         {formatDuration(group.latestCall.duration)}
                       </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
@@ -374,8 +448,15 @@ export default function CallsPage() {
                           {getCallStatusLabel(group.latestCall.callStatus)}
                         </Badge>
                       </Td>
-                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', lg: 'table-cell' }}>
+                      <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         <Text noOfLines={1}>{group.latestCall.caller.name || 'N/A'}</Text>
+                      </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">
+                        <CallRecordingPlayer
+                          recordingUrl={group.latestCall.recordingUrl}
+                          recordingStatus={group.latestCall.recordingStatus}
+                          callDuration={group.latestCall.duration}
+                        />
                       </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
                         <Menu>
@@ -542,6 +623,18 @@ export default function CallsPage() {
                       </Text>
                     </Box>
 
+                    {/* Recording */}
+                    <Box>
+                      <Text fontSize="xs" color="gray.500" mb={1}>
+                        Recording
+                      </Text>
+                      <CallRecordingPlayer
+                        recordingUrl={group.latestCall.recordingUrl}
+                        recordingStatus={group.latestCall.recordingStatus}
+                        callDuration={group.latestCall.duration}
+                      />
+                    </Box>
+
                     {/* Remarks */}
                     {group.latestCall.customerRequirement && (
                       <Box>
@@ -632,6 +725,7 @@ export default function CallsPage() {
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', sm: 'table-cell' }}>Duration (min)</Th>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', md: 'table-cell' }}>Agent Name</Th>
+                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} minW="180px">Recording</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -653,6 +747,13 @@ export default function CallsPage() {
                       </Td>
                       <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} display={{ base: 'none', md: 'table-cell' }}>
                         <Text noOfLines={1}>{call.caller.name || 'N/A'}</Text>
+                      </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">
+                        <CallRecordingPlayer
+                          recordingUrl={call.recordingUrl}
+                          recordingStatus={call.recordingStatus}
+                          callDuration={call.duration}
+                        />
                       </Td>
                     </Tr>
                   ))}

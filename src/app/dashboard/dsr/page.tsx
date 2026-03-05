@@ -1162,7 +1162,7 @@ export default function DSRPage() {
                           })}
                         </Td>
                       )}
-                      <Td fontWeight="medium" color={THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
+                      <Td fontWeight="medium" color={lead.is_existing ? "green.600" : THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
                         {lead.name}
                       </Td>
                       <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">{formatPhoneForDisplay(lead.phone)}</Td>

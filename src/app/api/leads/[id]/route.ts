@@ -129,6 +129,11 @@ export async function PUT(
       updateData.callAttempts = 0;
     }
 
+    // Automatically set is_existing to true when lead status is changed to won
+    if (body.status === 'won' && oldLead?.status !== 'won') {
+      updateData.is_existing = true;
+    }
+
     const lead = await prisma.lead.update({
       where: { id: params.id },
       data: updateData,

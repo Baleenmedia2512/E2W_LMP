@@ -40,6 +40,7 @@ export interface Lead {
   createdById: string | null;
   notes: string | null;
   metadata: Record<string, unknown> | null;
+  is_existing: boolean | null;
   createdAt: Date;
   updatedAt: Date;
   assignedTo?: User;
