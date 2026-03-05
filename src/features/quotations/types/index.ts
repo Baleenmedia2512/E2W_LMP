@@ -12,12 +12,51 @@ export type AdvertisementMedium =
 
 export type ChennaiZone = 'North' | 'South' | 'Central' | 'West' | 'East' | 'OMR' | 'GST Road';
 
+export type NewspaperAdType = 
+  | 'front_page'
+  | 'display_ad'
+  | 'line_ad'
+  | 'classified_display'
+  | 'back_page'
+  | 'special';
+
+export type NewspaperCategory =
+  | 'frontPage'
+  | 'sports'
+  | 'political'
+  | 'business'
+  | 'entertainment'
+  | 'classified'
+  | 'matrimonial'
+  | 'jobVacancy'
+  | 'realEstate'
+  | 'education'
+  | 'general';
+
 export interface Location {
   id: string;
   name: string;
   zone: ChennaiZone;
   premium?: boolean;
   landmark?: string;
+}
+
+export interface AdDimensions {
+  width: number;  // in cm
+  height: number; // in cm
+  unit: 'cm' | 'inches' | 'sqft';
+  displayText?: string; // e.g., "25cm x 38cm (Full Page)"
+}
+
+export interface MediumSpecifications {
+  dimensions?: AdDimensions;
+  size?: string; // e.g., "20x10 ft", "Full Wrap", "10 seconds"
+  duration?: string; // e.g., "10 seconds", "30 seconds"
+  area?: number; // calculated area in sq cm or sq ft
+  lines?: number; // for line ads
+  color?: 'Color' | 'B&W' | 'Both';
+  position?: string; // e.g., "Front Page", "Back Panel", "Backlit"
+  [key: string]: any;
 }
 
 export interface MediumOption {
@@ -28,6 +67,7 @@ export interface MediumOption {
   channels?: string[];
   routes?: string[];
   papers?: string[];
+  specifications?: MediumSpecifications;
   priceRange: {
     min: number;
     max: number;
@@ -44,7 +84,19 @@ export interface QuotationItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  specifications?: Record<string, any>;
+  specifications?: {
+    optionName?: string;
+    location?: string;
+    newspaper?: string; // For newspaper ads
+    adType?: NewspaperAdType; // For newspaper ads
+    category?: NewspaperCategory; // For newspaper ads
+    lines?: number; // For line ads
+    dimensions?: AdDimensions; // Height x Width for display ads
+    size?: string; // Overall size description
+    color?: 'Color' | 'B&W' | 'Both';
+    area?: number; // Calculated area
+    [key: string]: any;
+  };
 }
 
 export interface Quotation {
