@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, memo } from 'react';
+import { useState, useRef, memo, useCallback } from 'react';
 import { InputGroup, InputLeftElement, Input } from '@chakra-ui/react';
 import { HiSearch } from 'react-icons/hi';
 
@@ -19,22 +19,32 @@ function DebouncedSearchInput({
   size = 'md',
   maxW,
 }: DebouncedSearchInputProps) {
+  const [inputValue, setInputValue] = useState('');
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Handle input change - NO state updates, pure DOM event handling
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle input change with immediate visual feedback
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    
+    // Update input value immediately for instant visual feedback
+    setInputValue(value);
 
     // Clear existing timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Set new timer to trigger search
+    // If clearing search (empty value), trigger immediately for instant feedback
+    if (value.trim() === '') {
+      onSearch('');
+      return;
+    }
+
+    // Set new timer to trigger search for non-empty values
     debounceTimerRef.current = setTimeout(() => {
       onSearch(value);
     }, debounceMs);
-  };
+  }, [onSearch, debounceMs]);
 
   return (
     <InputGroup maxW={maxW}>
@@ -43,21 +53,17 @@ function DebouncedSearchInput({
       </InputLeftElement>
       <Input
         placeholder={placeholder}
+        value={inputValue}
         onChange={handleChange}
         size={size}
         autoComplete="off"
         spellCheck={false}
         autoCorrect="off"
         autoCapitalize="off"
-        // Performance optimizations - disable all browser features that might slow input
-        data-gramm="false"
-        data-gramm_editor="false"
-        data-enable-grammarly="false"
-        data-ms-editor="false"
       />
     </InputGroup>
   );
 }
 
-// Memoize component - won't re-render unless props actually change
+// Memoize component to prevent unnecessary re-renders
 export default memo(DebouncedSearchInput);

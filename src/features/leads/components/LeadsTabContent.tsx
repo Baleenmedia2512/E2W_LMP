@@ -56,6 +56,7 @@ import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnre
 import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
 import ChangeStatusModal from '@/features/leads/components/ChangeStatusModal';
+import ModernLeadCard from '@/features/leads/components/ModernLeadCard';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatDateTime } from '@/shared/lib/date-utils';
 import { categorizeAndSortLeads, formatTimeDifference } from '@/shared/lib/utils/lead-categorization';
@@ -159,40 +160,40 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
     <Box
       w="full"
       bg="gray.50"
-      borderRadius="md"
-      p={{ base: 2, sm: 2.5 }}
+      borderRadius="sm"
+      p={{ base: 1.5, sm: 2 }}
       border="1px solid"
       borderColor="gray.200"
     >
       <Text
-        fontSize="xs"
+        fontSize="2xs"
         fontWeight="bold"
         color="gray.700"
-        mb={1.5}
+        mb={1}
       >
         Call Remarks ({remarksWithLogs.length})
       </Text>
       {remarksWithLogs.length === 0 ? (
-        <Text fontSize="xs" color="gray.500" fontStyle="italic">
+        <Text fontSize="2xs" color="gray.500" fontStyle="italic">
           No call remarks yet
         </Text>
       ) : (
         <VStack
           align="stretch"
-          spacing={1.5}
-          maxH="80px"
+          spacing={1}
+          maxH="60px"
           overflowY="auto"
           sx={{
             '&::-webkit-scrollbar': {
-              width: '6px',
+              width: '4px',
             },
             '&::-webkit-scrollbar-track': {
               background: 'gray.100',
-              borderRadius: '3px',
+              borderRadius: '2px',
             },
             '&::-webkit-scrollbar-thumb': {
               background: 'gray.400',
-              borderRadius: '3px',
+              borderRadius: '2px',
             },
             '&::-webkit-scrollbar-thumb:hover': {
               background: 'gray.500',
@@ -203,12 +204,12 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
           <Box
             key={log.id}
             bg="white"
-            p={2}
+            p={1.5}
             borderRadius="sm"
             border="1px solid"
             borderColor="gray.200"
           >
-            <HStack spacing={1} mb={1} flexWrap="wrap">
+            <HStack spacing={1} mb={0.5} flexWrap="wrap">
               <Badge
                 colorScheme={
                   log.callStatus === 'answer' || log.callStatus === 'completed'
@@ -232,7 +233,7 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
                 {formatDateTime(log.createdAt)}
               </Text>
             </HStack>
-            <Text fontSize={{ base: '2xs', sm: 'xs' }} color="gray.700">
+            <Text fontSize="2xs" color="gray.700">
               {log.remarks}
             </Text>
           </Box>
@@ -324,7 +325,7 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
       setLoading(true);
       
       // Build query parameters for leads API
-      // Increased limit to ensure all leads with followups are fetched
+      // Load all data once, filter on client-side for instant search
       const leadsParams = new URLSearchParams({ limit: '2000' });
       if (assignedToMe) {
         leadsParams.append('assigned_to', 'me');
@@ -375,11 +376,11 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
   };
   
   useEffect(() => {
-    // Only fetch data once token is available
+    // Only fetch data once when token is available
     if (token) {
       fetchData();
     }
-  }, [token]); // Removed showOnlyToday - we now filter on client side
+  }, [token]); // Don't refetch on search - use client-side filtering for instant results
   
   // Restore scroll position IMMEDIATELY when component mounts
   useEffect(() => {
@@ -1100,228 +1101,45 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
             </Flex>
             
             {!isNewLeadsCollapsed && (lazyLoadedLeads.newLeads.length > 0 ? (
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 2, md: 3 }}>
                 {lazyLoadedLeads.newLeads.map(({ lead, followUp }) => {
-                  const dueDate = followUp?.scheduledAt;
-                  const isNewLead = !followUp;
                   const lastCall = getLastCallForLead(lead.id);
                   
                   return (
-                    <Box
+                    <ModernLeadCard
                       key={lead.id}
-                      bg="white"
-                      borderRadius="lg"
-                      boxShadow="sm"
-                      p={{ base: 2.5, sm: 3, md: 4 }}
-                      borderLeft={{ base: '4px', md: '4px' }}
-                      borderColor={{ base: 'blue.500', md: 'blue.500' }}
-                      _hover={{ boxShadow: 'md' }}
-                      transition="all 0.2s"
-                    >
-                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={{ base: 2, md: 3 }} direction="column">
-                        <Box flex="1" minW={{ base: 'full', lg: '300px' }}>
-                          <Text
-                            fontWeight="bold"
-                            fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
-                            color={lead.is_existing ? "green.600" : "blue.600"}
-                            cursor="pointer"
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                            _hover={{ textDecoration: 'underline' }}
-                            mb={{ base: 1, md: 2 }}
-                            noOfLines={1}
-                          >
-                            {lead.name}
-                          </Text>
-                          
-                          <VStack align="stretch" spacing={{ base: 1, md: 2 }}>
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Email:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.email || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Phone:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Source:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{lead.source || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Campaign:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.campaign || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Status:</Text>
-                              <HStack flexWrap="wrap">
-                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', sm: 'sm' }}>
-                                  {getStatusLabel(lead.status)}
-                                </Badge>
-                                {lead.callAttempts > 0 && (
-                                  <Badge colorScheme={lead.callAttempts > 6 ? 'red' : lead.callAttempts > 3 ? 'orange' : 'blue'} fontSize="xs">
-                                    Calls: {lead.callAttempts}
-                                  </Badge>
-                                )}
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Lead Age:</Text>
-                              <LeadAge createdAt={lead.createdAt} />
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Assigned To:</Text>
-                              <HStack spacing={1} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.assignedTo?.name || 'Unassigned'}</Text>
-                                <IconButton
-                                  aria-label="Change assignment"
-                                  icon={<HiPencil />}
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="blue"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLeadToAssign({
-                                      id: lead.id,
-                                      name: lead.name,
-                                      currentAssignee: lead.assignedTo?.name ?? undefined
-                                    });
-                                    onAssignOpen();
-                                  }}
-                                />
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Call:</Text>
-                              {lastCall ? (
-                                <VStack align="flex-start" spacing={1}>
-                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
-                                  <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
-                                    {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
-                                  </Badge>
-                                </VStack>
-                              ) : (
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
-                              )}
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Next Followup:</Text>
-                              {followUp ? (
-                                <VStack align="flex-start" spacing={1} maxW="full">
-                                  <HStack spacing={2} flexWrap="wrap">
-                                    <Badge colorScheme="orange" fontSize="xs">Follow-up</Badge>
-                                    <Badge colorScheme="blue" fontSize="xs">Due Today</Badge>
-                                  </HStack>
-                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
-                                  {followUp.notes && (
-                                    <Text fontSize="xs" color="gray.600" noOfLines={2}>
-                                      Note: {followUp.notes}
-                                    </Text>
-                                  )}
-                                </VStack>
-                              ) : (
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
-                              )}
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Origin:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.createdAt)}</Text>
-                            </HStack>
-                            
-                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
-                              <HStack spacing={2} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Last Edit:</Text>
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
-                              </HStack>
-                            )}
-                          </VStack>
-                        </Box>
-
-                        {/* Call Remarks Display */}
-                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
-
-                        <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width="full" justify="flex-start">
-                          <Button
-                            size={{ base: 'xs', sm: 'sm' }}
-                            leftIcon={<HiPhone />}
-                            colorScheme="green"
-                            onClick={() => {
-                              setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
-                              onCallDialerOpen();
-                            }}
-                            fontSize={{ base: 'xs', sm: 'sm' }}
-                            px={{ base: 2, sm: 4 }}
-                            flex={{ base: '1', sm: '0' }}
-                            minW={{ base: 'auto', sm: 'auto' }}
-                          >
-                            Call
-                          </Button>
-                          <Tooltip 
-                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
-                            placement="top"
-                          >
-                            <IconButton
-                              aria-label="Send WhatsApp"
-                              icon={<FaWhatsapp />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="whatsapp"
-                              variant="outline"
-                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
-                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
-                              _hover={{ transform: 'scale(1.05)' }}
-                              transition="all 0.2s"
-                            />
-                          </Tooltip>
-                          <Tooltip label="Change Status" placement="top">
-                            <IconButton
-                              aria-label="Change status"
-                              icon={<HiRefresh />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="purple"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLeadToChangeStatus({
-                                  id: lead.id,
-                                  name: lead.name,
-                                  status: lead.status
-                                });
-                                onChangeStatusOpen();
-                              }}
-                            />
-                          </Tooltip>
-                          <IconButton
-                            aria-label="Assign lead"
-                            icon={<HiUserAdd />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            colorScheme="blue"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLeadToAssign({
-                                id: lead.id,
-                                name: lead.name,
-                                currentAssignee: lead.assignedTo?.name ?? undefined
-                              });
-                              onAssignOpen();
-                            }}
-                          />
-                          <IconButton
-                            aria-label="View details"
-                            icon={<HiEye />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                          />
-                        </HStack>
-                      </Flex>
-                    </Box>
+                      lead={lead}
+                      followUp={followUp}
+                      lastCall={lastCall}
+                      onCallClick={() => {
+                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                        onCallDialerOpen();
+                      }}
+                      onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                      onChangeStatusClick={(e) => {
+                        e.stopPropagation();
+                        setLeadToChangeStatus({
+                          id: lead.id,
+                          name: lead.name,
+                          status: lead.status
+                        });
+                        onChangeStatusOpen();
+                      }}
+                      onAssignClick={(e) => {
+                        e.stopPropagation();
+                        setLeadToAssign({
+                          id: lead.id,
+                          name: lead.name,
+                          currentAssignee: lead.assignedTo?.name ?? undefined
+                        });
+                        onAssignOpen();
+                      }}
+                      onViewClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                      getStatusBadgeColor={getStatusBadgeColor}
+                      getStatusLabel={getStatusLabel}
+                      LeadAgeComponent={LeadAge}
+                      CallRemarksComponent={CallRemarksDisplay}
+                    />
                   );
                 })}
               </SimpleGrid>
@@ -1368,230 +1186,45 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
             </Flex>
             
             {!isOverdueCollapsed && (lazyLoadedLeads.overdue.length > 0 ? (
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 2, md: 3 }}>
                 {lazyLoadedLeads.overdue.map(({ lead, followUp }) => {
-                  const dueDate = followUp?.scheduledAt;
-                  const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
                   const lastCall = getLastCallForLead(lead.id);
                   
                   return (
-                    <Box
+                    <ModernLeadCard
                       key={lead.id}
-                      bg="red.50"
-                      borderRadius="lg"
-                      boxShadow="md"
-                      p={{ base: 2.5, sm: 3, md: 4 }}
-                      borderLeft={{ base: '4px', md: '6px' }}
-                      borderColor={{ base: 'red.600', md: 'red.600' }}
-                      _hover={{ boxShadow: 'lg', bg: 'red.100' }}
-                      transition="all 0.2s"
-                    >
-                      <VStack align="stretch" spacing={{ base: 2, md: 2.5 }}>
-                        <Flex justify="space-between" align="flex-start" gap={{ base: 2, md: 2.5 }} flexWrap="wrap">
-                        <Box flex="1" minW="0">
-                          <Text
-                            fontWeight="bold"
-                            fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
-                            color={lead.is_existing ? "green.600" : "blue.600"}
-                            cursor="pointer"
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                            _hover={{ textDecoration: 'underline' }}
-                            mb={1.5}
-                            noOfLines={1}
-                          >
-                            {lead.name}
-                          </Text>
-                          
-                          <VStack align="stretch" spacing={{ base: 1, md: 2 }}>
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Email:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.email || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Phone:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Source:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{lead.source || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Campaign:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.campaign || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Status:</Text>
-                              <HStack flexWrap="wrap">
-                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', sm: 'sm' }}>
-                                  {getStatusLabel(lead.status)}
-                                </Badge>
-                                {lead.callAttempts > 0 && (
-                                  <Badge colorScheme={lead.callAttempts > 6 ? 'red' : lead.callAttempts > 3 ? 'orange' : 'blue'} fontSize="xs">
-                                    Calls: {lead.callAttempts}
-                                  </Badge>
-                                )}
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Lead Age:</Text>
-                              <LeadAge createdAt={lead.createdAt} />
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Assigned To:</Text>
-                              <HStack spacing={1} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.assignedTo?.name || 'Unassigned'}</Text>
-                                <IconButton
-                                  aria-label="Change assignment"
-                                  icon={<HiPencil />}
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="blue"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLeadToAssign({
-                                      id: lead.id,
-                                      name: lead.name,
-                                      currentAssignee: lead.assignedTo?.name ?? undefined
-                                    });
-                                    onAssignOpen();
-                                  }}
-                                />
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Call:</Text>
-                              {lastCall ? (
-                                <VStack align="flex-start" spacing={1}>
-                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
-                                  <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
-                                    {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
-                                  </Badge>
-                                </VStack>
-                              ) : (
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
-                              )}
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Next Followup:</Text>
-                              {followUp ? (
-                                <VStack align="flex-start" spacing={1} maxW="full">
-                                  <HStack spacing={2} flexWrap="wrap">
-                                    <Badge colorScheme="orange" fontSize="xs">Follow-up</Badge>
-                                    <Badge colorScheme="red" fontSize="xs">Overdue by {timeDiff}</Badge>
-                                  </HStack>
-                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
-                                  {followUp.notes && (
-                                    <Text fontSize="xs" color="gray.600" noOfLines={2}>
-                                      Note: {followUp.notes}
-                                    </Text>
-                                  )}
-                                </VStack>
-                              ) : (
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
-                              )}
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Origin:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.createdAt)}</Text>
-                            </HStack>
-                            
-                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
-                              <HStack spacing={2} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Last Edit:</Text>
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
-                              </HStack>
-                            )}
-                          </VStack>
-                        </Box>
-
-                        <HStack spacing={{ base: 1, sm: 1.5 }} flexWrap="wrap" alignSelf={{ base: 'stretch', sm: 'flex-start' }} flexShrink={0} width={{ base: 'full', sm: 'auto' }} justify={{ base: 'flex-start', sm: 'flex-start' }}>
-                          <Button
-                            size={{ base: 'xs', sm: 'sm' }}
-                            leftIcon={<HiPhone />}
-                            colorScheme="green"
-                            onClick={() => {
-                              setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
-                              onCallDialerOpen();
-                            }}
-                            fontSize={{ base: 'xs', sm: 'sm' }}
-                            px={{ base: 2, sm: 4 }}
-                            flex={{ base: '1', sm: '0' }}
-                            minW={{ base: 'auto', sm: 'auto' }}
-                          >
-                            Call
-                          </Button>
-                          <Tooltip 
-                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
-                            placement="top"
-                          >
-                            <IconButton
-                              aria-label="Send WhatsApp"
-                              icon={<FaWhatsapp />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="whatsapp"
-                              variant="outline"
-                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
-                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
-                              _hover={{ transform: 'scale(1.05)' }}
-                              transition="all 0.2s"
-                            />
-                          </Tooltip>
-                          <Tooltip label="Change Status" placement="top">
-                            <IconButton
-                              aria-label="Change status"
-                              icon={<HiRefresh />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="purple"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLeadToChangeStatus({
-                                  id: lead.id,
-                                  name: lead.name,
-                                  status: lead.status
-                                });
-                                onChangeStatusOpen();
-                              }}
-                            />
-                          </Tooltip>
-                          <IconButton
-                            aria-label="Assign lead"
-                            icon={<HiUserAdd />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            colorScheme="blue"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLeadToAssign({
-                                id: lead.id,
-                                name: lead.name,
-                                currentAssignee: lead.assignedTo?.name ?? undefined
-                              });
-                              onAssignOpen();
-                            }}
-                          />
-                          <IconButton
-                            aria-label="View details"
-                            icon={<HiEye />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                          />
-                        </HStack>
-                        </Flex>
-                        
-                        {/* Call Remarks Display - Full Width Below */}
-                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
-                      </VStack>
-                    </Box>
+                      lead={lead}
+                      followUp={followUp}
+                      lastCall={lastCall}
+                      onCallClick={() => {
+                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                        onCallDialerOpen();
+                      }}
+                      onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                      onChangeStatusClick={(e) => {
+                        e.stopPropagation();
+                        setLeadToChangeStatus({
+                          id: lead.id,
+                          name: lead.name,
+                          status: lead.status
+                        });
+                        onChangeStatusOpen();
+                      }}
+                      onAssignClick={(e) => {
+                        e.stopPropagation();
+                        setLeadToAssign({
+                          id: lead.id,
+                          name: lead.name,
+                          currentAssignee: lead.assignedTo?.name ?? undefined
+                        });
+                        onAssignOpen();
+                      }}
+                      onViewClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                      getStatusBadgeColor={getStatusBadgeColor}
+                      getStatusLabel={getStatusLabel}
+                      LeadAgeComponent={LeadAge}
+                      CallRemarksComponent={CallRemarksDisplay}
+                    />
                   );
                 })}
               </SimpleGrid>
@@ -1638,238 +1271,45 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
             </Flex>
             
             {!isScheduledCollapsed && (lazyLoadedLeads.future.length > 0 ? (
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 2, md: 3 }}>
                 {lazyLoadedLeads.future.map(({ lead, followUp }) => {
-                  const dueDate = followUp?.scheduledAt;
-                  const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
                   const lastCall = getLastCallForLead(lead.id);
                   
-                  // Check if due today
-                  const now = new Date();
-                  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-                  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-                  const isDueToday = dueDate && new Date(dueDate) >= todayStart && new Date(dueDate) <= todayEnd;
-                  
                   return (
-                    <Box
+                    <ModernLeadCard
                       key={lead.id}
-                      bg="white"
-                      borderRadius="lg"
-                      boxShadow="sm"
-                      p={{ base: 2.5, sm: 3, md: 4 }}
-                      borderLeft={{ base: '4px', md: '4px' }}
-                      borderColor={{ base: 'green.500', md: 'green.500' }}
-                      _hover={{ boxShadow: 'md' }}
-                      transition="all 0.2s"
-                    >
-                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={{ base: 2, md: 3 }} direction="column">
-                        <Box flex="1" minW={{ base: 'full', lg: '300px' }}>
-                          <Text
-                            fontWeight="bold"
-                            fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
-                            color={lead.is_existing ? "green.600" : "blue.600"}
-                            cursor="pointer"
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                            _hover={{ textDecoration: 'underline' }}
-                            mb={{ base: 1, md: 2 }}
-                            noOfLines={1}
-                          >
-                            {lead.name}
-                          </Text>
-                          
-                          <VStack align="stretch" spacing={{ base: 1, md: 2 }}>
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Email:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.email || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Phone:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Source:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{lead.source || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Campaign:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.campaign || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Status:</Text>
-                              <HStack flexWrap="wrap">
-                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', sm: 'sm' }}>
-                                  {getStatusLabel(lead.status)}
-                                </Badge>
-                                {lead.callAttempts > 0 && (
-                                  <Badge colorScheme={lead.callAttempts > 6 ? 'red' : lead.callAttempts > 3 ? 'orange' : 'blue'} fontSize="xs">
-                                    Calls: {lead.callAttempts}
-                                  </Badge>
-                                )}
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Lead Age:</Text>
-                              <LeadAge createdAt={lead.createdAt} />
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Assigned To:</Text>
-                              <HStack spacing={1} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.assignedTo?.name || 'Unassigned'}</Text>
-                                <IconButton
-                                  aria-label="Change assignment"
-                                  icon={<HiPencil />}
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="blue"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLeadToAssign({
-                                      id: lead.id,
-                                      name: lead.name,
-                                      currentAssignee: lead.assignedTo?.name ?? undefined
-                                    });
-                                    onAssignOpen();
-                                  }}
-                                />
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Call:</Text>
-                              {lastCall ? (
-                                <VStack align="flex-start" spacing={1}>
-                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lastCall.createdAt)}</Text>
-                                  <Badge colorScheme={lastCall.callStatus === 'completed' ? 'green' : lastCall.callStatus === 'busy' ? 'red' : 'orange'} fontSize="xs">
-                                    {lastCall.callStatus === 'ring_not_response' ? 'Ring Not Response' : (lastCall.callStatus || '').charAt(0).toUpperCase() + (lastCall.callStatus || '').slice(1)}
-                                  </Badge>
-                                </VStack>
-                              ) : (
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
-                              )}
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap" align="flex-start">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Next Followup:</Text>
-                              {followUp ? (
-                                <VStack align="flex-start" spacing={1} maxW="full">
-                                  <HStack spacing={2} flexWrap="wrap">
-                                    <Badge colorScheme="orange" fontSize="xs">Follow-up</Badge>
-                                    {isDueToday ? (
-                                      <Badge colorScheme="blue" fontSize="xs">DUE TODAY</Badge>
-                                    ) : (
-                                      <Badge colorScheme="green" fontSize="xs">In {timeDiff}</Badge>
-                                    )}
-                                  </HStack>
-                                  <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{dueDate ? formatDateTime(dueDate) : '-'}</Text>
-                                  {followUp.notes && (
-                                    <Text fontSize="xs" color="gray.600" noOfLines={2}>
-                                      Note: {followUp.notes}
-                                    </Text>
-                                  )}
-                                </VStack>
-                              ) : (
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">-</Text>
-                              )}
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Origin:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.createdAt)}</Text>
-                            </HStack>
-                            
-                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
-                              <HStack spacing={2} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Last Edit:</Text>
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
-                              </HStack>
-                            )}
-                          </VStack>
-                        </Box>
-
-                        {/* Call Remarks Display */}
-                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
-
-                        <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width="full" justify="flex-start">
-                          <Button
-                            size={{ base: 'xs', sm: 'sm' }}
-                            leftIcon={<HiPhone />}
-                            colorScheme="green"
-                            onClick={() => {
-                              setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
-                              onCallDialerOpen();
-                            }}
-                            fontSize={{ base: 'xs', sm: 'sm' }}
-                            px={{ base: 2, sm: 4 }}
-                            flex={{ base: '1', sm: '0' }}
-                            minW={{ base: 'auto', sm: 'auto' }}
-                          >
-                            Call
-                          </Button>
-                          <Tooltip 
-                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
-                            placement="top"
-                          >
-                            <IconButton
-                              aria-label="Send WhatsApp"
-                              icon={<FaWhatsapp />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="whatsapp"
-                              variant="outline"
-                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
-                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
-                              _hover={{ transform: 'scale(1.05)' }}
-                              transition="all 0.2s"
-                            />
-                          </Tooltip>
-                          <Tooltip label="Change Status" placement="top">
-                            <IconButton
-                              aria-label="Change status"
-                              icon={<HiRefresh />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="purple"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLeadToChangeStatus({
-                                  id: lead.id,
-                                  name: lead.name,
-                                  status: lead.status
-                                });
-                                onChangeStatusOpen();
-                              }}
-                            />
-                          </Tooltip>
-                          <IconButton
-                            aria-label="Assign lead"
-                            icon={<HiUserAdd />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            colorScheme="blue"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLeadToAssign({
-                                id: lead.id,
-                                name: lead.name,
-                                currentAssignee: lead.assignedTo?.name ?? undefined
-                              });
-                              onAssignOpen();
-                            }}
-                          />
-                          <IconButton
-                            aria-label="View details"
-                            icon={<HiEye />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                          />
-                        </HStack>
-                      </Flex>
-                    </Box>
+                      lead={lead}
+                      followUp={followUp}
+                      lastCall={lastCall}
+                      onCallClick={() => {
+                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                        onCallDialerOpen();
+                      }}
+                      onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                      onChangeStatusClick={(e) => {
+                        e.stopPropagation();
+                        setLeadToChangeStatus({
+                          id: lead.id,
+                          name: lead.name,
+                          status: lead.status
+                        });
+                        onChangeStatusOpen();
+                      }}
+                      onAssignClick={(e) => {
+                        e.stopPropagation();
+                        setLeadToAssign({
+                          id: lead.id,
+                          name: lead.name,
+                          currentAssignee: lead.assignedTo?.name ?? undefined
+                        });
+                        onAssignOpen();
+                      }}
+                      onViewClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                      getStatusBadgeColor={getStatusBadgeColor}
+                      getStatusLabel={getStatusLabel}
+                      LeadAgeComponent={LeadAge}
+                      CallRemarksComponent={CallRemarksDisplay}
+                    />
                   );
                 })}
               </SimpleGrid>
@@ -1964,211 +1404,50 @@ function LeadsTabContent({ globalSearchQuery = '' }: LeadsTabContentProps) {
                 />
               </Flex>
               
-              {!isStatusFilteredCollapsed && (<SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 3, md: 4 }}>
-                {lazyLoadedLeads.statusFiltered.map(({ lead, followUp }) => {
-                  const dueDate = followUp?.scheduledAt;
-                  const timeDiff = dueDate ? formatTimeDifference(dueDate) : '';
-                  const lastCall = getLastCallForLead(lead.id);
-                  
-                  return (
-                    <Box
-                      key={lead.id}
-                      bg="white"
-                      borderRadius="lg"
-                      boxShadow="sm"
-                      p={{ base: 2.5, sm: 3, md: 4 }}
-                      borderLeft={{ base: '4px', md: '6px' }}
-                      borderColor={{
-                        base: searchQuery.trim() !== '' ? 'blue.400' :
-                        statusFilter === 'unqualified' ? 'purple.400' :
-                        statusFilter === 'won' ? 'green.400' :
-                        statusFilter === 'lost' ? 'red.400' :
-                        statusFilter === 'qualified' ? 'cyan.400' :
-                        statusFilter === 'unreach' ? 'pink.400' :
-                        'gray.400',
-                        md: searchQuery.trim() !== '' ? 'blue.400' :
-                        statusFilter === 'unqualified' ? 'purple.400' :
-                        statusFilter === 'won' ? 'green.400' :
-                        statusFilter === 'lost' ? 'red.400' :
-                        statusFilter === 'qualified' ? 'cyan.400' :
-                        statusFilter === 'unreach' ? 'pink.400' :
-                        'gray.400'
-                      }}
-                      _hover={{ boxShadow: 'md' }}
-                      transition="all 0.2s"
-                    >
-                      <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={{ base: 2, md: 3 }} direction="column">
-                        <Box flex="1" width="full">
-                          <Text
-                            fontWeight="bold"
-                            fontSize={{ base: 'sm', sm: 'md', md: 'lg' }}
-                            color={lead.is_existing ? "green.600" : "blue.600"}
-                            cursor="pointer"
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                            _hover={{ textDecoration: 'underline' }}
-                            mb={{ base: 1.5, md: 2 }}
-                            noOfLines={1}
-                          >
-                            {lead.name}
-                          </Text>
-                          
-                          <VStack align="stretch" spacing={{ base: 1.5, md: 2 }}>
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Email:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.email || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Phone:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatPhoneForDisplay(lead.phone)}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Source:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{lead.source || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Campaign:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.campaign || '-'}</Text>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Status:</Text>
-                              <HStack flexWrap="wrap">
-                                <Badge colorScheme={getStatusBadgeColor(lead.status)} fontSize={{ base: 'xs', sm: 'sm' }}>
-                                  {getStatusLabel(lead.status)}
-                                </Badge>
-                                {lead.callAttempts > 0 && (
-                                  <Badge colorScheme={lead.callAttempts > 6 ? 'red' : lead.callAttempts > 3 ? 'orange' : 'blue'} fontSize="xs">
-                                    Calls: {lead.callAttempts}
-                                  </Badge>
-                                )}
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Lead Age:</Text>
-                              <LeadAge createdAt={lead.createdAt} />
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Assigned To:</Text>
-                              <HStack spacing={1} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700" noOfLines={1}>{lead.assignedTo?.name || 'Unassigned'}</Text>
-                                <IconButton
-                                  aria-label="Change assignment"
-                                  icon={<HiPencil />}
-                                  size="xs"
-                                  variant="ghost"
-                                  colorScheme="blue"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLeadToAssign({
-                                      id: lead.id,
-                                      name: lead.name,
-                                      currentAssignee: lead.assignedTo?.name ?? undefined
-                                    });
-                                    onAssignOpen();
-                                  }}
-                                />
-                              </HStack>
-                            </HStack>
-                            
-                            <HStack spacing={2} flexWrap="wrap">
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Origin:</Text>
-                              <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.createdAt)}</Text>
-                            </HStack>
-                            
-                            {lead.status !== 'new' && new Date(lead.updatedAt).getTime() !== new Date(lead.createdAt).getTime() && (
-                              <HStack spacing={2} flexWrap="wrap">
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.600" fontWeight="medium" minW={{ base: '70px', sm: '100px' }}>Last Edit:</Text>
-                                <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.700">{formatDateTime(lead.updatedAt)}</Text>
-                              </HStack>
-                            )}
-                          </VStack>
-                        </Box>
-
-                        {/* Call Remarks Display */}
-                        <CallRemarksDisplay callLogs={lead.CallLog || []} />
-
-                        <HStack spacing={{ base: 1, sm: 2 }} flexWrap="wrap" width="full" justify="flex-start">
-                          <Button
-                            size={{ base: 'xs', sm: 'sm' }}
-                            leftIcon={<HiPhone />}
-                            colorScheme="green"
-                            onClick={() => {
-                              setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
-                              onCallDialerOpen();
-                            }}
-                            flex={{ base: '1', sm: '0' }}
-                            fontSize={{ base: 'xs', sm: 'sm' }}
-                            px={{ base: 2, sm: 4 }}
-                          >
-                            Call
-                          </Button>
-                          <Tooltip 
-                            label={isValidWhatsAppPhone(lead.phone) ? "Send WhatsApp message" : "Invalid phone number"}
-                            placement="top"
-                          >
-                            <IconButton
-                              aria-label="Send WhatsApp"
-                              icon={<FaWhatsapp />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="whatsapp"
-                              variant="outline"
-                              isDisabled={!isValidWhatsAppPhone(lead.phone)}
-                              onClick={(e) => handleWhatsAppClick(lead.phone, e)}
-                              _hover={{ transform: 'scale(1.05)' }}
-                              transition="all 0.2s"
-                            />
-                          </Tooltip>
-                          <Tooltip label="Change Status" placement="top">
-                            <IconButton
-                              aria-label="Change status"
-                              icon={<HiRefresh />}
-                              size={{ base: 'xs', sm: 'sm' }}
-                              colorScheme="purple"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLeadToChangeStatus({
-                                  id: lead.id,
-                                  name: lead.name,
-                                  status: lead.status
-                                });
-                                onChangeStatusOpen();
-                              }}
-                            />
-                          </Tooltip>
-                          <IconButton
-                            aria-label="Assign lead"
-                            icon={<HiUserAdd />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            colorScheme="blue"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLeadToAssign({
-                                id: lead.id,
-                                name: lead.name,
-                                currentAssignee: lead.assignedTo?.name ?? undefined
-                              });
-                              onAssignOpen();
-                            }}
-                          />
-                          <IconButton
-                            aria-label="View details"
-                            icon={<HiEye />}
-                            size={{ base: 'xs', sm: 'sm' }}
-                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                          />
-                        </HStack>
-                      </Flex>
-                    </Box>
-                  );
-                })}
-              </SimpleGrid>)}
+              {!isStatusFilteredCollapsed && (
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 2, md: 3 }}>
+                  {lazyLoadedLeads.statusFiltered.map(({ lead, followUp }) => {
+                    const lastCall = getLastCallForLead(lead.id);
+                    
+                    return (
+                      <ModernLeadCard
+                        key={lead.id}
+                        lead={lead}
+                        followUp={followUp}
+                        lastCall={lastCall}
+                        onCallClick={() => {
+                          setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                          onCallDialerOpen();
+                        }}
+                        onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
+                        onChangeStatusClick={(e) => {
+                          e.stopPropagation();
+                          setLeadToChangeStatus({
+                            id: lead.id,
+                            name: lead.name,
+                            status: lead.status
+                          });
+                          onChangeStatusOpen();
+                        }}
+                        onAssignClick={(e) => {
+                          e.stopPropagation();
+                          setLeadToAssign({
+                            id: lead.id,
+                            name: lead.name,
+                            currentAssignee: lead.assignedTo?.name ?? undefined
+                          });
+                          onAssignOpen();
+                        }}
+                        onViewClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                        getStatusBadgeColor={getStatusBadgeColor}
+                        getStatusLabel={getStatusLabel}
+                        LeadAgeComponent={LeadAge}
+                        CallRemarksComponent={CallRemarksDisplay}
+                      />
+                    );
+                  })}
+                </SimpleGrid>
+              )}
             </Box>
           )}
           

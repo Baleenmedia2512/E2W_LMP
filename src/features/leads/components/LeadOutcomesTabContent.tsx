@@ -167,7 +167,7 @@ export default function LeadOutcomesTabContent({
       
       // Build query params
       const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
+      // Removed search from API - using client-side filtering for instant results
       if (ownerFilter !== 'all') params.append('assignedToId', ownerFilter);
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       
@@ -207,6 +207,7 @@ export default function LeadOutcomesTabContent({
         if (endDate) params.append('endDate', endDate);
       }
       
+      // Use smaller limit when searching for better performance
       params.append('limit', '2000');
       
       const [leadsRes, usersRes] = await Promise.all([
@@ -275,7 +276,7 @@ export default function LeadOutcomesTabContent({
       
       // Build query params (same as current filters)
       const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
+      // Removed search - using client-side filtering
       if (ownerFilter !== 'all') params.append('assignedToId', ownerFilter);
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       
@@ -385,7 +386,7 @@ export default function LeadOutcomesTabContent({
 
   useEffect(() => {
     fetchData();
-  }, [searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate, globalSearchQuery]);
+  }, [ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]); // Removed searchQuery - filter client-side
 
   // Use the hook for continuous scroll tracking
   useScrollRestoration('/dashboard/leads/outcomes', 100);
@@ -431,7 +432,7 @@ export default function LeadOutcomesTabContent({
     if (wonViewMode === 'historical') {
       fetchHistoricalWonLeads();
     }
-  }, [wonViewMode, searchQuery, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate, globalSearchQuery]);
+  }, [wonViewMode, ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]); // Removed searchQuery
 
   // Auto-scroll to highlighted section on mount
   useEffect(() => {
@@ -444,8 +445,18 @@ export default function LeadOutcomesTabContent({
 
   // Filter and sort leads by status
   const filterLeadsByStatus = (status: string) => {
-    // Only filter by status - other filters are already applied by the API
+    // Filter by status first
     let filtered = leads.filter(lead => lead.status === status);
+
+    // Apply search filter on client-side for instant results
+    if (searchQuery && searchQuery.trim()) {
+      const searchLower = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter(lead => 
+        lead.name.toLowerCase().includes(searchLower) ||
+        lead.phone.includes(searchLower) ||
+        (lead.email && lead.email.toLowerCase().includes(searchLower))
+      );
+    }
 
     // Apply client type filter
     if (clientTypeFilter === 'existing') {
@@ -489,7 +500,17 @@ export default function LeadOutcomesTabContent({
   // Get sections based on status filter
   const sections: OutcomeSection[] = useMemo(() => {
     // For Won section, use historical leads if in historical view mode
-    const wonLeads = wonViewMode === 'historical' ? historicalWonLeads : filterLeadsByStatus('won');
+    let wonLeads = wonViewMode === 'historical' ? historicalWonLeads : filterLeadsByStatus('won');
+    
+    // Apply search filter to historical won leads (client-side)
+    if (wonViewMode === 'historical' && searchQuery && searchQuery.trim()) {
+      const searchLower = searchQuery.trim().toLowerCase();
+      wonLeads = wonLeads.filter(lead => 
+        lead.name.toLowerCase().includes(searchLower) ||
+        lead.phone.includes(searchLower) ||
+        (lead.email && lead.email.toLowerCase().includes(searchLower))
+      );
+    }
     
     const allSections = [
       {
@@ -523,7 +544,7 @@ export default function LeadOutcomesTabContent({
       return allSections;
     }
     return allSections.filter(section => section.status === outcomeStatusFilter);
-  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus, clientTypeFilter]);
+  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus, clientTypeFilter, searchQuery]);
 
   // Notify parent component of count changes (for tab badge)
   useEffect(() => {
