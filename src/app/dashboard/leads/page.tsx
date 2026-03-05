@@ -12,48 +12,65 @@ import {
   Badge,
   Flex,
   Heading,
+  Icon,
 } from '@chakra-ui/react';
+import { HiSearch } from 'react-icons/hi';
 import LeadsTabContent from '@/features/leads/components/LeadsTabContent';
 import LeadOutcomesTabContent from '@/features/leads/components/LeadOutcomesTabContent';
+import GlobalSearchResults from '@/features/leads/components/GlobalSearchResults';
 import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
 
 export default function UnifiedLeadsPage() {
   const searchParams = useSearchParams();
-  const [globalSearchQuery, setGlobalSearchQuery] = useState(''); // Search query passed to children
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [leadOutcomesCount, setLeadOutcomesCount] = useState(0);
   
-  // Initialize tab based on query parameter
-  const initialTab = searchParams.get('tab') === 'outcomes' ? 1 : 0;
-  const [activeTabIndex, setActiveTabIndex] = useState(initialTab);
+  // Initialize tab based on query parameter or search state
+  const getInitialTab = () => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'outcomes') return 1;
+    return 0;
+  };
+  
+  const [activeTabIndex, setActiveTabIndex] = useState(getInitialTab());
 
-  // Callback for when search input is debounced
-  const handleSearch = useCallback((query: string) => {
+  // Callback for global search
+  const handleGlobalSearch = useCallback((query: string) => {
     setGlobalSearchQuery(query);
+    // Auto-switch to Search tab when user starts searching
+    if (query.trim()) {
+      setActiveTabIndex(0); // Search tab will be first when active
+    }
   }, []);
 
-  // Update tab when query param changes
+  // Update tab when query param changes (but not when search is active)
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'outcomes') {
-      setActiveTabIndex(1);
-    } else {
-      setActiveTabIndex(0);
+    if (!globalSearchQuery.trim()) {
+      const tabParam = searchParams.get('tab');
+      if (tabParam === 'outcomes') {
+        setActiveTabIndex(1);
+      } else {
+        setActiveTabIndex(0);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, globalSearchQuery]);
 
   const handleLeadOutcomesCountChange = (count: number) => {
     setLeadOutcomesCount(count);
   };
+  
+  // Determine if search is active
+  const isSearchActive = globalSearchQuery.trim().length > 0;
 
   return (
     <Box>
-      {/* Global Search Bar */}
+      {/* Page Header with Global Search */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <Flex direction={{ base: 'column', md: 'row' }} gap={3} align={{ base: 'stretch', md: 'center' }} justify="space-between">
           <Heading size={{ base: 'md', md: 'lg' }}>Lead Management</Heading>
           <DebouncedSearchInput
-            placeholder="Search leads across all sections..."
-            onSearch={handleSearch}
+            placeholder="🔍 Global search across all leads..."
+            onSearch={handleGlobalSearch}
             debounceMs={300}
             size="md"
             maxW={{ base: 'full', md: '400px' }}
@@ -61,7 +78,7 @@ export default function UnifiedLeadsPage() {
         </Flex>
       </Box>
 
-      {/* Tabs for Leads and Lead Outcomes */}
+      {/* Tabs - Show Search tab when searching, otherwise show Leads/Outcomes */}
       <Tabs 
         index={activeTabIndex} 
         onChange={setActiveTabIndex}
@@ -69,6 +86,26 @@ export default function UnifiedLeadsPage() {
         colorScheme="blue"
       >
         <TabList>
+          {/* Show Search tab when search is active */}
+          {isSearchActive && (
+            <Tab
+              _selected={{ 
+                color: 'blue.600', 
+                bg: 'white', 
+                borderColor: 'gray.300',
+                borderBottomColor: 'white',
+              }}
+              fontSize={{ base: 'sm', md: 'md' }}
+              fontWeight="semibold"
+            >
+              <Flex align="center" gap={2}>
+                <Icon as={HiSearch} />
+                <span>Search Results</span>
+              </Flex>
+            </Tab>
+          )}
+          
+          {/* Regular tabs - always visible */}
           <Tab
             _selected={{ 
               color: 'blue.600', 
@@ -107,15 +144,21 @@ export default function UnifiedLeadsPage() {
         </TabList>
 
         <TabPanels>
-          {/* Leads Tab Panel */}
+          {/* Search Results Tab Panel - Only shown when searching */}
+          {isSearchActive && (
+            <TabPanel p={0} pt={4}>
+              <GlobalSearchResults searchQuery={globalSearchQuery} />
+            </TabPanel>
+          )}
+          
+          {/* Leads Tab Panel - No global search passed */}
           <TabPanel p={0} pt={4}>
-            <LeadsTabContent globalSearchQuery={globalSearchQuery} />
+            <LeadsTabContent />
           </TabPanel>
 
-          {/* Lead Outcomes Tab Panel */}
+          {/* Lead Outcomes Tab Panel - No global search passed */}
           <TabPanel p={0} pt={4}>
             <LeadOutcomesTabContent 
-              globalSearchQuery={globalSearchQuery}
               onCountChange={handleLeadOutcomesCountChange}
             />
           </TabPanel>

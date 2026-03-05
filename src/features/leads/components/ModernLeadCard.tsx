@@ -94,7 +94,7 @@ const ModernLeadCard = memo(({
             : isOverdue
             ? 'red.500'
             : lead.status === 'followup'
-            ? 'orange.500'
+            ? 'green.500'
             : 'blue.500'
         }
       />
@@ -302,22 +302,22 @@ const ModernLeadCard = memo(({
         {/* FOLLOW-UP SECTION - Highlighted if exists */}
         {followUp && (
           <Box
-            bg={isOverdue ? 'red.50' : 'orange.50'}
+            bg={isOverdue ? 'red.50' : 'green.50'}
             borderRadius="sm"
             p={2}
             mb={2}
             border="1px solid"
-            borderColor={isOverdue ? 'red.200' : 'orange.200'}
+            borderColor={isOverdue ? 'red.200' : 'green.200'}
           >
             <HStack spacing={1.5} mb={1}>
-              <Icon as={HiExclamation} color={isOverdue ? 'red.600' : 'orange.600'} boxSize={3} />
-              <Text fontSize="xs" fontWeight="bold" color={isOverdue ? 'red.700' : 'orange.700'}>
+              <Icon as={HiExclamation} color={isOverdue ? 'red.600' : 'green.600'} boxSize={3} />
+              <Text fontSize="xs" fontWeight="bold" color={isOverdue ? 'red.700' : 'green.700'}>
                 {isOverdue ? 'Overdue Follow-up' : 'Follow-up Scheduled'}
               </Text>
             </HStack>
             <VStack align="stretch" spacing={0.5}>
               <HStack spacing={1.5} flexWrap="wrap">
-                <Badge colorScheme={isOverdue ? 'red' : 'orange'} fontSize="2xs">
+                <Badge colorScheme={isOverdue ? 'red' : 'green'} fontSize="2xs">
                   {formatDateTime(followUp.scheduledAt)}
                 </Badge>
                 {isDueToday && (

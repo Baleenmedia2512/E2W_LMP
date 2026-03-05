@@ -73,12 +73,10 @@ interface OutcomeSection {
 }
 
 interface LeadOutcomesTabContentProps {
-  globalSearchQuery?: string;
   onCountChange?: (count: number) => void;
 }
 
 export default function LeadOutcomesTabContent({ 
-  globalSearchQuery = '', 
   onCountChange 
 }: LeadOutcomesTabContentProps) {
   const router = useRouter();
@@ -94,9 +92,9 @@ export default function LeadOutcomesTabContent({
   const [localSearchInput, setLocalSearchInput] = useState(''); // Immediate input value
   const [localSearchQuery, setLocalSearchQuery] = useState(''); // Debounced search query
   
-  // Use global search if provided, otherwise use local search
-  const searchInput = globalSearchQuery || localSearchInput;
-  const searchQuery = globalSearchQuery || localSearchQuery;
+  // Use local search only
+  const searchInput = localSearchInput;
+  const searchQuery = localSearchQuery;
   const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>('all'); // Status filter for outcomes
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -334,18 +332,13 @@ export default function LeadOutcomesTabContent({
   };
 
   // Debounce search input - only update localSearchQuery after 500ms of no typing
-  // Skip debouncing if using global search
   useEffect(() => {
-    if (globalSearchQuery) {
-      return; // Don't debounce when using global search
-    }
-    
     const debounceTimer = setTimeout(() => {
       setLocalSearchQuery(localSearchInput);
     }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [localSearchInput, globalSearchQuery]);
+  }, [localSearchInput]);
 
   // Auto-update date fields when preset date filter changes
   useEffect(() => {
@@ -443,8 +436,8 @@ export default function LeadOutcomesTabContent({
     }
   }, [highlightStatus, leads]);
 
-  // Filter and sort leads by status
-  const filterLeadsByStatus = (status: string) => {
+  // Filter and sort leads by status - memoized to ensure it updates with searchQuery
+  const filterLeadsByStatus = useCallback((status: string) => {
     // Filter by status first
     let filtered = leads.filter(lead => lead.status === status);
 
@@ -485,7 +478,7 @@ export default function LeadOutcomesTabContent({
     }
 
     return filtered;
-  };
+  }, [leads, searchQuery, clientTypeFilter, sortConfig]);
 
   const handleSort = (status: string, field: string) => {
     setSortConfig(prev => ({
@@ -555,10 +548,8 @@ export default function LeadOutcomesTabContent({
   }, [sections, onCountChange]);
 
   const clearFilters = () => {
-    if (!globalSearchQuery) {
-      setLocalSearchInput('');
-      setLocalSearchQuery('');
-    }
+    setLocalSearchInput('');
+    setLocalSearchQuery('');
     setOutcomeStatusFilter('all');
     setOwnerFilter('all');
     setSourceFilter('all');
@@ -746,8 +737,7 @@ export default function LeadOutcomesTabContent({
         <VStack spacing={3} align="stretch">
           <Heading size="sm" mb={2}>Filters (Apply to All Sections)</Heading>
           
-          {/* Search - Hide when global search is active */}
-          {!globalSearchQuery && (
+          {/* Search */}
           <InputGroup maxW={{ base: 'full', md: '400px' }}>
             <InputLeftElement>
               <HiSearch />
@@ -759,7 +749,6 @@ export default function LeadOutcomesTabContent({
               size={{ base: 'sm', md: 'md' }}
             />
           </InputGroup>
-          )}
 
           {/* Filter Row */}
           <Flex gap={3} flexWrap="wrap">
