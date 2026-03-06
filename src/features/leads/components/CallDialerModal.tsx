@@ -38,6 +38,8 @@ interface CallDialerModalProps {
   leadId: string;
   leadName: string;
   leadPhone: string;
+  leadSource?: string;
+  leadCampaign?: string | null;
   onOpenUnreachable?: () => void;
   onOpenUnqualified?: () => void;
 }
@@ -50,6 +52,8 @@ export default function CallDialerModal({
   leadId,
   leadName,
   leadPhone,
+  leadSource,
+  leadCampaign,
   onOpenUnreachable,
   onOpenUnqualified,
 }: CallDialerModalProps) {
@@ -763,9 +767,23 @@ export default function CallDialerModal({
                 <Text fontSize={{ base: 'xl', md: '2xl' }} fontWeight="bold" mb={2}>
                   {leadName}
                 </Text>
-                <Text fontSize={{ base: 'md', md: 'lg' }} color="gray.600">
+                <Text fontSize={{ base: 'md', md: 'lg' }} color="gray.600" mb={2}>
                   {formatPhoneForDisplay(leadPhone)}
                 </Text>
+                {(leadSource || leadCampaign) && (
+                  <HStack spacing={3} justify="center">
+                    {leadSource && (
+                      <Badge colorScheme="blue" fontSize="sm" px={3} py={1}>
+                        {leadSource}
+                      </Badge>
+                    )}
+                    {leadCampaign && (
+                      <Badge colorScheme="purple" fontSize="sm" px={3} py={1}>
+                        {leadCampaign}
+                      </Badge>
+                    )}
+                  </HStack>
+                )}
               </Box>
 
               <IconButton
@@ -793,9 +811,23 @@ export default function CallDialerModal({
                 <Text fontSize="2xl" fontWeight="bold" mb={2}>
                   {leadName}
                 </Text>
-                <Text fontSize="lg" color="gray.600" mb={4}>
+                <Text fontSize="lg" color="gray.600" mb={2}>
                   {formatPhoneForDisplay(leadPhone)}
                 </Text>
+                {(leadSource || leadCampaign) && (
+                  <HStack spacing={3} justify="center" mb={2}>
+                    {leadSource && (
+                      <Badge colorScheme="blue" fontSize="sm" px={3} py={1}>
+                        {leadSource}
+                      </Badge>
+                    )}
+                    {leadCampaign && (
+                      <Badge colorScheme="purple" fontSize="sm" px={3} py={1}>
+                        {leadCampaign}
+                      </Badge>
+                    )}
+                  </HStack>
+                )}
                 <Badge colorScheme="green" fontSize="md" px={4} py={2}>
                   Calling...
                 </Badge>
