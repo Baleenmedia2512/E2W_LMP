@@ -44,7 +44,13 @@ interface ModernLeadCardProps {
   getStatusBadgeColor: (status: string) => string;
   getStatusLabel: (status: string) => string;
   LeadAgeComponent: React.ComponentType<{ createdAt: string | Date }>;
-  CallRemarksComponent: React.ComponentType<{ callLogs: CallLog[] }>;
+  CallRemarksComponent: React.ComponentType<{ 
+    callLogs: CallLog[];
+    onAddClick?: () => void;
+    onEditClick?: (callLog: CallLog) => void;
+  }>;
+  onAddCallRemark?: () => void;
+  onEditCallRemark?: (callLog: CallLog) => void;
 }
 
 const ModernLeadCard = memo(({
@@ -60,6 +66,8 @@ const ModernLeadCard = memo(({
   getStatusLabel,
   LeadAgeComponent,
   CallRemarksComponent,
+  onAddCallRemark,
+  onEditCallRemark,
 }: ModernLeadCardProps) => {
   const router = useRouter();
 
@@ -356,7 +364,11 @@ const ModernLeadCard = memo(({
         </Flex>
 
         {/* CALL REMARKS SECTION */}
-        <CallRemarksComponent callLogs={lead.CallLog || []} />
+        <CallRemarksComponent 
+          callLogs={lead.CallLog || []} 
+          onAddClick={onAddCallRemark}
+          onEditClick={onEditCallRemark}
+        />
 
         {/* PRIMARY ACTION BUTTON - More prominent */}
         <Button
