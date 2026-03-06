@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box,
@@ -61,7 +61,7 @@ interface GlobalSearchResultsProps {
   searchQuery: string;
 }
 
-export default function GlobalSearchResults({ searchQuery }: GlobalSearchResultsProps) {
+function GlobalSearchResults({ searchQuery }: GlobalSearchResultsProps) {
   const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
@@ -69,7 +69,7 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [followUps, setFollowUps] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Fetch all leads (both active and outcomes)
   useEffect(() => {
@@ -140,6 +140,12 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
 
     if (searchQuery.trim()) {
       fetchAllData();
+    } else {
+      // Clear results immediately when search is cleared
+      setAllLeads([]);
+      setCallLogs([]);
+      setFollowUps([]);
+      setLoading(false);
     }
   }, [searchQuery, toast]);
 
@@ -160,17 +166,17 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
     };
   }, [allLeads, searchQuery]);
 
-  const getCallLogsForLead = (leadId: string) => {
+  const getCallLogsForLead = useCallback((leadId: string) => {
     return callLogs.filter(log => log.leadId === leadId);
-  };
+  }, [callLogs]);
 
-  const getLastCallForLead = (leadId: string) => {
+  const getLastCallForLead = useCallback((leadId: string) => {
     const logs = getCallLogsForLead(leadId);
     if (logs.length === 0) return null;
     return logs.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
-  };
+  }, [callLogs, getCallLogsForLead]);
 
-  const getFollowUpForLead = (leadId: string) => {
+  const getFollowUpForLead = useCallback((leadId: string) => {
     const leadFollowUps = followUps.filter(fu => fu.leadId === leadId);
     if (leadFollowUps.length === 0) return null;
     
@@ -186,9 +192,9 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
     return leadFollowUps.sort((a, b) => 
       new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
     )[0];
-  };
+  }, [followUps]);
 
-  const getStatusBadgeColor = (status: string) => {
+  const getStatusBadgeColor = useCallback((status: string) => {
     switch (status) {
       case 'new': return 'blue';
       case 'contacted': return 'cyan';
@@ -201,20 +207,20 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
       case 'unreachable': return 'pink';
       default: return 'gray';
     }
-  };
+  }, []);
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = useCallback((status: string) => {
     switch (status) {
       case 'followup': return 'Follow-up';
       case 'unreach': return 'Unreachable';
       default: return status.charAt(0).toUpperCase() + status.slice(1);
     }
-  };
+  }, []);
 
-  const handleLeadAction = (action: string, leadId: string) => {
+  const handleLeadAction = useCallback((action: string, leadId: string) => {
     // Navigate to lead detail page for all actions
     router.push(`/dashboard/leads/${leadId}`);
-  };
+  }, [router]);
 
   const totalResults = filteredResults.activeLeads.length + filteredResults.outcomeLeads.length;
 
@@ -346,3 +352,6 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
     </Box>
   );
 }
+
+// Memoize component to prevent unnecessary re-renders when parent updates
+export default memo(GlobalSearchResults);
