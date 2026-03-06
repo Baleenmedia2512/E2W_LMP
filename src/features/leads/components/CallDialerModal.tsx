@@ -22,6 +22,7 @@ import {
   Badge,
   useToast,
   Divider,
+  Checkbox,
 } from '@chakra-ui/react';
 import { HiPhone, HiPhoneIncoming, HiX, HiArrowLeft } from 'react-icons/hi';
 import { formatDate } from '@/shared/lib/date-utils';
@@ -94,6 +95,9 @@ export default function CallDialerModal({
   // Unreachable form state
   const [unreachableReason, setUnreachableReason] = useState('');
   const [unreachableNotes, setUnreachableNotes] = useState('');
+  
+  // Quick follow-up state (for busy calls)
+  const [quickFollowUp, setQuickFollowUp] = useState(false);
 
   // Auto-start call when modal opens
   useEffect(() => {
@@ -324,10 +328,67 @@ export default function CallDialerModal({
         // Mark call as saved and move to next action selection
         setCallSaved(true);
         setHasUnsavedChanges(false);
-        setCallPhase('next-action');
         
         // US-8 Enhancement: Clear saved call data from localStorage
         localStorage.removeItem(`unsaved_call_${leadId}`);
+        
+        // Check if quick follow-up is enabled for busy calls
+        if (quickFollowUp && callStatus === 'busy') {
+          // Auto-schedule follow-up after 1 hour - save directly without showing form
+          const now = new Date();
+          const scheduledDateTime = new Date(now.getTime() + 60 * 60 * 1000);
+          
+          try {
+            // Create follow-up via API
+            const followUpResponse = await fetch('/api/followups', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                leadId,
+                scheduledAt: scheduledDateTime,
+                customerRequirement: remarks?.trim() || 'Follow-up from busy call',
+                notes: 'Auto-scheduled follow-up in 1 hour',
+                createdById: user?.id || 'unknown-user',
+              }),
+            });
+
+            if (followUpResponse.ok) {
+              toast({
+                title: 'Follow-up Scheduled',
+                description: `Follow-up scheduled for 1 hour (${scheduledDateTime.toLocaleString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })})`,
+                status: 'success',
+                duration: 3000,
+                isClosable: true,
+              });
+
+              // Close modal and refresh page
+              handleClose();
+              window.location.reload();
+            } else {
+              throw new Error('Failed to create follow-up');
+            }
+          } catch (error) {
+            console.error('Failed to auto-schedule follow-up:', error);
+            toast({
+              title: 'Error',
+              description: 'Call saved but failed to schedule follow-up',
+              status: 'warning',
+              duration: 5000,
+              isClosable: true,
+            });
+            // Still close the modal even if follow-up fails
+            handleClose();
+            window.location.reload();
+          }
+        } else {
+          // Normal flow - show next action selection
+          setCallPhase('next-action');
+        }
       } else {
         throw new Error('Failed to save call');
       }
@@ -983,6 +1044,18 @@ export default function CallDialerModal({
                   <option value="wrong_number">Wrong Number</option>
                 </Select>
               </FormControl>
+
+              {callStatus === 'busy' && (
+                <Checkbox
+                  isChecked={quickFollowUp}
+                  onChange={(e) => setQuickFollowUp(e.target.checked)}
+                  colorScheme="blue"
+                  size="sm"
+                  mt={2}
+                >
+                  <Text fontSize="sm">📅 Auto-schedule follow-up in 1 hour (quick save)</Text>
+                </Checkbox>
+              )}
 
               <ValidatedTextarea
                 label="Remarks (Optional)"
