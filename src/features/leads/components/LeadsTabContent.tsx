@@ -56,6 +56,7 @@ import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnre
 import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
 import ChangeStatusModal from '@/features/leads/components/ChangeStatusModal';
+import EditCallRemarkModal from '@/features/leads/components/EditCallRemarkModal';
 import ModernLeadCard from '@/features/leads/components/ModernLeadCard';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatDateTime } from '@/shared/lib/date-utils';
@@ -152,7 +153,15 @@ const getStatusLabel = (status: string): string => {
 };
 
 // Component to display call remarks with scrolling
-const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
+const CallRemarksDisplay = ({ 
+  callLogs, 
+  onAddClick, 
+  onEditClick 
+}: { 
+  callLogs: CallLog[];
+  onAddClick?: () => void;
+  onEditClick?: (callLog: CallLog) => void;
+}) => {
   // Always show the box for debugging
   const remarksWithLogs = callLogs ? callLogs.filter(log => log.remarks && log.remarks.trim() !== '') : [];
   
@@ -165,14 +174,28 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
       border="1px solid"
       borderColor="gray.200"
     >
-      <Text
-        fontSize="2xs"
-        fontWeight="bold"
-        color="gray.700"
-        mb={1}
-      >
-        Call Remarks ({remarksWithLogs.length})
-      </Text>
+      <Flex justify="space-between" align="center" mb={1}>
+        <Text
+          fontSize="2xs"
+          fontWeight="bold"
+          color="gray.700"
+        >
+          Call Remarks ({remarksWithLogs.length})
+        </Text>
+        {onAddClick && (
+          <IconButton
+            aria-label="Add call remark"
+            icon={<HiPlus />}
+            size="xs"
+            variant="ghost"
+            colorScheme="blue"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddClick();
+            }}
+          />
+        )}
+      </Flex>
       {remarksWithLogs.length === 0 ? (
         <Text fontSize="2xs" color="gray.500" fontStyle="italic">
           No call remarks yet
@@ -208,8 +231,25 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
             borderRadius="sm"
             border="1px solid"
             borderColor="gray.200"
+            position="relative"
           >
-            <HStack spacing={1} mb={0.5} flexWrap="wrap">
+            {onEditClick && (
+              <IconButton
+                aria-label="Edit remark"
+                icon={<HiPencil />}
+                size="xs"
+                variant="ghost"
+                colorScheme="gray"
+                position="absolute"
+                top={1}
+                right={1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditClick(log);
+                }}
+              />
+            )}
+            <HStack spacing={1} mb={0.5} flexWrap="wrap" pr={6}>
               <Badge
                 colorScheme={
                   log.callStatus === 'answer' || log.callStatus === 'completed'
@@ -476,6 +516,11 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
   const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
   const { isOpen: isCallDialerOpen, onOpen: onCallDialerOpen, onClose: onCallDialerClose } = useDisclosure();
   const { isOpen: isChangeStatusOpen, onOpen: onChangeStatusOpen, onClose: onChangeStatusClose } = useDisclosure();
+  const { isOpen: isEditCallRemarkOpen, onOpen: onEditCallRemarkOpen, onClose: onEditCallRemarkClose } = useDisclosure();
+  
+  // State for edit call remark modal
+  const [callRemarkToEdit, setCallRemarkToEdit] = useState<CallLog | null>(null);
+  const [leadForCallRemark, setLeadForCallRemark] = useState<{ id: string; name: string } | null>(null);
 
   // US-8: Auto-reopen Call Dialer Modal if there's unsaved call data after page refresh
   useEffect(() => {
@@ -548,6 +593,27 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
       return lead.CallLog.filter((log: CallLog) => log.remarks && log.remarks.trim() !== '');
     }
     return [];
+  };
+
+  // Callback handlers for call remarks
+  const handleAddCallRemark = (leadId: string, leadName: string) => {
+    setLeadForCallRemark({ id: leadId, name: leadName });
+    setCallRemarkToEdit(null); // null means add mode
+    onEditCallRemarkOpen();
+  };
+
+  const handleEditCallRemark = (callLog: CallLog) => {
+    const lead = leads.find(l => l.id === callLog.leadId);
+    if (lead) {
+      setLeadForCallRemark({ id: lead.id, name: lead.name });
+    }
+    setCallRemarkToEdit(callLog);
+    onEditCallRemarkOpen();
+  };
+
+  const handleCallRemarkSuccess = () => {
+    // Refresh leads data
+    handleRefreshLeads();
   };
 
   // PERFORMANCE: Create a Map for O(1) follow-up lookups instead of O(n) filtering
@@ -1149,6 +1215,8 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                       getStatusLabel={getStatusLabel}
                       LeadAgeComponent={LeadAge}
                       CallRemarksComponent={CallRemarksDisplay}
+                      onAddCallRemark={() => handleAddCallRemark(lead.id, lead.name)}
+                      onEditCallRemark={handleEditCallRemark}
                     />
                   );
                 })}
@@ -1234,6 +1302,8 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                       getStatusLabel={getStatusLabel}
                       LeadAgeComponent={LeadAge}
                       CallRemarksComponent={CallRemarksDisplay}
+                      onAddCallRemark={() => handleAddCallRemark(lead.id, lead.name)}
+                      onEditCallRemark={handleEditCallRemark}
                     />
                   );
                 })}
@@ -1319,6 +1389,8 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                       getStatusLabel={getStatusLabel}
                       LeadAgeComponent={LeadAge}
                       CallRemarksComponent={CallRemarksDisplay}
+                      onAddCallRemark={() => handleAddCallRemark(lead.id, lead.name)}
+                      onEditCallRemark={handleEditCallRemark}
                     />
                   );
                 })}
@@ -1453,6 +1525,8 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                         getStatusLabel={getStatusLabel}
                         LeadAgeComponent={LeadAge}
                         CallRemarksComponent={CallRemarksDisplay}
+                        onAddCallRemark={() => handleAddCallRemark(lead.id, lead.name)}
+                        onEditCallRemark={handleEditCallRemark}
                       />
                     );
                   })}
@@ -1574,6 +1648,20 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
           onSuccess={handleRefreshLeads}
         />
       )}
+
+      {/* Edit Call Remark Modal */}
+      <EditCallRemarkModal
+        isOpen={isEditCallRemarkOpen}
+        onClose={() => {
+          onEditCallRemarkClose();
+          setCallRemarkToEdit(null);
+          setLeadForCallRemark(null);
+        }}
+        callLog={callRemarkToEdit}
+        leadId={leadForCallRemark?.id}
+        leadName={leadForCallRemark?.name}
+        onSuccess={handleCallRemarkSuccess}
+      />
         </>
       )}
     </Box>
