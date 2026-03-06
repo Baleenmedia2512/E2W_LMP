@@ -60,6 +60,9 @@ function DebouncedSearchInput({
         spellCheck={false}
         autoCorrect="off"
         autoCapitalize="off"
+        type="text"
+        data-1p-ignore
+        data-lpignore="true"
       />
     </InputGroup>
   );

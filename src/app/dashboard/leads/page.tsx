@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -24,6 +24,7 @@ export default function UnifiedLeadsPage() {
   const searchParams = useSearchParams();
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [leadOutcomesCount, setLeadOutcomesCount] = useState(0);
+  const [isPending, startTransition] = useTransition();
   
   // Initialize tab based on query parameter or search state
   const getInitialTab = () => {
@@ -34,13 +35,15 @@ export default function UnifiedLeadsPage() {
   
   const [activeTabIndex, setActiveTabIndex] = useState(getInitialTab());
 
-  // Callback for global search
+  // Callback for global search - use transition to keep UI responsive
   const handleGlobalSearch = useCallback((query: string) => {
-    setGlobalSearchQuery(query);
-    // Auto-switch to Search tab when user starts searching
-    if (query.trim()) {
-      setActiveTabIndex(0); // Search tab will be first when active
-    }
+    startTransition(() => {
+      setGlobalSearchQuery(query);
+      // Auto-switch to Search tab when user starts searching
+      if (query.trim()) {
+        setActiveTabIndex(0); // Search tab will be first when active
+      }
+    });
   }, []);
 
   // Update tab when query param changes (but not when search is active)
@@ -71,7 +74,7 @@ export default function UnifiedLeadsPage() {
           <DebouncedSearchInput
             placeholder="🔍 Global search across all leads..."
             onSearch={handleGlobalSearch}
-            debounceMs={200}
+            debounceMs={400}
             size="md"
             maxW={{ base: 'full', md: '400px' }}
           />
