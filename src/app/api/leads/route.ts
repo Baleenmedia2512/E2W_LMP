@@ -99,6 +99,18 @@ export async function GET(request: NextRequest) {
               attemptNumber: true,
             }
           },
+          FollowUp: {
+            orderBy: { scheduledAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              scheduledAt: true,
+              status: true,
+              notes: true,
+              customerRequirement: true,
+              createdAt: true,
+            }
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,

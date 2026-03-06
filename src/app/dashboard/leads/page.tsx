@@ -71,7 +71,7 @@ export default function UnifiedLeadsPage() {
           <DebouncedSearchInput
             placeholder="🔍 Global search across all leads..."
             onSearch={handleGlobalSearch}
-            debounceMs={300}
+            debounceMs={200}
             size="md"
             maxW={{ base: 'full', md: '400px' }}
           />

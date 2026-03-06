@@ -67,6 +67,32 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          CallLog: { 
+            orderBy: { createdAt: 'desc' }, 
+            take: 10,
+            select: {
+              id: true,
+              remarks: true,
+              callStatus: true,
+              createdAt: true,
+              startedAt: true,
+              endedAt: true,
+              duration: true,
+              attemptNumber: true,
+            }
+          },
+          FollowUp: {
+            orderBy: { scheduledAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              scheduledAt: true,
+              status: true,
+              notes: true,
+              customerRequirement: true,
+              createdAt: true,
+            }
+          },
         },
         orderBy: { updatedAt: 'desc' },
         skip,
