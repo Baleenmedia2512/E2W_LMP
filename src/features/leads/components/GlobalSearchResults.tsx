@@ -77,10 +77,13 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
       try {
         setLoading(true);
         
-        // Fetch leads and outcomes - these are critical
+        // Use server-side search with query parameter for faster results
+        const searchParam = encodeURIComponent(searchQuery.trim());
+        
+        // Fetch leads and outcomes with search parameter - limit to 100 results
         const [leadsRes, outcomesRes] = await Promise.all([
-          fetch('/api/leads?limit=2000'),
-          fetch('/api/leads/outcomes?limit=2000'),
+          fetch(`/api/leads?search=${searchParam}&limit=100`),
+          fetch(`/api/leads/outcomes?search=${searchParam}&limit=100`),
         ]);
 
         const leadsData = await leadsRes.json();
@@ -106,28 +109,21 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
         
         setAllLeads(Array.from(leadsMap.values()));
         
-        // Fetch call logs and followups separately - these are optional
-        try {
-          const callLogsRes = await fetch('/api/calls?limit=2000');
-          if (callLogsRes.ok) {
-            const callLogsData = await callLogsRes.json();
-            setCallLogs(callLogsData.success ? callLogsData.data || [] : []);
+        // Extract call logs and followups from the lead data (already included)
+        const allCallLogs: CallLog[] = [];
+        const allFollowUps: any[] = [];
+        
+        Array.from(leadsMap.values()).forEach((lead: any) => {
+          if (lead.CallLog) {
+            allCallLogs.push(...lead.CallLog);
           }
-        } catch (err) {
-          console.warn('[Global Search] Failed to load call logs:', err);
-          setCallLogs([]);
-        }
-
-        try {
-          const followUpsRes = await fetch('/api/leads/followups?limit=2000');
-          if (followUpsRes.ok) {
-            const followUpsData = await followUpsRes.json();
-            setFollowUps(followUpsData.success ? followUpsData.data || [] : []);
+          if (lead.FollowUp) {
+            allFollowUps.push(...lead.FollowUp);
           }
-        } catch (err) {
-          console.warn('[Global Search] Failed to load followups:', err);
-          setFollowUps([]);
-        }
+        });
+        
+        setCallLogs(allCallLogs);
+        setFollowUps(allFollowUps);
         
       } catch (error) {
         console.error('[Global Search] Error fetching data:', error);
@@ -147,25 +143,14 @@ export default function GlobalSearchResults({ searchQuery }: GlobalSearchResults
     }
   }, [searchQuery, toast]);
 
-  // Filter leads based on search query
+  // Separate leads into active and outcome categories (server already filtered by search)
   const filteredResults = useMemo(() => {
     if (!searchQuery.trim()) return { activeLeads: [], outcomeLeads: [] };
 
-    const searchLower = searchQuery.trim().toLowerCase();
     const outcomeStatuses = ['won', 'lost', 'unqualified', 'unreach', 'unreachable'];
-
-    console.log('[Global Search Filter] Total leads to search:', allLeads.length);
     
-    const matches = allLeads.filter(lead => 
-      lead.name.toLowerCase().includes(searchLower) ||
-      lead.phone.includes(searchLower) ||
-      (lead.email && lead.email.toLowerCase().includes(searchLower))
-    );
-
-    console.log('[Global Search Filter] Matched leads:', matches.length);
-    
-    const active = matches.filter(lead => !outcomeStatuses.includes(lead.status));
-    const outcomes = matches.filter(lead => outcomeStatuses.includes(lead.status));
+    const active = allLeads.filter(lead => !outcomeStatuses.includes(lead.status));
+    const outcomes = allLeads.filter(lead => outcomeStatuses.includes(lead.status));
     
     console.log('[Global Search Filter] Active leads:', active.length, 'Outcome leads:', outcomes.length);
 
