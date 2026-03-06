@@ -296,6 +296,8 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
     id: string;
     name: string;
     phone: string;
+    source?: string;
+    campaign?: string | null;
   } | null>(null);
   const [leadToChangeStatus, setLeadToChangeStatus] = useState<{
     id: string;
@@ -1120,7 +1122,7 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                       followUp={followUp}
                       lastCall={lastCall}
                       onCallClick={() => {
-                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone, source: lead.source, campaign: lead.campaign });
                         onCallDialerOpen();
                       }}
                       onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
@@ -1205,7 +1207,7 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                       followUp={followUp}
                       lastCall={lastCall}
                       onCallClick={() => {
-                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone, source: lead.source, campaign: lead.campaign });
                         onCallDialerOpen();
                       }}
                       onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
@@ -1290,7 +1292,7 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                       followUp={followUp}
                       lastCall={lastCall}
                       onCallClick={() => {
-                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                        setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone, source: lead.source, campaign: lead.campaign });
                         onCallDialerOpen();
                       }}
                       onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
@@ -1424,7 +1426,7 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
                         followUp={followUp}
                         lastCall={lastCall}
                         onCallClick={() => {
-                          setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone });
+                          setLeadToCall({ id: lead.id, name: lead.name, phone: lead.phone, source: lead.source, campaign: lead.campaign });
                           onCallDialerOpen();
                         }}
                         onWhatsAppClick={(e) => handleWhatsAppClick(lead.phone, e)}
@@ -1537,6 +1539,8 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
           leadId={leadToCall.id}
           leadName={leadToCall.name}
           leadPhone={leadToCall.phone}
+          leadSource={leadToCall.source}
+          leadCampaign={leadToCall.campaign}
           onOpenUnreachable={() => {
             setSelectedLead({ id: leadToCall.id, name: leadToCall.name });
             onCallDialerClose();

@@ -976,6 +976,8 @@ export default function LeadDetailPage() {
           leadId={leadId}
           leadName={lead.name}
           leadPhone={lead.phone}
+          leadSource={lead.source}
+          leadCampaign={lead.campaign}
           onOpenUnreachable={onUnreachableOpen}
           onOpenUnqualified={onUnqualifiedOpen}
         />
