@@ -35,8 +35,8 @@ export async function POST(request: Request) {
     // Parse timestamp
     const callTime = new Date(timestamp);
     
-    // STEP 1: Search for matching call log within ±5 minutes window
-    const matchWindow = 5 * 60 * 1000; // 5 minutes in milliseconds
+    // STEP 1: Search for matching call log within ±10 minutes window (widened from 5)
+    const matchWindow = 10 * 60 * 1000; // 10 minutes in milliseconds (increased for better matching)
     const startWindow = new Date(callTime.getTime() - matchWindow);
     const endWindow = new Date(callTime.getTime() + matchWindow);
 
@@ -44,50 +44,9 @@ export async function POST(request: Request) {
     console.log(`  Phone: ${normalizedPhone}`);
     console.log(`  Time window: ${startWindow.toISOString()} to ${endWindow.toISOString()}`);
 
-    // Try to find a call log that was pre-created with phoneDialed
-    let callLog = await prisma.callLog.findFirst({
-      where: {
-        phoneDialed: {
-          endsWith: normalizedPhone.slice(-10), // Match last 10 digits
-        },
-        startedAt: {
-          gte: startWindow,
-          lte: endWindow,
-        },
-        OR: [
-          { recordingStatus: 'pending' },
-          { recordingStatus: null },
-        ],
-      },
-      include: {
-        Lead: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-          },
-        },
-      },
-      orderBy: {
-        startedAt: 'desc',
-      },
-    });
-
-    if (callLog) {
-      console.log('[Call Monitor] ✅ Found pre-logged call:', callLog.id);
-      return NextResponse.json({
-        isLMSCall: true,
-        callLogId: callLog.id,
-        leadId: callLog.leadId,
-        leadName: callLog.Lead.name,
-        leadPhone: callLog.Lead.phone,
-      });
-    }
-
-    // STEP 2: If no pre-logged call found, search for lead by phone number
-    console.log('[Call Monitor] No pre-logged call, searching for lead by phone...');
-    
-    const lead = await prisma.lead.findFirst({
+    // Try to find a call log that was pre-created - search by leadId AND time (more reliable)
+    // First, find the lead
+    const matchingLead = await prisma.lead.findFirst({
       where: {
         OR: [
           {
@@ -106,110 +65,121 @@ export async function POST(request: Request) {
         id: true,
         name: true,
         phone: true,
-        assignedToId: true,
       },
     });
 
-    if (!lead) {
-      // No matching lead found
-      console.log('[Call Monitor] ❌ No matching lead found');
-      return NextResponse.json({
-        isLMSCall: false,
-        message: 'No matching lead found for this phone number',
-      });
-    }
+    let callLog = null;
 
-    console.log(`[Call Monitor] ✅ Lead found: ${lead.name} (${lead.id})`);
-
-    // STEP 3: Check if there's a recent call log for this lead without recording
-    // Use a wider 30-minute window to catch manually logged calls
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const recentCallLog = await prisma.callLog.findFirst({
-      where: {
-        leadId: lead.id,
-        startedAt: {
-          gte: thirtyMinutesAgo,
+    if (matchingLead) {
+      // Search for call log by leadId AND time window (more reliable than phoneDialed)
+      callLog = await prisma.callLog.findFirst({
+        where: {
+          leadId: matchingLead.id,
+          startedAt: {
+            gte: startWindow,
+            lte: endWindow,
+          },
+          OR: [
+            { recordingStatus: 'pending' },
+            { recordingStatus: null },
+            { recordingUrl: null },
+          ],
         },
-        OR: [
-          { recordingStatus: 'pending' },
-          { recordingStatus: null },
-          { recordingUrl: null },
-        ],
-      },
-      orderBy: {
-        startedAt: 'desc',
-      },
-      include: {
-        Lead: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
+        include: {
+          Lead: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
           },
         },
-      },
-    });
-
-    if (recentCallLog) {
-      // Link to existing call log
-      console.log('[Call Monitor] ✅ Found existing call log to link:', recentCallLog.id);
-      return NextResponse.json({
-        isLMSCall: true,
-        callLogId: recentCallLog.id,
-        leadId: lead.id,
-        leadName: lead.name,
-        leadPhone: lead.phone,
-        linkedExisting: true,
+        orderBy: {
+          startedAt: 'desc',
+        },
       });
     }
 
-    // STEP 4: No recent call log found - create a new one
-    console.log('[Call Monitor] Creating new call log...');
-    
-    const newCallLog = await prisma.callLog.create({
-      data: {
-        id: randomUUID(),
-        leadId: lead.id,
-        callerId: lead.assignedToId || 'system',
-        startedAt: callTime,
-        phoneDialed: normalizedPhone,
-        callStatus: 'answer',
-        recordingStatus: 'pending',
-        attemptNumber: 1,
-      },
-    });
+    if (callLog) {
+      console.log('[Call Monitor] ✅ Found pre-logged call:', callLog.id);
+      return NextResponse.json({
+        isLMSCall: true,
+        callLogId: callLog.id,
+        leadId: callLog.leadId,
+        leadName: callLog.Lead.name,
+        leadPhone: callLog.Lead.phone,
+      });
+    }
 
-    // Update lead's call attempts
-    await prisma.lead.update({
-      where: { id: lead.id },
-      data: {
-        callAttempts: {
-          increment: 1,
+    // STEP 2: If no pre-logged call found, but lead exists, check for recent calls
+    if (matchingLead) {
+      console.log(`[Call Monitor] ✅ Lead found: ${matchingLead.name} (${matchingLead.id})`);
+
+      // STEP 3: Check if there's a recent call log for this lead without recording
+      // Use a wider 30-minute window to catch manually logged calls
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const recentCallLog = await prisma.callLog.findFirst({
+        where: {
+          leadId: matchingLead.id,
+          startedAt: {
+            gte: thirtyMinutesAgo,
+          },
+          OR: [
+            { recordingStatus: 'pending' },
+            { recordingStatus: null },
+            { recordingUrl: null },
+          ],
         },
-        updatedAt: new Date(),
-      },
-    });
+        orderBy: {
+          startedAt: 'desc',
+        },
+        include: {
+          Lead: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
+          },
+        },
+      });
 
-    // Log activity
-    await prisma.activityHistory.create({
-      data: {
-        id: randomUUID(),
-        leadId: lead.id,
-        userId: lead.assignedToId || 'system',
-        action: 'call_logged',
-        description: 'Call detected by Call Monitor app',
-      },
-    });
+      if (recentCallLog) {
+        // Link to existing call log
+        console.log('[Call Monitor] ✅ Found existing call log to link:', recentCallLog.id);
+        return NextResponse.json({
+          isLMSCall: true,
+          callLogId: recentCallLog.id,
+          leadId: matchingLead.id,
+          leadName: matchingLead.name,
+          leadPhone: matchingLead.phone,
+          linkedExisting: true,
+        });
+      }
 
-    console.log('[Call Monitor] ✅ New call log created:', newCallLog.id);
+      // STEP 4: No recent call log found - DON'T create automatically
+      // Return lead info but indicate no call log exists yet
+      // This prevents premature call log creation before user logs call in LMS
+      console.log('[Call Monitor] ⚠️ No recent call log found within 30 minutes');
+      console.log('[Call Monitor] 💡 Returning lead info without creating call log');
+      console.log('[Call Monitor] 💡 Recording will be linked via webhook when available');
+      
+      return NextResponse.json({
+        isLMSCall: true,
+        callLogId: null,
+        leadId: matchingLead.id,
+        leadName: matchingLead.name,
+        leadPhone: matchingLead.phone,
+        autoCreated: false,
+        message: 'Lead found but no recent call log - recording will be synced via webhook',
+      });
+    }
 
+    // STEP 2 alternate: No matching lead found at all
+    console.log('[Call Monitor] ❌ No matching lead found');
     return NextResponse.json({
-      isLMSCall: true,
-      callLogId: newCallLog.id,
-      leadId: lead.id,
-      leadName: lead.name,
-      leadPhone: lead.phone,
-      autoCreated: true,
+      isLMSCall: false,
+      message: 'No matching lead found for this phone number',
     });
 
   } catch (error) {
