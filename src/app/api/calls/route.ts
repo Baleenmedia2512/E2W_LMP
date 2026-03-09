@@ -76,13 +76,14 @@ export async function POST(request: NextRequest) {
     
     // 🔍 DUPLICATE PREVENTION: Check if a call log already exists for this lead around this time
     // This prevents duplicates when webhook creates call log before LMS submission
-    const twoMinutes = 2 * 60 * 1000;
+    // Widened to 10 minutes to catch Call Monitor-created logs
+    const tenMinutes = 10 * 60 * 1000;
     const existingCallLog = await prisma.callLog.findFirst({
       where: {
         leadId: body.leadId,
         startedAt: {
-          gte: new Date(callStartTime.getTime() - twoMinutes),
-          lte: new Date(callStartTime.getTime() + twoMinutes),
+          gte: new Date(callStartTime.getTime() - tenMinutes),
+          lte: new Date(callStartTime.getTime() + tenMinutes),
         }
       },
       orderBy: {
