@@ -13,18 +13,32 @@ import {
   Flex,
   Heading,
   Icon,
+  Select,
+  VStack,
+  Button,
+  Text,
 } from '@chakra-ui/react';
-import { HiSearch } from 'react-icons/hi';
+import { HiSearch, HiX } from 'react-icons/hi';
 import LeadsTabContent from '@/features/leads/components/LeadsTabContent';
 import LeadOutcomesTabContent from '@/features/leads/components/LeadOutcomesTabContent';
-import GlobalSearchResults from '@/features/leads/components/GlobalSearchResults';
 import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
 
 export default function UnifiedLeadsPage() {
   const searchParams = useSearchParams();
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [leadsCount, setLeadsCount] = useState(0);
   const [leadOutcomesCount, setLeadOutcomesCount] = useState(0);
   const [isPending, startTransition] = useTransition();
+  
+  // Global filter states - shared across both tabs
+  const [globalClientTypeFilter, setGlobalClientTypeFilter] = useState<string>('all');
+  const [globalSourceFilter, setGlobalSourceFilter] = useState<string>('all');
+  const [globalAttemptsFilter, setGlobalAttemptsFilter] = useState<string>('all');
+  const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>('all');
+  const [globalDateRangeFilter, setGlobalDateRangeFilter] = useState<string>('all');
+  
+  // State for available owners (populated when LeadOutcomesTabContent loads)
+  const [availableOwners, setAvailableOwners] = useState<{ id: string; name: string }[]>([]);
   
   // Initialize tab based on query parameter or search state
   const getInitialTab = () => {
@@ -39,49 +53,158 @@ export default function UnifiedLeadsPage() {
   const handleGlobalSearch = useCallback((query: string) => {
     startTransition(() => {
       setGlobalSearchQuery(query);
-      // Auto-switch to Search tab when user starts searching
-      if (query.trim()) {
-        setActiveTabIndex(0); // Search tab will be first when active
-      }
     });
   }, []);
 
-  // Update tab when query param changes (but not when search is active)
+  // Update tab when query param changes
   useEffect(() => {
-    if (!globalSearchQuery.trim()) {
-      const tabParam = searchParams.get('tab');
-      if (tabParam === 'outcomes') {
-        setActiveTabIndex(1);
-      } else {
-        setActiveTabIndex(0);
-      }
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'outcomes') {
+      setActiveTabIndex(1);
+    } else {
+      setActiveTabIndex(0);
     }
-  }, [searchParams, globalSearchQuery]);
+  }, [searchParams]);
+
+  const handleLeadsCountChange = (count: number) => {
+    setLeadsCount(count);
+  };
 
   const handleLeadOutcomesCountChange = (count: number) => {
     setLeadOutcomesCount(count);
   };
   
-  // Determine if search is active
-  const isSearchActive = globalSearchQuery.trim().length > 0;
+  // Reset all global filters
+  const handleResetGlobalFilters = () => {
+    setGlobalSearchQuery('');
+    setGlobalClientTypeFilter('all');
+    setGlobalSourceFilter('all');
+    setGlobalAttemptsFilter('all');
+    setGlobalOwnerFilter('all');
+    setGlobalDateRangeFilter('all');
+  };
+  
+  // Check if any global filter is active
+  const hasActiveGlobalFilters = 
+    globalSearchQuery.trim() !== '' ||
+    globalClientTypeFilter !== 'all' ||
+    globalSourceFilter !== 'all' ||
+    globalAttemptsFilter !== 'all' ||
+    globalOwnerFilter !== 'all' ||
+    globalDateRangeFilter !== 'all';
 
   return (
     <Box>
-      {/* Page Header with Global Search */}
+      {/* Page Header */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
-        <Flex direction={{ base: 'column', md: 'row' }} gap={3} align={{ base: 'stretch', md: 'center' }} justify="space-between">
-          <Heading size={{ base: 'md', md: 'lg' }}>Lead Management</Heading>
+        <Heading size={{ base: 'md', md: 'lg' }} mb={4}>Lead Management</Heading>
+        
+        {/* Global Filters */}
+        <VStack spacing={3} align="stretch">
+          {/* Search */}
           <DebouncedSearchInput
-            placeholder="🔍 Global search across all leads..."
+            placeholder="🔍 Search across all leads (name, phone, email)..."
             onSearch={handleGlobalSearch}
             debounceMs={400}
             size="md"
-            maxW={{ base: 'full', md: '400px' }}
+            maxW={{ base: 'full', md: '500px' }}
           />
-        </Flex>
+          
+          {/* Filter Row */}
+          <Flex gap={3} flexWrap="wrap" align="center">
+            <Select
+              value={globalClientTypeFilter}
+              onChange={(e) => setGlobalClientTypeFilter(e.target.value)}
+              size={{ base: 'sm', md: 'md' }}
+              maxW={{ base: 'full', sm: '200px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">Both Clients & Existing</option>
+              <option value="existing">Clients Only</option>
+              <option value="non-existing">Leads Only</option>
+            </Select>
+
+            <Select
+              value={globalSourceFilter}
+              onChange={(e) => setGlobalSourceFilter(e.target.value)}
+              size={{ base: 'sm', md: 'md' }}
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Sources</option>
+              <option value="Website">Website</option>
+              <option value="Meta">Meta</option>
+              <option value="Referral">Referral</option>
+              <option value="Direct">Direct</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Cold Call">Cold Call</option>
+            </Select>
+
+            <Select
+              value={globalAttemptsFilter}
+              onChange={(e) => setGlobalAttemptsFilter(e.target.value)}
+              size={{ base: 'sm', md: 'md' }}
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Attempts</option>
+              <option value="0">0 Attempts</option>
+              <option value="1-3">1-3 Attempts</option>
+              <option value="4-6">4-6 Attempts</option>
+              <option value="7+">7+ Attempts</option>
+            </Select>
+
+            <Select
+              value={globalOwnerFilter}
+              onChange={(e) => setGlobalOwnerFilter(e.target.value)}
+              size={{ base: 'sm', md: 'md' }}
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Owners</option>
+              {availableOwners.map(owner => (
+                <option key={owner.id} value={owner.id}>{owner.name}</option>
+              ))}
+            </Select>
+
+            <Select
+              value={globalDateRangeFilter}
+              onChange={(e) => setGlobalDateRangeFilter(e.target.value)}
+              size={{ base: 'sm', md: 'md' }}
+              maxW={{ base: 'full', sm: '180px' }}
+              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+            </Select>
+
+            {/* Reset Filters Button */}
+            {hasActiveGlobalFilters && (
+              <Button
+                leftIcon={<HiX />}
+                onClick={handleResetGlobalFilters}
+                size={{ base: 'sm', md: 'md' }}
+                variant="outline"
+                colorScheme="red"
+                flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+              >
+                Reset Filters
+              </Button>
+            )}
+          </Flex>
+          
+          {/* Info text about filter scope */}
+          {hasActiveGlobalFilters && (
+            <Text fontSize="xs" color="gray.600">
+              ℹ️ Filters apply to both Leads and Lead Outcome tabs
+            </Text>
+          )}
+        </VStack>
       </Box>
 
-      {/* Tabs - Show Search tab when searching, otherwise show Leads/Outcomes */}
+      {/* Tabs */}
       <Tabs 
         index={activeTabIndex} 
         onChange={setActiveTabIndex}
@@ -89,26 +212,7 @@ export default function UnifiedLeadsPage() {
         colorScheme="blue"
       >
         <TabList>
-          {/* Show Search tab when search is active */}
-          {isSearchActive && (
-            <Tab
-              _selected={{ 
-                color: 'blue.600', 
-                bg: 'white', 
-                borderColor: 'gray.300',
-                borderBottomColor: 'white',
-              }}
-              fontSize={{ base: 'sm', md: 'md' }}
-              fontWeight="semibold"
-            >
-              <Flex align="center" gap={2}>
-                <Icon as={HiSearch} />
-                <span>Search Results</span>
-              </Flex>
-            </Tab>
-          )}
-          
-          {/* Regular tabs - always visible */}
+          {/* Leads Tab */}
           <Tab
             _selected={{ 
               color: 'blue.600', 
@@ -120,6 +224,17 @@ export default function UnifiedLeadsPage() {
             fontWeight="semibold"
           >
             Leads
+            {leadsCount > 0 && (
+              <Badge 
+                ml={2} 
+                colorScheme="blue" 
+                fontSize={{ base: 'xs', md: 'sm' }}
+                borderRadius="full"
+                px={2}
+              >
+                {leadsCount}
+              </Badge>
+            )}
           </Tab>
           <Tab
             _selected={{ 
@@ -147,22 +262,31 @@ export default function UnifiedLeadsPage() {
         </TabList>
 
         <TabPanels>
-          {/* Search Results Tab Panel - Only shown when searching */}
-          {isSearchActive && (
-            <TabPanel p={0} pt={4}>
-              <GlobalSearchResults searchQuery={globalSearchQuery} />
-            </TabPanel>
-          )}
-          
-          {/* Leads Tab Panel - No global search passed */}
+          {/* Leads Tab Panel - With global filters and search */}
           <TabPanel p={0} pt={4}>
-            <LeadsTabContent />
+            <LeadsTabContent 
+              onCountChange={handleLeadsCountChange}
+              globalSearchQuery={globalSearchQuery}
+              globalClientTypeFilter={globalClientTypeFilter}
+              globalSourceFilter={globalSourceFilter}
+              globalAttemptsFilter={globalAttemptsFilter}
+              globalOwnerFilter={globalOwnerFilter}
+              globalDateRangeFilter={globalDateRangeFilter}
+            />
           </TabPanel>
 
-          {/* Lead Outcomes Tab Panel - No global search passed */}
+          {/* Lead Outcomes Tab Panel - With global filters and search */}
           <TabPanel p={0} pt={4}>
             <LeadOutcomesTabContent 
               onCountChange={handleLeadOutcomesCountChange}
+              globalSearchQuery={globalSearchQuery}
+              globalClientTypeFilter={globalClientTypeFilter}
+              globalSourceFilter={globalSourceFilter}
+              globalOwnerFilter={globalOwnerFilter}
+              globalDateRangeFilter={globalDateRangeFilter}
+              onOwnersLoad={(owners) => {
+                setAvailableOwners(owners);
+              }}
             />
           </TabPanel>
         </TabPanels>

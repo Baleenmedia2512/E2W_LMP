@@ -20,10 +20,6 @@ import ModernLeadCard from './ModernLeadCard';
 import type { Lead, CallLog } from '@/shared/types';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 
-interface GlobalSearchResultsProps {
-  searchQuery: string;
-}
-
 // Lead Age Component
 const LeadAge = ({ createdAt }: { createdAt: string | Date }) => {
   const now = new Date();
@@ -59,9 +55,23 @@ const CallRemarksDisplay = ({ callLogs }: { callLogs: CallLog[] }) => {
 
 interface GlobalSearchResultsProps {
   searchQuery: string;
+  onCountChange?: (count: number) => void;
+  globalClientTypeFilter?: string;
+  globalSourceFilter?: string;
+  globalAttemptsFilter?: string;
+  globalOwnerFilter?: string;
+  globalDateRangeFilter?: string;
 }
 
-function GlobalSearchResults({ searchQuery }: GlobalSearchResultsProps) {
+function GlobalSearchResults({ 
+  searchQuery, 
+  onCountChange,
+  globalClientTypeFilter = 'all',
+  globalSourceFilter = 'all',
+  globalAttemptsFilter = 'all',
+  globalOwnerFilter = 'all',
+  globalDateRangeFilter = 'all',
+}: GlobalSearchResultsProps) {
   const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
@@ -155,8 +165,58 @@ function GlobalSearchResults({ searchQuery }: GlobalSearchResultsProps) {
 
     const outcomeStatuses = ['won', 'lost', 'unqualified', 'unreach', 'unreachable'];
     
-    const active = allLeads.filter(lead => !outcomeStatuses.includes(lead.status));
-    const outcomes = allLeads.filter(lead => outcomeStatuses.includes(lead.status));
+    // Apply global filters to search results
+    let filtered = allLeads.filter(lead => {
+      // Source filter
+      if (globalSourceFilter !== 'all' && lead.source?.toLowerCase() !== globalSourceFilter.toLowerCase()) {
+        return false;
+      }
+      
+      // Client type filter
+      if (globalClientTypeFilter === 'existing' && lead.is_existing !== true) {
+        return false;
+      }
+      if (globalClientTypeFilter === 'non-existing' && lead.is_existing === true) {
+        return false;
+      }
+      
+      // Attempts filter (only for active leads)
+      if (globalAttemptsFilter !== 'all' && !outcomeStatuses.includes(lead.status)) {
+        const attempts = lead.callAttempts || 0;
+        if (globalAttemptsFilter === '0' && attempts !== 0) return false;
+        if (globalAttemptsFilter === '1-3' && (attempts < 1 || attempts > 3)) return false;
+        if (globalAttemptsFilter === '4-6' && (attempts < 4 || attempts > 6)) return false;
+        if (globalAttemptsFilter === '7+' && attempts < 7) return false;
+      }
+      
+      // Owner filter (for outcome leads)
+      if (globalOwnerFilter !== 'all' && lead.assignedTo?.id !== globalOwnerFilter) {
+        return false;
+      }
+      
+      // Date range filter
+      if (globalDateRangeFilter !== 'all') {
+        const now = new Date();
+        const leadDate = new Date(lead.updatedAt || lead.createdAt);
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const leadDay = new Date(leadDate.getFullYear(), leadDate.getMonth(), leadDate.getDate());
+        
+        if (globalDateRangeFilter === 'today') {
+          if (leadDay.getTime() !== today.getTime()) return false;
+        } else if (globalDateRangeFilter === 'week') {
+          const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (leadDay < weekAgo) return false;
+        } else if (globalDateRangeFilter === 'month') {
+          const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+          if (leadDay < monthAgo) return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    const active = filtered.filter(lead => !outcomeStatuses.includes(lead.status));
+    const outcomes = filtered.filter(lead => outcomeStatuses.includes(lead.status));
     
     console.log('[Global Search Filter] Active leads:', active.length, 'Outcome leads:', outcomes.length);
 
@@ -164,7 +224,7 @@ function GlobalSearchResults({ searchQuery }: GlobalSearchResultsProps) {
       activeLeads: active,
       outcomeLeads: outcomes,
     };
-  }, [allLeads, searchQuery]);
+  }, [allLeads, searchQuery, globalSourceFilter, globalClientTypeFilter, globalAttemptsFilter, globalOwnerFilter, globalDateRangeFilter]);
 
   const getCallLogsForLead = useCallback((leadId: string) => {
     return callLogs.filter(log => log.leadId === leadId);
@@ -193,6 +253,14 @@ function GlobalSearchResults({ searchQuery }: GlobalSearchResultsProps) {
       new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()
     )[0];
   }, [followUps]);
+  
+  // Update parent component with search results count
+  useEffect(() => {
+    if (onCountChange) {
+      const total = filteredResults.activeLeads.length + filteredResults.outcomeLeads.length;
+      onCountChange(total);
+    }
+  }, [filteredResults, onCountChange]);
 
   const getStatusBadgeColor = useCallback((status: string) => {
     switch (status) {

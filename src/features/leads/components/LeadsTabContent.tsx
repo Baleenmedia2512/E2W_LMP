@@ -286,10 +286,25 @@ const CallRemarksDisplay = ({
 
 // Lead management page with multiple view modes and categorization
 interface LeadsTabContentProps {
-  // Component uses only local search
+  onCountChange?: (count: number) => void;
+  // Global filters passed from parent
+  globalSearchQuery?: string;
+  globalClientTypeFilter?: string;
+  globalSourceFilter?: string;
+  globalAttemptsFilter?: string;
+  globalOwnerFilter?: string;
+  globalDateRangeFilter?: string;
 }
 
-function LeadsTabContent({}: LeadsTabContentProps = {}) {
+function LeadsTabContent({
+  onCountChange,
+  globalSearchQuery = '',
+  globalClientTypeFilter = 'all',
+  globalSourceFilter = 'all',
+  globalAttemptsFilter = 'all',
+  globalOwnerFilter = 'all',
+  globalDateRangeFilter = 'all',
+}: LeadsTabContentProps = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -298,11 +313,19 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
   // Get filter from URL if present
   const urlFilter = searchParams.get('filter');
   
-  // State - local search only
-  const [localSearchQuery, setLocalSearchQuery] = useState('');
+  // Use global filters instead of local ones
+  const searchQuery = globalSearchQuery;
+  const clientTypeFilter = globalClientTypeFilter;
+  const sourceFilter = globalSourceFilter;
+  const attemptsFilter = globalAttemptsFilter;
+  const ownerFilter = globalOwnerFilter;
+  // Note: dateRangeFilter for Leads tab uses different values than global, so we need to map it
+  const dateRangeFilter = globalDateRangeFilter === 'week' ? '7days' : 
+                          globalDateRangeFilter === 'month' ? '30days' : 
+                          globalDateRangeFilter;
   
-  // Use local search only
-  const searchQuery = localSearchQuery;
+  // Status filter is specific to Leads tab, so keep it local
+  // Status filter is specific to Leads tab, so keep it local
   const [statusFilter, setStatusFilter] = useState<string>(() => {
     // Apply filter from URL (e.g., 'new', 'won', 'overdue', 'today')
     if (urlFilter) {
@@ -313,18 +336,11 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
     }
     return 'all';
   });
-  const [sourceFilter, setSourceFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<string>(() => {
-    // If filter is 'new', automatically set to today
-    if (urlFilter === 'new') {
-      return 'today';
-    }
-    return 'all';
-  });
-  const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
+  
+  // Remove local source, client type, date range, and attempts filters - now using global
+  // Keep only tab-specific filters
   const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
   const [showOnlyToday, setShowOnlyToday] = useState<boolean>(true); // Default: show only today's leads
-  const [clientTypeFilter, setClientTypeFilter] = useState<string>('all'); // Filter: 'all', 'existing', 'non-existing'
   const [visibleCount, setVisibleCount] = useState<number>(50); // Lazy loading: initially show 50 leads
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
@@ -369,7 +385,8 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
       // Build query parameters for leads API
       // Load all data once, filter on client-side for instant search
       const leadsParams = new URLSearchParams({ limit: '2000' });
-      if (assignedToMe) {
+      // Only use assignedToMe filter if global owner filter is not set
+      if (assignedToMe && ownerFilter === 'all') {
         leadsParams.append('assigned_to', 'me');
       }
       
@@ -487,14 +504,11 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
     fetchData();
   };
 
-  // Handler to reset all filters
+  // Handler to reset all filters (only local filters now)
   const handleResetFilters = () => {
-    setLocalSearchQuery('');
+    // Note: Global filters are now managed by parent component
+    // Only reset local tab-specific filters here
     setStatusFilter('all');
-    setSourceFilter('all');
-    setDateRangeFilter('all');
-    setClientTypeFilter('all');
-    setAttemptsFilter('all');
     setAssignedToMe(false);
     setShowOnlyToday(true); // Reset to default: show only today's leads
     setVisibleCount(50); // Reset lazy loading
@@ -666,13 +680,14 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
     const hasStatusFilter = statusFilter !== 'all' && statusFilter !== 'overdue' && statusFilter !== 'scheduled' && statusFilter !== 'today';
     const hasSourceFilter = sourceFilter !== 'all';
     const hasClientTypeFilter = clientTypeFilter !== 'all';
+    const hasOwnerFilter = ownerFilter !== 'all';
     const hasDateFilter = dateRangeFilter !== 'all';
     const hasAttemptsFilter = attemptsFilter !== 'all';
     
     // Always exclude outcome statuses from active leads UNLESS specifically filtering for them
     const shouldExcludeOutcomes = !hasStatusFilter || !outcomeStatuses.includes(statusFilter);
     
-    if (!hasSearch && !hasStatusFilter && !hasSourceFilter && !hasClientTypeFilter && !hasDateFilter && !hasAttemptsFilter) {
+    if (!hasSearch && !hasStatusFilter && !hasSourceFilter && !hasClientTypeFilter && !hasOwnerFilter && !hasDateFilter && !hasAttemptsFilter) {
       // Even with no filters, exclude outcome statuses from active leads
       return leads.filter(lead => !outcomeStatuses.includes(lead.status));
     }
@@ -715,6 +730,11 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
         if (clientTypeFilter === 'non-existing' && lead.is_existing === true) return false;
       }
 
+      // Owner filter
+      if (hasOwnerFilter) {
+        if (!lead.assignedTo || lead.assignedTo.id !== ownerFilter) return false;
+      }
+
       // Date range filter - optimized with pre-calculated dates
       if (hasDateFilter && today) {
         const leadDate = new Date(lead.createdAt);
@@ -740,28 +760,11 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
       
       return true;
     });
-  }, [searchQuery, statusFilter, sourceFilter, dateRangeFilter, attemptsFilter, leads, clientTypeFilter]);
+  }, [searchQuery, statusFilter, sourceFilter, ownerFilter, dateRangeFilter, attemptsFilter, leads, clientTypeFilter]);
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
-    // PERFORMANCE: Skip expensive categorization during active search
-    // Just show results in a flat list when searching
-    const trimmedSearch = searchQuery.trim();
-    if (trimmedSearch !== '') {
-      // Return filtered leads with minimal structure (no followUp lookup needed for search)
-      return {
-        overdue: [],
-        newLeads: [],
-        future: [],
-        statusFiltered: filteredLeads.map(lead => ({ 
-          lead,
-          followUp: undefined,
-          category: 'future' as const,
-          sortValue: 0
-        }))
-      };
-    }
-    
+    // Categorize filtered leads normally, even during search
     const categorized = categorizeAndSortLeads(filteredLeads, followUps);
     
     const now = new Date();
@@ -905,6 +908,13 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
     };
   }, [categorizedLeads, visibleCount, showOnlyToday]);
 
+  // Update parent component with total filtered leads count (not just visible)
+  useEffect(() => {
+    if (onCountChange) {
+      onCountChange(lazyLoadedLeads.totalItems);
+    }
+  }, [lazyLoadedLeads.totalItems, onCountChange]);
+
   // Load more handler for lazy loading
   const handleLoadMore = () => {
     setVisibleCount(prev => prev + 50);
@@ -969,18 +979,14 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
       {/* Search and Filters */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
-          {/* Local Search Bar */}
-          <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch">
-            <DebouncedSearchInput
-              placeholder="Search name or phone number"
-              onSearch={(query) => setLocalSearchQuery(query)}
-              debounceMs={300}
-              size="md"
-              maxW="full"
-            />
-          </Flex>
+          {/* Info about global filters */}
+          <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            ℹ️ Global filters (search, source, client type, attempts) are applied at the page level above
+          </Text>
+          
+          <Divider />
 
-          {/* Filters Row */}
+          {/* Tab-specific Filters Row */}
           <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch" flexWrap="wrap">
             <Select
               value={statusFilter}
@@ -996,49 +1002,7 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
               <option value="scheduled">Scheduled Follow-up</option>
             </Select>
 
-            <Select
-              value={clientTypeFilter}
-              onChange={(e) => setClientTypeFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '200px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
-            >
-              <option value="all">Both Clients and Leads</option>
-              <option value="existing">Clients Only</option>
-              <option value="non-existing">Leads Only</option>
-            </Select>
-
-            <Select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '180px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
-            >
-              <option value="all">All Sources</option>
-              <option value="Website">Website</option>
-              <option value="Meta">Meta</option>
-              <option value="Referral">Referral</option>
-              <option value="Direct">Direct</option>
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="Cold Call">Cold Call</option>
-            </Select>
-
-            <Select
-              value={attemptsFilter}
-              onChange={(e) => setAttemptsFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '180px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
-            >
-              <option value="all">All Attempts</option>
-              <option value="0">0 Attempts</option>
-              <option value="1-3">1-3 Attempts</option>
-              <option value="4-6">4-6 Attempts</option>
-              <option value="7+">7+ Attempts</option>
-            </Select>
-
-            {/* Reset Filters Button */}
+            {/* Reset Local Filters Button */}
             <Button
               leftIcon={<HiX />}
               onClick={handleResetFilters}
@@ -1046,9 +1010,9 @@ function LeadsTabContent({}: LeadsTabContentProps = {}) {
               variant="outline"
               colorScheme="red"
               flex={{ base: '1 1 100%', sm: '0 1 auto' }}
-              isDisabled={localSearchQuery === '' && statusFilter === 'all' && sourceFilter === 'all' && clientTypeFilter === 'all' && attemptsFilter === 'all' && !assignedToMe && showOnlyToday}
+              isDisabled={statusFilter === 'all' && !assignedToMe && showOnlyToday}
             >
-              Reset Filters
+              Reset Local Filters
             </Button>
           </Flex>
 
