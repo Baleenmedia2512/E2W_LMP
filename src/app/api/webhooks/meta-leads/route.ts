@@ -124,10 +124,10 @@ export async function GET(request: NextRequest) {
  */
 async function checkDuplicateLead(phone: string, email: string | null, metaLeadId: string) {
   try {
-    // Check by Meta Lead ID using PostgreSQL JSON operators
+    // Check by Meta Lead ID using PostgreSQL JSON operators (CASE-INSENSITIVE SOURCE)
     const existingByMetaId = await prisma.$queryRaw<any[]>`
       SELECT id, name, phone FROM "Lead" 
-      WHERE source = 'meta' 
+      WHERE LOWER(source) = 'meta'
       AND metadata::jsonb->>'metaLeadId' = ${metaLeadId}
       LIMIT 1
     `;
@@ -137,12 +137,16 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
       return existingByMetaId[0];
     }
 
-    // Then check by phone/email if provided
+    // Then check by phone/email if provided (CASE-INSENSITIVE SOURCE + SOURCE FILTER)
     if (phone && phone !== 'PENDING') {
       const existingByContact = await prisma.lead.findFirst({
         where: {
           AND: [
-            { source: 'meta' },
+            { 
+              source: { 
+                in: ['meta', 'Meta', 'META'], // Case-insensitive check
+              } 
+            },
             {
               OR: [
                 { phone: phone },
@@ -269,12 +273,44 @@ async function processLead(leadgenData: any): Promise<void> {
       throw new Error('Lead missing phone number');
     }
 
-    // STEP 3: Check for duplicates
+    // STEP 3: Check for duplicates (ENHANCED WITH RACE CONDITION PROTECTION)
     const duplicate = await checkDuplicateLead(normalizedPhone, email, metaLeadId);
     
     if (duplicate) {
-      logWebhookEvent('info', `Skipping duplicate lead ${metaLeadId}`);
+      logWebhookEvent('info', `Skipping duplicate lead ${metaLeadId}`, {
+        existingLeadId: duplicate.id,
+        existingName: duplicate.name,
+        existingPhone: duplicate.phone,
+      });
       return; // Skip silently
+    }
+
+    // STEP 3.5: Additional race condition check - verify no lead was just created with same metaLeadId
+    // This handles webhook retry scenarios where duplicate check passed but lead was created milliseconds ago
+    const recentDuplicate = await prisma.lead.findFirst({
+      where: {
+        source: { in: ['meta', 'Meta', 'META'] },
+        createdAt: {
+          gte: new Date(Date.now() - 60000), // Check last 60 seconds
+        },
+        phone: normalizedPhone,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (recentDuplicate) {
+      // Double-check metadata for metaLeadId
+      try {
+        const meta = typeof recentDuplicate.metadata === 'string' 
+          ? JSON.parse(recentDuplicate.metadata)
+          : recentDuplicate.metadata;
+        if (meta?.metaLeadId === metaLeadId) {
+          logWebhookEvent('info', `Race condition detected! Lead ${metaLeadId} already created ${Date.now() - new Date(recentDuplicate.createdAt).getTime()}ms ago`);
+          return; // Skip silently
+        }
+      } catch {
+        // If metadata parse fails, skip this check
+      }
     }
 
     // STEP 4: Fetch campaign, adset, and ad names in parallel

@@ -71,9 +71,13 @@ const ModernLeadCard = memo(({
 }: ModernLeadCardProps) => {
   const router = useRouter();
 
-  // Determine if follow-up is overdue
-  const isOverdue = followUp && new Date(followUp.scheduledAt) < new Date();
-  const isDueToday = followUp && !isOverdue;
+  // Determine if follow-up is overdue or due today
+  const now = new Date();
+  const isOverdue = followUp && new Date(followUp.scheduledAt) < now;
+  
+  // Check if followup is actually scheduled for today (not just "not overdue")
+  const isDueToday = followUp && !isOverdue && 
+    new Date(followUp.scheduledAt).toDateString() === now.toDateString();
 
   return (
     <Box
