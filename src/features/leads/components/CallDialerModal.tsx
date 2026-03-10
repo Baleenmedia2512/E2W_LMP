@@ -75,7 +75,7 @@ export default function CallDialerModal({
   const [callTimer, setCallTimer] = useState(0);
 
   // Form state
-  const [callStatus, setCallStatus] = useState<'answer' | 'busy' | 'wrong_number'>('answer');
+  const [callStatus, setCallStatus] = useState<'answer' | 'busy' | 'wrong_number' | 'busy_after_1_hour'>('answer');
   const [customerRequirement, setCustomerRequirement] = useState('');
   const [remarks, setRemarks] = useState('');
   const [remarksInitialized, setRemarksInitialized] = useState(false);
@@ -332,8 +332,8 @@ export default function CallDialerModal({
         // US-8 Enhancement: Clear saved call data from localStorage
         localStorage.removeItem(`unsaved_call_${leadId}`);
         
-        // Check if quick follow-up is enabled for busy calls
-        if (quickFollowUp && callStatus === 'busy') {
+        // Check if quick follow-up is enabled for busy calls or if status is 'busy_after_1_hour'
+        if ((quickFollowUp && callStatus === 'busy') || callStatus === 'busy_after_1_hour') {
           // Auto-schedule follow-up after 1 hour - save directly without showing form
           const now = new Date();
           const scheduledDateTime = new Date(now.getTime() + 60 * 60 * 1000);
@@ -1037,11 +1037,12 @@ export default function CallDialerModal({
                 <FormLabel>Call Status <Text as="span" color="red.500">*</Text></FormLabel>
                 <Select
                   value={callStatus}
-                  onChange={(e) => setCallStatus(e.target.value as 'answer' | 'busy' | 'wrong_number')}
+                  onChange={(e) => setCallStatus(e.target.value as 'answer' | 'busy' | 'wrong_number' | 'busy_after_1_hour')}
                 >
                   <option value="answer">Answer</option>
                   <option value="busy">Busy</option>
                   <option value="wrong_number">Wrong Number</option>
+                  <option value="busy_after_1_hour">Busy After 1 Hour</option>
                 </Select>
               </FormControl>
 

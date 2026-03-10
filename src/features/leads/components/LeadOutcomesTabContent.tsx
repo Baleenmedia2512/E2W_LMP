@@ -74,10 +74,23 @@ interface OutcomeSection {
 
 interface LeadOutcomesTabContentProps {
   onCountChange?: (count: number) => void;
+  // Global filters passed from parent
+  globalSearchQuery?: string;
+  globalClientTypeFilter?: string;
+  globalSourceFilter?: string;
+  globalOwnerFilter?: string;
+  globalDateRangeFilter?: string;
+  onOwnersLoad?: (owners: { id: string; name: string }[]) => void;
 }
 
 export default function LeadOutcomesTabContent({ 
-  onCountChange 
+  onCountChange,
+  globalSearchQuery = '',
+  globalClientTypeFilter = 'all',
+  globalSourceFilter = 'all',
+  globalOwnerFilter = 'all',
+  globalDateRangeFilter = 'all',
+  onOwnersLoad,
 }: LeadOutcomesTabContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,23 +101,22 @@ export default function LeadOutcomesTabContent({
   const initialDateFilter = searchParams.get('date') as 'all' | 'today' | 'week' | 'month' || 'all';
   const initialStatusFilter = searchParams.get('status') || null;
   
-  // State for filters (applies to all sections)
-  const [localSearchInput, setLocalSearchInput] = useState(''); // Immediate input value
-  const [localSearchQuery, setLocalSearchQuery] = useState(''); // Debounced search query
+  // Use global filters instead of local ones
+  const searchQuery = globalSearchQuery;
+  const ownerFilter = globalOwnerFilter;
+  const sourceFilter = globalSourceFilter;
+  const clientTypeFilter = globalClientTypeFilter;
+  const dateRangeFilter = globalDateRangeFilter as 'all' | 'today' | 'week' | 'month' | 'custom';
   
-  // Use local search only
-  const searchInput = localSearchInput;
-  const searchQuery = localSearchQuery;
-  const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>('all'); // Status filter for outcomes
-  const [ownerFilter, setOwnerFilter] = useState<string>('all');
-  const [sourceFilter, setSourceFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>(initialDateFilter);
+  // Local filter specific to Lead Outcome tab
+  const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>('all');
+  
+  // Custom date range is still local (for custom date picker)
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [dataMinDate, setDataMinDate] = useState(''); // Store min date from data
   const [dataMaxDate, setDataMaxDate] = useState(''); // Store max date from data
   const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
-  const [clientTypeFilter, setClientTypeFilter] = useState<string>('all'); // Filter: 'all', 'existing', 'non-existing'
   
   // Won section view mode: 'current' or 'historical'
   const [wonViewMode, setWonViewMode] = useState<'current' | 'historical'>('current');
@@ -252,7 +264,12 @@ export default function LeadOutcomesTabContent({
       }
       
       if (usersData.success) {
-        setOwners(usersData.data || []);
+        const ownersData = usersData.data || [];
+        setOwners(ownersData);
+        // Notify parent about available owners for the global filter
+        if (onOwnersLoad) {
+          onOwnersLoad(ownersData);
+        }
       }
     } catch (error) {
       toast({
@@ -331,14 +348,7 @@ export default function LeadOutcomesTabContent({
     }
   };
 
-  // Debounce search input - only update localSearchQuery after 500ms of no typing
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      setLocalSearchQuery(localSearchInput);
-    }, 500);
-
-    return () => clearTimeout(debounceTimer);
-  }, [localSearchInput]);
+  // Note: Search debouncing is now handled at the parent level with global filters
 
   // Auto-update date fields when preset date filter changes
   useEffect(() => {
@@ -547,20 +557,25 @@ export default function LeadOutcomesTabContent({
     }
   }, [sections, onCountChange]);
 
-  const clearFilters = () => {
-    setLocalSearchInput('');
-    setLocalSearchQuery('');
+  // Clear local filters
+  const clearLocalFilters = () => {
     setOutcomeStatusFilter('all');
-    setOwnerFilter('all');
-    setSourceFilter('all');
-    setDateRangeFilter('all');
     setStartDate('');
     setEndDate('');
-    setClientTypeFilter('all');
-    setDateRangeComputed(false); // Reset so min/max dates can be recalculated
   };
 
-  const hasActiveFilters = localSearchInput || outcomeStatusFilter !== 'all' || ownerFilter !== 'all' || sourceFilter !== 'all' || dateRangeFilter !== 'all' || startDate || endDate || clientTypeFilter !== 'all';
+  // Check if local filters are active
+  const hasLocalFilters = outcomeStatusFilter !== 'all' || startDate !== '' || endDate !== '';
+  
+  // Check if any global filters are active (from props)
+  const hasGlobalFiltersActive = 
+    searchQuery.trim() !== '' ||
+    ownerFilter !== 'all' ||
+    sourceFilter !== 'all' ||
+    dateRangeFilter !== 'all' ||
+    clientTypeFilter !== 'all';
+  
+  const hasAnyFilters = hasLocalFilters || hasGlobalFiltersActive;
 
   const openRescheduleModal = (leadId: string, leadName: string) => {
     setRescheduleLeadId(leadId);
@@ -732,128 +747,70 @@ export default function LeadOutcomesTabContent({
         <Heading size={{ base: 'md', md: 'lg' }}>Lead Outcomes</Heading>
       </Flex>
 
-      {/* Global Filters */}
+      {/* Local and Global Filters Info */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={6}>
         <VStack spacing={3} align="stretch">
-          <Heading size="sm" mb={2}>Filters (Apply to All Sections)</Heading>
+          <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            ℹ️ Global filters (search, client type, owner, source, date range) are applied at the page level above
+          </Text>
           
-          {/* Search */}
-          <InputGroup maxW={{ base: 'full', md: '400px' }}>
-            <InputLeftElement>
-              <HiSearch />
-            </InputLeftElement>
-            <Input
-              placeholder="Search name or phone"
-              value={localSearchInput}
-              onChange={(e) => setLocalSearchInput(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-            />
-          </InputGroup>
-
-          {/* Filter Row */}
-          <Flex gap={3} flexWrap="wrap">
-            <Select
-              value={clientTypeFilter}
-              onChange={(e) => setClientTypeFilter(e.target.value)}
-              maxW={{ base: 'full', sm: '200px' }}
-              size={{ base: 'sm', md: 'md' }}
-            >
-              <option value="all">Both Clients and Leads</option>
-              <option value="existing">Clients Only</option>
-              <option value="non-existing">Leads Only</option>
-            </Select>
-
-            <Select
-              value={outcomeStatusFilter}
-              onChange={(e) => setOutcomeStatusFilter(e.target.value)}
-              maxW={{ base: 'full', sm: '200px' }}
-              size={{ base: 'sm', md: 'md' }}
-            >
-              <option value="all">All Outcomes</option>
-              <option value="won">Won</option>
-              <option value="lost">Lost</option>
-              <option value="unqualified">Unqualified</option>
-              <option value="unreach">Unreachable</option>
-            </Select>
-
-            <Select
-              value={ownerFilter}
-              onChange={(e) => setOwnerFilter(e.target.value)}
-              maxW={{ base: 'full', sm: '200px' }}
-              size={{ base: 'sm', md: 'md' }}
-            >
-              <option value="all">All Owners</option>
-              {owners.map(owner => (
-                <option key={owner.id} value={owner.id}>{owner.name}</option>
-              ))}
-            </Select>
-
-            <Select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              maxW={{ base: 'full', sm: '200px' }}
-              size={{ base: 'sm', md: 'md' }}
-            >
-              <option value="all">All Sources</option>
-              <option value="Website">Website</option>
-              <option value="Meta">Meta</option>
-              <option value="Referral">Referral</option>
-              <option value="Direct">Direct</option>
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="Cold Call">Cold Call</option>
-            </Select>
-
-            <Select
-              value={dateRangeFilter}
-              onChange={(e) => setDateRangeFilter(e.target.value as any)}
-              maxW={{ base: 'full', sm: '200px' }}
-              size={{ base: 'sm', md: 'md' }}
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-              <option value="custom">Custom</option>
-            </Select>
-          </Flex>
-
-          {/* Custom Date Range */}
-          <Flex gap={3} flexWrap="wrap">
-            <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-              <Text fontSize="sm" mb={1}>Last Updated Start Date</Text>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  if (dateRangeFilter !== 'custom') {
-                    setDateRangeFilter('custom');
-                  }
-                }}
-                size={{ base: 'sm', md: 'md' }}
-                max={endDate || undefined}
-              />
-            </Box>
-            <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-              <Text fontSize="sm" mb={1}>Last Updated End Date</Text>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  if (dateRangeFilter !== 'custom') {
-                    setDateRangeFilter('custom');
-                  }
-                }}
-                size={{ base: 'sm', md: 'md' }}
-                min={startDate || undefined}
-              />
-            </Box>
-          </Flex>
-
-          {hasActiveFilters && (
-            <Button size="sm" variant="ghost" onClick={clearFilters} alignSelf="flex-start">
-              Clear All Filters
+          <Divider />
+          
+          {/* Local Outcome Filter */}
+          <Heading size="xs" color="gray.700">Outcome Filter (Tab-Specific)</Heading>
+          <Select
+            value={outcomeStatusFilter}
+            onChange={(e) => setOutcomeStatusFilter(e.target.value)}
+            maxW={{ base: 'full', sm: '200px' }}
+            size={{ base: 'sm', md: 'md' }}
+          >
+            <option value="all">All Outcomes</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+            <option value="unqualified">Unqualified</option>
+            <option value="unreach">Unreachable</option>
+          </Select>
+          
+          {/* Custom Date Range - Only if needed */}
+          {dateRangeFilter === 'custom' && (
+            <>
+              <Divider />
+              <Heading size="xs" color="gray.700">Custom Date Range</Heading>
+              <Flex gap={3} flexWrap="wrap">
+                <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
+                  <Text fontSize="sm" mb={1}>Last Updated Start Date</Text>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    size={{ base: 'sm', md: 'md' }}
+                    max={endDate || undefined}
+                  />
+                </Box>
+                <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
+                  <Text fontSize="sm" mb={1}>Last Updated End Date</Text>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    size={{ base: 'sm', md: 'md' }}
+                    min={startDate || undefined}
+                  />
+                </Box>
+              </Flex>
+              
+              {(startDate || endDate) && (
+                <Button size="sm" variant="ghost" onClick={() => { setStartDate(''); setEndDate(''); }} alignSelf="flex-start">
+                  Clear Custom Date Range
+                </Button>
+              )}
+            </>
+          )}
+          
+          {/* Clear Local Filters Button */}
+          {hasLocalFilters && (
+            <Button size="sm" variant="outline" colorScheme="red" onClick={clearLocalFilters} alignSelf="flex-start">
+              Clear Local Filters
             </Button>
           )}
 
@@ -1149,7 +1106,7 @@ export default function LeadOutcomesTabContent({
               ) : (
                 <Box p={8} textAlign="center">
                   <Text color="gray.500">
-                    {hasActiveFilters ? `No ${section.title.toLowerCase()} leads match your filters` : `No ${section.title.toLowerCase()} leads`}
+                    {hasAnyFilters ? `No ${section.title.toLowerCase()} leads match your filters` : `No ${section.title.toLowerCase()} leads`}
                   </Text>
                 </Box>
               )}
