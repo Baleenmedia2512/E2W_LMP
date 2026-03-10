@@ -13,10 +13,12 @@ export async function findDuplicateLead(
   email: string | null,
   metaLeadId: string
 ) {
-  // First check by Meta Lead ID in metadata
+  // First check by Meta Lead ID in metadata (CASE-INSENSITIVE SOURCE)
   const allMetaLeads = await prisma.lead.findMany({
     where: {
-      source: 'Meta',
+      source: {
+        in: ['meta', 'Meta', 'META'], // Support all case variations
+      },
     },
   });
 
@@ -37,12 +39,22 @@ export async function findDuplicateLead(
   }
 
   // Then check by phone/email if phone is valid
+  // CRITICAL FIX: Check phone + source together to avoid cross-source duplicates
   if (phone && phone !== 'PENDING') {
     const existingByContact = await prisma.lead.findFirst({
       where: {
-        OR: [
-          { phone: phone },
-          ...(email ? [{ email: email }] : []),
+        AND: [
+          {
+            source: {
+              in: ['meta', 'Meta', 'META'], // Only check within Meta leads
+            },
+          },
+          {
+            OR: [
+              { phone: phone },
+              ...(email ? [{ email: email }] : []),
+            ],
+          },
         ],
       },
       orderBy: { createdAt: 'desc' },
