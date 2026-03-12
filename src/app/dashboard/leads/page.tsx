@@ -138,6 +138,14 @@ export default function UnifiedLeadsPage() {
               <option value="Direct">Direct</option>
               <option value="WhatsApp">WhatsApp</option>
               <option value="Cold Call">Cold Call</option>
+              <option value="Just Dial">Just Dial</option>
+              <option value="Indiamart">Indiamart</option>
+              <option value="Sulekha">Sulekha</option>
+              <option value="LG">LG</option>
+              <option value="Consultant">Consultant</option>
+              <option value="Own">Own</option>
+              <option value="Web App DB">Web App DB</option>
+              <option value="Online">Online</option>
             </Select>
 
             <Select

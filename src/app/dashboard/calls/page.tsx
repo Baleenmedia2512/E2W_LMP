@@ -38,7 +38,7 @@ import {
   ButtonGroup,
   Button,
 } from '@chakra-ui/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
 import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
@@ -52,6 +52,7 @@ interface CallLog {
     id: string;
     name: string;
     phone: string;
+    status?: string;
   };
   caller: {
     id: string;
@@ -93,6 +94,23 @@ export default function CallsPage() {
   const { isOpen: isHistoryOpen, onOpen: onHistoryOpen, onClose: onHistoryClose } = useDisclosure();
   const [selectedLeadHistory, setSelectedLeadHistory] = useState<CallLog[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'tile'>('table');
+
+  // Refs for scroll synchronization
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll synchronization handlers
+  const handleTopScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleBottomScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  };
 
   useEffect(() => {
     const fetchCallLogs = async () => {
@@ -227,6 +245,46 @@ export default function CallsPage() {
     return `${mins}.${Math.floor((secs / 60) * 100)}`;
   };
 
+  const getLeadStatusColor = (status: string) => {
+    if (!status) return 'gray';
+    switch (status.toLowerCase()) {
+      case 'new':
+        return 'blue';
+      case 'contacted':
+        return 'cyan';
+      case 'qualified':
+        return 'purple';
+      case 'converted':
+        return 'green';
+      case 'lost':
+        return 'red';
+      case 'follow_up':
+        return 'orange';
+      default:
+        return 'gray';
+    }
+  };
+
+  const getLeadStatusLabel = (status: string) => {
+    if (!status) return 'Unknown';
+    switch (status.toLowerCase()) {
+      case 'new':
+        return 'New';
+      case 'contacted':
+        return 'Contacted';
+      case 'qualified':
+        return 'Qualified';
+      case 'converted':
+        return 'Converted';
+      case 'lost':
+        return 'Lost';
+      case 'follow_up':
+        return 'Follow Up';
+      default:
+        return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
+    }
+  };
+
   const handleShowRemark = (remark: string | null) => {
     setSelectedRemark(remark);
     onOpen();
@@ -345,9 +403,14 @@ export default function CallsPage() {
           >
             ← Scroll horizontally to view all columns →
           </Text>
+          
+          {/* Top Scrollbar */}
           <Box 
+            ref={topScrollRef}
             overflowX="auto" 
+            overflowY="hidden"
             w="full"
+            onScroll={handleTopScroll}
             css={{
               '&::-webkit-scrollbar': {
                 height: '8px',
@@ -365,7 +428,33 @@ export default function CallsPage() {
               },
             }}
           >
-            <Table variant="simple" size={{ base: 'sm', md: 'sm' }} minW={{ base: '800px', md: 'auto' }}>
+            <Box w="1800px" h="1px" />
+          </Box>
+
+          {/* Bottom Scrollbar with Table */}
+          <Box 
+            ref={bottomScrollRef}
+            overflowX="auto" 
+            w="full"
+            onScroll={handleBottomScroll}
+            css={{
+              '&::-webkit-scrollbar': {
+                height: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+                borderRadius: '10px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#888',
+                borderRadius: '10px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: '#555',
+              },
+            }}
+          >
+            <Table variant="simple" size={{ base: 'sm', md: 'sm' }} minW="1800px">
               <Thead bg="gray.50">
                 <Tr>
                   <Th 
@@ -387,7 +476,8 @@ export default function CallsPage() {
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Last Called</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Attempts</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Duration (min)</Th>
-                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Status</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Call Status</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Lead Status</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Agent Name</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">Recording</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Actions</Th>
@@ -448,6 +538,11 @@ export default function CallsPage() {
                           {getCallStatusLabel(group.latestCall.callStatus)}
                         </Badge>
                       </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>
+                        <Badge colorScheme={getLeadStatusColor(group.latestCall.lead.status || 'new')} fontSize={{ base: '0.6rem', sm: 'xs' }}>
+                          {getLeadStatusLabel(group.latestCall.lead.status || 'new')}
+                        </Badge>
+                      </Td>
                       <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         <Text noOfLines={1}>{group.latestCall.caller.name || 'N/A'}</Text>
                       </Td>
@@ -491,7 +586,7 @@ export default function CallsPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={8} textAlign="center" py={8}>
+                    <Td colSpan={9} textAlign="center" py={8}>
                       <Text color="gray.500" fontSize={{ base: 'xs', sm: 'sm' }}>
                         {searchQuery || statusFilter !== 'all'
                           ? 'No call logs match your filters'
@@ -593,13 +688,23 @@ export default function CallsPage() {
                       </Box>
                       <Box>
                         <Text fontSize="xs" color="gray.500" mb={1}>
-                          Status
+                          Call Status
                         </Text>
                         <Badge colorScheme={getCallStatusColor(group.latestCall.callStatus)} fontSize="xs">
                           {getCallStatusLabel(group.latestCall.callStatus)}
                         </Badge>
                       </Box>
                     </SimpleGrid>
+
+                    {/* Lead Status Row */}
+                    <Box>
+                      <Text fontSize="xs" color="gray.500" mb={1}>
+                        Lead Status
+                      </Text>
+                      <Badge colorScheme={getLeadStatusColor(group.latestCall.lead.status || 'new')} fontSize="xs">
+                        {getLeadStatusLabel(group.latestCall.lead.status || 'new')}
+                      </Badge>
+                    </Box>
 
                     <Divider />
 
@@ -723,7 +828,7 @@ export default function CallsPage() {
                   <Tr>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Date/Time</Th>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', sm: 'table-cell' }}>Duration (min)</Th>
-                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Status</Th>
+                    <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }}>Call Status</Th>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} display={{ base: 'none', md: 'table-cell' }}>Agent Name</Th>
                     <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} minW="180px">Recording</Th>
                   </Tr>
