@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       prisma.callLog.findMany({
         where,
         include: {
-          Lead: { select: { id: true, name: true, phone: true } },
+          Lead: { select: { id: true, name: true, phone: true, status: true } },
           User: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         startedAt: 'desc'
       },
       include: {
-        Lead: { select: { id: true, name: true } },
+        Lead: { select: { id: true, name: true, status: true } },
         User: { select: { id: true, name: true, email: true } },
       },
     });
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
           // Keep existing recordingUrl if it exists (from webhook)
         },
         include: {
-          Lead: { select: { id: true, name: true } },
+          Lead: { select: { id: true, name: true, status: true } },
           User: { select: { id: true, name: true, email: true } },
         },
       });
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
           recordingAppCallId: body.recordingAppCallId || null,
         },
         include: {
-          Lead: { select: { id: true, name: true } },
+          Lead: { select: { id: true, name: true, status: true } },
           User: { select: { id: true, name: true, email: true } },
         },
       });
