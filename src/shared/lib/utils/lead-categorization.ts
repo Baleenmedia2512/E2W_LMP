@@ -43,8 +43,13 @@ export function categorizeAndSortLeads(
   const activeStatuses = ['new', 'followup', 'qualified'];
 
   // PERFORMANCE: Create Map for O(1) follow-up lookups
+  // Only consider ACTIVE follow-ups (exclude cancelled/completed)
   const followUpsByLeadId = new Map<string, FollowUp[]>();
   followUps.forEach((fu) => {
+    // Skip cancelled and completed follow-ups only
+    if (fu.status === 'completed' || fu.status === 'cancelled') {
+      return;
+    }
     if (!followUpsByLeadId.has(fu.leadId)) {
       followUpsByLeadId.set(fu.leadId, []);
     }

@@ -113,10 +113,13 @@ export async function GET(request: NextRequest) {
       // 2. Fetch all followups
       allFollowups = await prisma.followUp.findMany({
         where: agentId ? {
+          status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
           Lead: {
             assignedToId: agentId,
           },
-        } : {},
+        } : {
+          status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
+        },
         select: {
           id: true,
           leadId: true,
@@ -447,6 +450,7 @@ export async function GET(request: NextRequest) {
         // 6️⃣ Fetch follow-ups for leads called by this agent
         const agentFollowups = await prisma.followUp.findMany({
           where: {
+            status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
             leadId: { in: Array.from(agentLeadIds) },
           },
           select: {

@@ -182,10 +182,11 @@ export async function GET(request: NextRequest) {
         select: { leadId: true, scheduledAt: true }
       }),
 
-      // 8. All pending follow-ups (for overdue calculation) - CRITICAL: only for ACTIVE leads
+      // 8. All active follow-ups (for overdue calculation) - CRITICAL: only for ACTIVE leads
       // This matches the lead categorization logic which filters by active statuses
       prisma.followUp.findMany({
         where: {
+          status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
           Lead: {
             status: {
               in: ['new', 'followup', 'qualified']
@@ -210,6 +211,7 @@ export async function GET(request: NextRequest) {
       // 10. Upcoming follow-ups for display - CRITICAL: only for ACTIVE leads
       prisma.followUp.findMany({
         where: {
+          status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
           Lead: {
             status: {
               in: ['new', 'followup', 'qualified']

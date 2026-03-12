@@ -349,31 +349,87 @@ async function processLead(leadgenData: any): Promise<void> {
     // Priority: campaignName > campaignId > null
     const campaignValue = campaignName || campaignId || null;
 
-    // STEP 8: Create lead in database
-    const lead = await prisma.lead.create({
-      data: {
-        id: crypto.randomUUID(),
-        name: name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
-        phone: normalizedPhone,
-        email: email,
-        source: 'meta',
-        campaign: campaignValue,
-        status: 'new',
-        customerRequirement: customFields.message || customFields.comments || null,
-        notes: 'Lead received via Meta webhook (real-time)',
-        metadata: JSON.stringify(metadata),
-        assignedToId: assignedTo,
-        updatedAt: new Date(),
-      },
+    // STEP 8: Check if lead with same phone number already exists
+    const existingLead = await prisma.lead.findFirst({
+      where: { phone: normalizedPhone },
     });
 
-    logWebhookEvent('info', `✅ Lead created successfully`, {
-      leadId: lead.id,
-      name: lead.name,
-      phone: lead.phone,
-      campaign: campaignValue,
-      assignedTo: assignedTo || 'unassigned',
-    });
+    let lead;
+    if (existingLead) {
+      // Update existing lead instead of creating new one
+      // Preserve: calls, remarks, callAttempts (not touched)
+      logWebhookEvent('info', `Existing lead found with phone ${normalizedPhone}, updating instead of creating new`);
+      
+      // Cancel all active follow-ups so lead moves to NEW section
+      await prisma.followUp.updateMany({
+        where: {
+          leadId: existingLead.id,
+          status: { notIn: ['completed', 'cancelled'] },
+        },
+        data: {
+          status: 'cancelled',
+          completedAt: new Date(),
+          notes: 'Auto-cancelled: New enquiry received for same lead',
+          updatedAt: new Date(),
+        },
+      });
+      
+      lead = await prisma.lead.update({
+        where: { id: existingLead.id },
+        data: {
+          name: name || existingLead.name,
+          email: email || existingLead.email,
+          source: 'meta',
+          campaign: campaignValue,
+          // Reset to 'new' for new enquiry, unless already converted/won
+          status: ['won', 'converted'].includes(existingLead.status) ? existingLead.status : 'new',
+          customerRequirement: customFields.message || customFields.comments || existingLead.customerRequirement,
+          notes: existingLead.notes 
+            ? `${existingLead.notes}\n\n[${new Date().toISOString()}] Lead updated via Meta webhook`
+            : 'Lead updated via Meta webhook (real-time)',
+          metadata: JSON.stringify(metadata),
+          assignedToId: assignedTo || existingLead.assignedToId,
+          createdAt: new Date(), // Reset lead age for new enquiry
+          updatedAt: new Date(),
+        },
+      });
+      
+      logWebhookEvent('info', `✅ Lead updated successfully`, {
+        leadId: lead.id,
+        name: lead.name,
+        phone: lead.phone,
+        campaign: campaignValue,
+        assignedTo: lead.assignedToId || 'unassigned',
+        previousStatus: existingLead.status,
+        newStatus: lead.status,
+      });
+    } else {
+      // Create new lead
+      lead = await prisma.lead.create({
+        data: {
+          id: crypto.randomUUID(),
+          name: name || `Meta Lead ${metaLeadId.substring(0, 8)}`,
+          phone: normalizedPhone,
+          email: email,
+          source: 'meta',
+          campaign: campaignValue,
+          status: 'new',
+          customerRequirement: customFields.message || customFields.comments || null,
+          notes: 'Lead received via Meta webhook (real-time)',
+          metadata: JSON.stringify(metadata),
+          assignedToId: assignedTo,
+          updatedAt: new Date(),
+        },
+      });
+      
+      logWebhookEvent('info', `✅ Lead created successfully`, {
+        leadId: lead.id,
+        name: lead.name,
+        phone: lead.phone,
+        campaign: campaignValue,
+        assignedTo: assignedTo || 'unassigned',
+      });
+    }
 
     // STEP 9: Log activity
     await prisma.activityHistory.create({
@@ -381,8 +437,10 @@ async function processLead(leadgenData: any): Promise<void> {
         id: crypto.randomUUID(),
         leadId: lead.id,
         userId: 'system',
-        action: 'created',
-        description: `Meta lead received via webhook. Lead ID: ${metaLeadId}. Campaign: ${campaignName || campaignId || 'Unknown'}. Ad: ${adName || adId || 'Unknown'}.`,
+        action: existingLead ? 'updated' : 'created',
+        description: existingLead 
+          ? `Meta lead updated via webhook. Lead ID: ${metaLeadId}. Campaign: ${campaignName || campaignId || 'Unknown'}. Ad: ${adName || adId || 'Unknown'}. Merged with existing lead.`
+          : `Meta lead received via webhook. Lead ID: ${metaLeadId}. Campaign: ${campaignName || campaignId || 'Unknown'}. Ad: ${adName || adId || 'Unknown'}.`,
       },
     });
 

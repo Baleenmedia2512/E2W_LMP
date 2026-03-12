@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
             }
           },
           FollowUp: {
+            where: { status: { notIn: ['completed', 'cancelled'] } }, // Fetch all active follow-ups
             orderBy: { scheduledAt: 'desc' },
             take: 5,
             select: {
@@ -218,39 +219,99 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine assignedToId: use provided value or auto-assign via round-robin
-    let assignedToId = body.assignedToId || null;
-    
-    // If not manually assigned, use round-robin auto-assignment
-    if (!assignedToId) {
-      assignedToId = await getNextAgentForRoundRobin();
-    }
-
-    const lead = await prisma.lead.create({
-      data: {
-        id: randomUUID(),
-        name: body.name,
-        phone: cleanedPhone,
-        email: body.email || null,
-        alternatePhone: cleanedAltPhone,
-        address: body.address || null,
-        city: body.city || null,
-        state: body.state || null,
-        pincode: body.pincode || null,
-        source: body.source,
-        campaign: body.campaign || null,
-        customerRequirement: body.customerRequirement || null,
-        status: body.status || 'new',
-        notes: body.notes || null,
-        assignedToId: assignedToId,
-        createdById: body.createdById || null,
-        updatedAt: new Date(),
-      },
+    // Check if lead with same phone number already exists
+    const existingLead = await prisma.lead.findFirst({
+      where: { phone: cleanedPhone },
       include: {
         User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
         User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
       },
     });
+
+    let lead;
+    if (existingLead) {
+      // Update existing lead instead of creating new one
+      // Preserve: calls, remarks, callAttempts (not touched)
+      
+      // Cancel all active follow-ups so lead moves to NEW section
+      await prisma.followUp.updateMany({
+        where: {
+          leadId: existingLead.id,
+          status: { notIn: ['completed', 'cancelled'] },
+        },
+        data: {
+          status: 'cancelled',
+          completedAt: new Date(),
+          notes: 'Auto-cancelled: New enquiry received for same lead',
+          updatedAt: new Date(),
+        },
+      });
+      
+      lead = await prisma.lead.update({
+        where: { id: existingLead.id },
+        data: {
+          name: body.name || existingLead.name,
+          email: body.email || existingLead.email,
+          alternatePhone: cleanedAltPhone || existingLead.alternatePhone,
+          address: body.address || existingLead.address,
+          city: body.city || existingLead.city,
+          state: body.state || existingLead.state,
+          pincode: body.pincode || existingLead.pincode,
+          source: body.source || existingLead.source,
+          campaign: body.campaign || existingLead.campaign,
+          customerRequirement: body.customerRequirement || existingLead.customerRequirement,
+          // Reset to 'new' for new enquiry, unless already converted/won
+          status: ['won', 'converted'].includes(existingLead.status) 
+            ? existingLead.status 
+            : (body.status || 'new'),
+          notes: existingLead.notes && body.notes
+            ? `${existingLead.notes}\n\n[${new Date().toISOString()}] ${body.notes}`
+            : body.notes || existingLead.notes,
+          assignedToId: body.assignedToId || existingLead.assignedToId,
+          createdAt: new Date(), // Reset lead age for new enquiry
+          updatedAt: new Date(),
+        },
+        include: {
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
+        },
+      });
+    } else {
+      // Determine assignedToId: use provided value or auto-assign via round-robin
+      let assignedToId = body.assignedToId || null;
+      
+      // If not manually assigned, use round-robin auto-assignment
+      if (!assignedToId) {
+        assignedToId = await getNextAgentForRoundRobin();
+      }
+
+      // Create new lead
+      lead = await prisma.lead.create({
+        data: {
+          id: randomUUID(),
+          name: body.name,
+          phone: cleanedPhone,
+          email: body.email || null,
+          alternatePhone: cleanedAltPhone,
+          address: body.address || null,
+          city: body.city || null,
+          state: body.state || null,
+          pincode: body.pincode || null,
+          source: body.source,
+          campaign: body.campaign || null,
+          customerRequirement: body.customerRequirement || null,
+          status: body.status || 'new',
+          notes: body.notes || null,
+          assignedToId: assignedToId,
+          createdById: body.createdById || null,
+          updatedAt: new Date(),
+        },
+        include: {
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
+        },
+      });
+    }
 
     // Log activity
     if (lead.id) {
@@ -259,17 +320,19 @@ export async function POST(request: NextRequest) {
           id: randomUUID(),
           leadId: lead.id,
           userId: body.createdById || 'system',
-          action: 'created',
-          description: `Lead "${lead.name}" was created${assignedToId && !body.assignedToId ? ' and auto-assigned' : ''}`,
+          action: existingLead ? 'updated' : 'created',
+          description: existingLead
+            ? `Lead "${lead.name}" was updated with new information. Merged with existing lead to preserve history.`
+            : `Lead "${lead.name}" was created${!existingLead && lead.assignedToId && !body.assignedToId ? ' and auto-assigned' : ''}`,
         },
       });
 
-      // Send notification if lead is assigned
-      if (assignedToId && assignedToId !== null) {
+      // Send notification if lead is assigned (only for new leads, not updates)
+      if (!existingLead && lead.assignedToId && lead.assignedToId !== null) {
         try {
           const assignerName = body.createdById ? 
             (await prisma.user.findUnique({ where: { id: body.createdById } }))?.name ?? undefined : undefined;
-          await notifyLeadAssigned(lead.id, lead.name, String(assignedToId), assignerName);
+          await notifyLeadAssigned(lead.id, lead.name, String(lead.assignedToId), assignerName);
         } catch (error) {
           console.error('Failed to send lead assignment notification:', error);
         }
