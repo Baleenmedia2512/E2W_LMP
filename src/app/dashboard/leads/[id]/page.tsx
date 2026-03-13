@@ -256,8 +256,8 @@ export default function LeadDetailPage() {
           duration: 3000,
         });
         onRequalifyClose();
-        // Refresh the page to show updated status
-        window.location.reload();
+        // Refresh data to show updated status
+        refreshData();
       } else {
         throw new Error('Failed to requalify lead');
       }
@@ -331,9 +331,9 @@ export default function LeadDetailPage() {
         setRescheduleNotes('');
         onRescheduleWonClose();
         
-        // Refresh the page to show updated data
+        // Refresh data to show updated data
         setTimeout(() => {
-          window.location.reload();
+          refreshData();
         }, 1000);
       } else {
         throw new Error(followUpData.error || 'Failed to schedule follow-up');
@@ -989,7 +989,7 @@ export default function LeadDetailPage() {
           leadName={lead.name}
           currentStatus={lead.status}
           onSuccess={() => {
-            window.location.reload();
+            refreshData();
           }}
         />
       )}
@@ -1011,7 +1011,7 @@ export default function LeadDetailPage() {
             onClose={onUnreachableClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => window.location.reload()}
+            onSuccess={() => refreshData()}
           />
           
           <ConvertToUnqualifiedModal
@@ -1019,7 +1019,7 @@ export default function LeadDetailPage() {
             onClose={onUnqualifiedClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => window.location.reload()}
+            onSuccess={() => refreshData()}
           />
           
           <MarkAsWonModal
@@ -1027,7 +1027,7 @@ export default function LeadDetailPage() {
             onClose={onWonClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => window.location.reload()}
+            onSuccess={() => refreshData()}
           />
           
           <MarkAsLostModal
@@ -1035,7 +1035,7 @@ export default function LeadDetailPage() {
             onClose={onLostClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => window.location.reload()}
+            onSuccess={() => refreshData()}
           />
         </>
       )}
