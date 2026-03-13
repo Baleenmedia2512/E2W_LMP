@@ -35,10 +35,20 @@ export function useLeadsSync(
       setLeads((prev) =>
         prev.map((lead) => {
           if (lead.id === payload.new.id) {
-            // If assignedToId changed, reload page to get full relationship data
+            // If assignedToId changed, fetch updated lead from API to get full relationship data
             if (lead.assignedToId !== payload.new.assignedToId) {
-              console.log('👤 Assignment changed, reloading page to sync UI...');
-              setTimeout(() => window.location.reload(), 500);
+              console.log('👤 Assignment changed, fetching updated lead from API...');
+              fetch(`/api/leads/${payload.new.id}`, { cache: 'no-store' })
+                .then(res => res.json())
+                .then(data => {
+                  const updated = data.data || data;
+                  if (updated && updated.id) {
+                    setLeads(prev =>
+                      prev.map(l => (l.id === updated.id ? { ...l, ...updated } : l))
+                    );
+                  }
+                })
+                .catch(err => console.error('Failed to fetch updated lead after assignment:', err));
             }
             // Merge: keep existing related objects, update with new values
             return {

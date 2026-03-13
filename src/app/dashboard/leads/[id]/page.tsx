@@ -968,11 +968,7 @@ export default function LeadDetailPage() {
       {lead && (
         <CallDialerModal
           isOpen={isCallDialerOpen}
-          onClose={() => {
-            onCallDialerClose();
-            // Refresh data after call
-            window.location.reload();
-          }}
+          onClose={onCallDialerClose}
           leadId={leadId}
           leadName={lead.name}
           leadPhone={lead.phone}
@@ -980,6 +976,7 @@ export default function LeadDetailPage() {
           leadCampaign={lead.campaign}
           onOpenUnreachable={onUnreachableOpen}
           onOpenUnqualified={onUnqualifiedOpen}
+          onSuccess={refreshData}
         />
       )}
 
@@ -1006,7 +1003,7 @@ export default function LeadDetailPage() {
             leadId={lead.id}
             leadName={lead.name}
             currentAssignee={lead.assignedTo?.name}
-            onSuccess={() => window.location.reload()}
+            onSuccess={refreshData}
           />
           
           <ConvertToUnreachableModal
