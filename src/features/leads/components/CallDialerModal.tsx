@@ -43,6 +43,7 @@ interface CallDialerModalProps {
   leadCampaign?: string | null;
   onOpenUnreachable?: () => void;
   onOpenUnqualified?: () => void;
+  onSuccess?: () => void;
 }
 
 type CallPhase = 'dialing' | 'calling' | 'ended' | 'next-action';
@@ -57,6 +58,7 @@ export default function CallDialerModal({
   leadCampaign,
   onOpenUnreachable,
   onOpenUnqualified,
+  onSuccess,
 }: CallDialerModalProps) {
   const toast = useToast();
   const { user } = useAuth();
@@ -366,9 +368,9 @@ export default function CallDialerModal({
                 isClosable: true,
               });
 
-              // Close modal and refresh page
+              // Close modal and refresh data
               handleClose();
-              window.location.reload();
+              if (onSuccess) onSuccess();
             } else {
               throw new Error('Failed to create follow-up');
             }
@@ -383,7 +385,7 @@ export default function CallDialerModal({
             });
             // Still close the modal even if follow-up fails
             handleClose();
-            window.location.reload();
+            if (onSuccess) onSuccess();
           }
         } else {
           // Normal flow - show next action selection
@@ -465,7 +467,7 @@ export default function CallDialerModal({
           isClosable: true,
         });
         handleClose();
-        window.location.reload();
+        if (onSuccess) onSuccess();
       } catch (error) {
         console.error('Failed to update lead:', error);
       }
@@ -490,13 +492,13 @@ export default function CallDialerModal({
           isClosable: true,
         });
         handleClose();
-        window.location.reload();
+        if (onSuccess) onSuccess();
       } catch (error) {
         console.error('Failed to update lead:', error);
       }
     } else if (action === 'update_status') {
       handleClose();
-      window.location.reload();
+      if (onSuccess) onSuccess();
     }
   };
 
@@ -610,9 +612,9 @@ export default function CallDialerModal({
           isClosable: true,
         });
 
-        // Close modal and navigate to leads page
+        // Close modal and refresh data
         handleClose();
-        window.location.href = '/dashboard/leads';
+        if (onSuccess) onSuccess(); else window.location.href = '/dashboard/leads';
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to create follow-up');

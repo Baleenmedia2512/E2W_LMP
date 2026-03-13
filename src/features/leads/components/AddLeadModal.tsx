@@ -32,6 +32,7 @@ import { normalizePhoneForStorage } from '@/shared/utils/phone';
 interface AddLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
 interface User {
@@ -41,7 +42,7 @@ interface User {
   role: string;
 }
 
-export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
+export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModalProps) {
   const toast = useToast();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -284,10 +285,8 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
           status: 'success',
           duration: 3000,
         });
-        handleClose();
-        if (typeof window !== 'undefined') {
-          window.location.reload();
-        }
+        resetAndClose();
+        if (onSuccess) onSuccess();
       } else {
         throw new Error('Failed to create lead');
       }

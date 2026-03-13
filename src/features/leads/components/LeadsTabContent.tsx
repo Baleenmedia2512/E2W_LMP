@@ -1559,12 +1559,12 @@ function LeadsTabContent({
           leadId={leadToAssign.id}
           leadName={leadToAssign.name}
           currentAssignee={leadToAssign.currentAssignee}
-          onSuccess={() => {}}
+          onSuccess={handleRefreshLeads}
         />
       )}
 
       {/* Add Lead Modal */}
-      <AddLeadModal isOpen={isAddLeadOpen} onClose={onAddLeadClose} />
+      <AddLeadModal isOpen={isAddLeadOpen} onClose={onAddLeadClose} onSuccess={handleRefreshLeads} />
 
       {/* Call Dialer Modal */}
       {leadToCall && (
@@ -1574,6 +1574,7 @@ function LeadsTabContent({
             onCallDialerClose();
             setLeadToCall(null);
           }}
+          onSuccess={handleRefreshLeads}
           leadId={leadToCall.id}
           leadName={leadToCall.name}
           leadPhone={leadToCall.phone}
