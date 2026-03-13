@@ -17,6 +17,8 @@ import {
   useToast,
   FormErrorMessage,
   Text,
+  Box,
+  HStack,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/shared/lib/auth/auth-context';
@@ -46,6 +48,11 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
   const [agents, setAgents] = useState<User[]>([]);
   const { errors, validateField, clearError, setError, clearAllErrors } = useFormValidation();
   const confirmDialog = useConfirmDialog();
+  
+  // Phone prefill feature states
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [existingLead, setExistingLead] = useState<any>(null);
+  const [showPrefillPrompt, setShowPrefillPrompt] = useState(false);
 
   // Get current date and time
   const now = new Date();
@@ -117,6 +124,63 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
       fetchAgents();
     }
   }, [isOpen, user]);
+
+  // Function to check if phone exists and fetch data
+  const checkPhoneAndFetchData = async (phoneNumber: string) => {
+    // Only check if we have a valid 10-digit phone
+    const digits = phoneNumber.replace(/\D/g, '');
+    if (digits.length !== 10) {
+      setExistingLead(null);
+      setShowPrefillPrompt(false);
+      return;
+    }
+
+    setIsCheckingPhone(true);
+    try {
+      const response = await fetch(`/api/leads/check-phone?phone=${digits}`);
+      const data = await response.json();
+
+      if (data.exists && data.lead) {
+        setExistingLead(data.lead);
+        setShowPrefillPrompt(true);
+      } else {
+        setExistingLead(null);
+        setShowPrefillPrompt(false);
+      }
+    } catch (error) {
+      console.error('Error checking phone:', error);
+    } finally {
+      setIsCheckingPhone(false);
+    }
+  };
+
+  // Function to prefill form with existing lead data
+  const prefillFormData = () => {
+    if (existingLead) {
+      setFormData({
+        ...formData,
+        name: existingLead.name || formData.name,
+        email: existingLead.email || formData.email,
+        alternatePhone: existingLead.alternatePhone || formData.alternatePhone,
+        address: existingLead.address || formData.address,
+        city: existingLead.city || formData.city,
+        state: existingLead.state || formData.state,
+        pincode: existingLead.pincode || formData.pincode,
+        source: existingLead.source || formData.source,
+        campaign: existingLead.campaign || formData.campaign,
+        customerRequirement: existingLead.customerRequirement || formData.customerRequirement,
+      });
+      
+      setShowPrefillPrompt(false);
+      
+      toast({
+        title: 'Form Prefilled',
+        description: 'Existing lead information has been loaded',
+        status: 'info',
+        duration: 3000,
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,6 +319,11 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
         ...formData,
         [name]: numbersOnly,
       });
+      
+      // Trigger phone lookup for the main phone field
+      if (name === 'phone') {
+        checkPhoneAndFetchData(numbersOnly);
+      }
     } else if (name === 'pincode') {
       const numbersOnly = value.replace(/\D/g, '').slice(0, 6);
       setFormData({
@@ -328,6 +397,9 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
       assignedToId: user?.id || '',
     });
     clearAllErrors();
+    setExistingLead(null);
+    setShowPrefillPrompt(false);
+    setIsCheckingPhone(false);
     confirmDialog.onClose();
     onClose();
   };
@@ -349,6 +421,68 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
           <ModalBody pb={6}>
             <form onSubmit={handleSubmit}>
               <VStack spacing={4} align="stretch">
+                {/* Phone Number - Top of form for quick lookup */}
+                <ValidatedInput
+                  label="Client Contact"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  error={errors.phone}
+                  isRequired={true}
+                  placeholder="Enter 10 digit phone number"
+                  maxLength={10}
+                  size={{ base: 'sm', md: 'md' }}
+                  helperText={
+                    isCheckingPhone 
+                      ? "Checking for existing lead..." 
+                      : "10 digits required"
+                  }
+                />
+
+                {/* Prefill Prompt - Show when existing lead found */}
+                {showPrefillPrompt && existingLead && (
+                  <Box
+                    p={3}
+                    bg="blue.50"
+                    borderRadius="md"
+                    borderWidth="1px"
+                    borderColor="blue.200"
+                  >
+                    <HStack justify="space-between" align="start">
+                      <VStack align="start" spacing={1} flex="1">
+                        <Text fontSize="sm" fontWeight="semibold" color="blue.700">
+                          Existing Lead Found!
+                        </Text>
+                        <Text fontSize="xs" color="gray.600">
+                          Name: {existingLead.name}
+                        </Text>
+                        {existingLead.email && (
+                          <Text fontSize="xs" color="gray.600">
+                            Email: {existingLead.email}
+                          </Text>
+                        )}
+                      </VStack>
+                      <HStack spacing={2}>
+                        <Button
+                          size="sm"
+                          colorScheme="blue"
+                          onClick={prefillFormData}
+                        >
+                          Use This Info
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowPrefillPrompt(false)}
+                        >
+                          Dismiss
+                        </Button>
+                      </HStack>
+                    </HStack>
+                  </Box>
+                )}
+
                 <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
                   <FormControl>
                     <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
@@ -422,32 +556,16 @@ export default function AddLeadModal({ isOpen, onClose }: AddLeadModalProps) {
                   />
                 </SimpleGrid>
 
-                <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
-                  <ValidatedInput
-                    label="Ad Enquiry"
-                    name="campaign"
-                    value={formData.campaign}
-                    onChange={handleChange}
-                    error={errors.campaign}
-                    placeholder="Campaign/Ad details"
-                    size={{ base: 'sm', md: 'md' }}
-                    maxLength={100}
-                  />
-
-                  <ValidatedInput
-                    label="Client Contact"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    error={errors.phone}
-                    isRequired={true}
-                    placeholder="Enter 10 digit phone number"
-                    maxLength={10}
-                    size={{ base: 'sm', md: 'md' }}
-                    helperText="10 digits required"
-                  />
-                </SimpleGrid>
+                <ValidatedInput
+                  label="Ad Enquiry"
+                  name="campaign"
+                  value={formData.campaign}
+                  onChange={handleChange}
+                  error={errors.campaign}
+                  placeholder="Campaign/Ad details"
+                  size={{ base: 'sm', md: 'md' }}
+                  maxLength={100}
+                />
 
                 <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
                   <ValidatedInput
