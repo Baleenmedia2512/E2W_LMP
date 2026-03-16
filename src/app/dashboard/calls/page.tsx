@@ -38,12 +38,14 @@ import {
   ButtonGroup,
   Button,
 } from '@chakra-ui/react';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList } from 'react-icons/hi';
+import { HiDotsVertical, HiEye, HiSearch, HiViewGrid, HiViewList, HiRefresh } from 'react-icons/hi';
 import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import CallRecordingPlayer from '@/shared/components/CallRecordingPlayer';
+import { useCallLogs } from '@/shared/hooks/useLeadsData';
+import { LeadCardSkeleton } from '@/shared/components/SkeletonLoaders';
 
 interface CallLog {
   id: string;
@@ -86,9 +88,10 @@ export default function CallsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState<string>(urlDateFilter || 'all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Fetch call logs using SWR for instant cached loading
+  const { callLogs, isLoading, isValidating, error: fetchError } = useCallLogs(statusFilter);
+  
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
   const { isOpen: isHistoryOpen, onOpen: onHistoryOpen, onClose: onHistoryClose } = useDisclosure();
@@ -112,34 +115,8 @@ export default function CallsPage() {
     }
   };
 
-  useEffect(() => {
-    const fetchCallLogs = async () => {
-      try {
-        setLoading(true);
-        const params = new URLSearchParams({ limit: '100' });
-        if (statusFilter !== 'all') {
-          params.append('status', statusFilter);
-        }
-        const response = await fetch(`/api/calls?${params.toString()}`);
-        const result = await response.json();
-        if (result.success) {
-          // Sort by createdAt in descending order (most recent first)
-          const sorted = [...result.data].sort((a: CallLog, b: CallLog) => {
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
-          setCallLogs(sorted);
-        } else {
-          setError(result.error || 'Failed to fetch call logs');
-        }
-      } catch (err) {
-        setError('Failed to fetch call logs');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCallLogs();
-  }, [statusFilter]);
+  // Note: Data fetching is handled by SWR hook above
+  // Automatic caching and revalidation for instant navigation
 
   // Group calls by lead and get latest attempt for each
   const groupedCalls = useMemo(() => {
@@ -301,6 +278,27 @@ export default function CallsPage() {
 
   return (
     <Box>
+      {/* Subtle indicator for background data refresh */}
+      {isValidating && callLogs.length > 0 && (
+        <Box 
+          position="fixed" 
+          top={4} 
+          right={4} 
+          bg="blue.50" 
+          px={3} 
+          py={2} 
+          borderRadius="md" 
+          boxShadow="md"
+          zIndex={10}
+          display="flex"
+          alignItems="center"
+          gap={2}
+        >
+          <HiRefresh className="spin-animation" />
+          <Text fontSize="sm" color="blue.700">Updating...</Text>
+        </Box>
+      )}
+      
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }}>Call History</Heading>
         <ButtonGroup size={{ base: 'xs', sm: 'sm' }} isAttached variant="outline">
@@ -325,9 +323,9 @@ export default function CallsPage() {
         </ButtonGroup>
       </HStack>
 
-      {error && (
+      {fetchError && (
         <Box bg="red.50" p={4} borderRadius="lg" mb={4} color="red.700">
-          {error}
+          {fetchError.message || 'Failed to fetch call logs'}
         </Box>
       )}
 
@@ -382,13 +380,18 @@ export default function CallsPage() {
         </VStack>
       </Box>
 
-      {loading && (
-        <Box textAlign="center" py={8}>
-          <Text color="gray.500">Loading call logs...</Text>
-        </Box>
+      {/* Show skeleton loaders only on TRUE initial load (no cached data) */}
+      {isLoading && (!callLogs || callLogs.length === 0) && (
+        <VStack spacing={4}>
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
+        </VStack>
       )}
 
-      {!loading && viewMode === 'table' && (
+      {!isLoading && viewMode === 'table' && (
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
           <Text 
             fontSize="xs" 
@@ -609,7 +612,7 @@ export default function CallsPage() {
         </Box>
       )}
 
-      {!loading && viewMode === 'tile' && (
+      {!isLoading && viewMode === 'tile' && (
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {filteredCalls.length > 0 ? (
             filteredCalls.map((group) => (
@@ -782,7 +785,7 @@ export default function CallsPage() {
         </SimpleGrid>
       )}
 
-      {!loading && viewMode === 'tile' && filteredCalls.length > 0 && (
+      {!isLoading && viewMode === 'tile' && filteredCalls.length > 0 && (
         <Box mt={4} p={4} bg="white" borderRadius="lg" boxShadow="sm">
           <Text fontSize="sm" color="gray.600">
             Showing {filteredCalls.length} lead{filteredCalls.length !== 1 ? 's' : ''} with {filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0)} total call{filteredCalls.reduce((sum, g) => sum + g.totalAttempts, 0) !== 1 ? 's' : ''}

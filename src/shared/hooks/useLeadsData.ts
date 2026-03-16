@@ -291,3 +291,50 @@ export function useLeadDetailData(leadId: string | null) {
     mutateActivities: activityResult.mutate,
   };
 }
+
+/**
+ * Hook for fetching all call logs
+ * Provides automatic caching for instant navigation
+ */
+export function useCallLogs(statusFilter: string = 'all') {
+  const params = new URLSearchParams({ limit: '100' });
+  if (statusFilter !== 'all') {
+    params.append('status', statusFilter);
+  }
+
+  const fetchCallLogs = async (url: string) => {
+    const res = await fetch(url, { cache: 'no-store' });
+    const result = await res.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fetch call logs');
+    }
+    
+    // Sort by createdAt in descending order (most recent first)
+    const sorted = [...result.data].sort((a: any, b: any) => {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+    
+    return sorted;
+  };
+
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    `/api/calls?${params.toString()}`,
+    fetchCallLogs,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      dedupingInterval: 5000,
+      keepPreviousData: true,
+    }
+  );
+
+  return {
+    callLogs: data || [],
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+    refresh: () => mutate(),
+  };
+}
