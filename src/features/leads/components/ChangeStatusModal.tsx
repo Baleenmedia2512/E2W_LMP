@@ -27,7 +27,7 @@ interface ChangeStatusModalProps {
   leadId: string;
   leadName: string;
   currentStatus: string;
-  onSuccess?: () => void;
+  onSuccess?: (newStatus?: string) => void;
 }
 
 const STATUS_OPTIONS = [
@@ -177,8 +177,10 @@ export default function ChangeStatusModal({
         setFollowUpNotes('');
         onClose();
         
-        // Force page reload to show updated data
-        window.location.reload();
+        // Call onSuccess with new status for optimistic update
+        if (onSuccess) {
+          onSuccess('followup');
+        }
         return;
       }
 
@@ -242,8 +244,9 @@ export default function ChangeStatusModal({
         setFollowUpNotes('');
         onClose();
         
+        // Call onSuccess with new status for optimistic update
         if (onSuccess) {
-          onSuccess();
+          onSuccess(newStatus);
         }
       } else {
         throw new Error('Failed to update lead');
