@@ -144,6 +144,28 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       if (data.exists && data.lead) {
         setExistingLead(data.lead);
         setShowPrefillPrompt(true);
+        
+        // Automatically prefill the form with existing lead data
+        setFormData(prev => ({
+          ...prev,
+          name: data.lead.name || prev.name,
+          email: data.lead.email || prev.email,
+          alternatePhone: data.lead.alternatePhone || prev.alternatePhone,
+          address: data.lead.address || prev.address,
+          city: data.lead.city || prev.city,
+          state: data.lead.state || prev.state,
+          pincode: data.lead.pincode || prev.pincode,
+          source: data.lead.source || prev.source,
+          campaign: data.lead.campaign || prev.campaign,
+          customerRequirement: data.lead.customerRequirement || prev.customerRequirement,
+        }));
+        
+        toast({
+          title: 'Lead Information Loaded',
+          description: `Found existing lead: ${data.lead.name}`,
+          status: 'info',
+          duration: 3000,
+        });
       } else {
         setExistingLead(null);
         setShowPrefillPrompt(false);
@@ -442,42 +464,45 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                 {/* Prefill Prompt - Show when existing lead found */}
                 {showPrefillPrompt && existingLead && (
                   <Box
-                    p={3}
+                    p={2.5}
                     bg="blue.50"
                     borderRadius="md"
                     borderWidth="1px"
                     borderColor="blue.200"
                   >
-                    <HStack justify="space-between" align="start">
+                    <HStack justify="space-between" align="start" spacing={2}>
                       <VStack align="start" spacing={1} flex="1">
                         <Text fontSize="sm" fontWeight="semibold" color="blue.700">
-                          Existing Lead Found!
+                          ℹ️ Existing customer record found
                         </Text>
                         <Text fontSize="xs" color="gray.600">
-                          Name: {existingLead.name}
+                          Please update the lead if any changes or additional information are required.
                         </Text>
-                        {existingLead.email && (
-                          <Text fontSize="xs" color="gray.600">
-                            Email: {existingLead.email}
+                        <HStack spacing={3} pt={0.5} flexWrap="wrap">
+                          <Text fontSize="xs" fontWeight="medium" color="gray.800">
+                            👤 {existingLead.name}
                           </Text>
-                        )}
+                          {existingLead.source && (
+                            <Text fontSize="xs" color="gray.600">
+                              📱 {existingLead.source}
+                            </Text>
+                          )}
+                          {existingLead.campaign && (
+                            <Text fontSize="xs" color="gray.600">
+                              📢 {existingLead.campaign}
+                            </Text>
+                          )}
+                        </HStack>
                       </VStack>
-                      <HStack spacing={2}>
-                        <Button
-                          size="sm"
-                          colorScheme="blue"
-                          onClick={prefillFormData}
-                        >
-                          Use This Info
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setShowPrefillPrompt(false)}
-                        >
-                          Dismiss
-                        </Button>
-                      </HStack>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        onClick={() => setShowPrefillPrompt(false)}
+                        minW="auto"
+                      >
+                        ✕
+                      </Button>
                     </HStack>
                   </Box>
                 )}
