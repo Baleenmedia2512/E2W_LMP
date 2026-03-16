@@ -17,6 +17,7 @@ import {
   VStack,
   Button,
   Text,
+  Progress,
 } from '@chakra-ui/react';
 import { HiSearch, HiX } from 'react-icons/hi';
 import LeadsTabContent from '@/features/leads/components/LeadsTabContent';
@@ -95,6 +96,20 @@ export default function UnifiedLeadsPage() {
 
   return (
     <Box>
+      {/* Subtle loading indicator for transitions */}
+      {isPending && (
+        <Progress 
+          size="xs" 
+          isIndeterminate 
+          colorScheme="blue" 
+          position="fixed"
+          top={0}
+          left={0}
+          right={0}
+          zIndex={1000}
+        />
+      )}
+      
       {/* Page Header */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <Heading size={{ base: 'md', md: 'lg' }} mb={4}>Lead Management</Heading>

@@ -31,7 +31,8 @@ import {
   Tooltip,
   Checkbox,
 } from '@chakra-ui/react';
-import { useLeadsSync } from '@/shared/hooks/useLeadsSync';
+import { useLeadsAndFollowUps } from '@/shared/hooks/useLeadsData';
+import { LeadCardGridSkeleton, SectionHeaderSkeleton } from '@/shared/components/SkeletonLoaders';
 import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
 import {
   HiPlus,
@@ -360,10 +361,37 @@ function LeadsTabContent({
     name: string;
     status: string;
   } | null>(null);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [followUps, setFollowUps] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Fetch leads and follow-ups using SWR for optimal caching and revalidation
+  const {
+    leads,
+    followUps,
+    isLoading,
+    isValidating,
+    error: fetchError,
+    refreshAll,
+    mutateLeads,
+    mutateFollowUps,
+  } = useLeadsAndFollowUps({
+    assignedToMe: assignedToMe && ownerFilter === 'all',
+    limit: 2000,
+    refreshInterval: 0, // Manual refresh only
+  });
+
+  // Optimistic update helper for lead status changes
+  const optimisticUpdateLead = (leadId: string, updates: Partial<Lead>) => {
+    if (!leads) return;
+    
+    // Find and update the lead in the array optimistically
+    const updatedLeads = leads.map(lead => 
+      lead.id === leadId ? { ...lead, ...updates } : lead
+    );
+    
+    // Update SWR cache immediately (no revalidation)
+    mutateLeads(updatedLeads, false);
+    
+    // Background refresh after 100ms
+    setTimeout(() => refreshAll(), 100);
+  };
   
   // Scroll restoration state - hide content until scroll is restored
   const [scrollRestored, setScrollRestored] = useState(false);
@@ -376,70 +404,6 @@ function LeadsTabContent({
 
   // Auto-refresh every minute to update overdue status
   const [currentTime, setCurrentTime] = useState(new Date());
-  
-  // Fetch leads and follow-ups from API
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
-      // Build query parameters for leads API
-      // Load all data once, filter on client-side for instant search
-      const leadsParams = new URLSearchParams({ limit: '2000' });
-      // Only use assignedToMe filter if global owner filter is not set
-      if (assignedToMe && ownerFilter === 'all') {
-        leadsParams.append('assigned_to', 'me');
-      }
-      
-      // When showOnlyToday is true (checkbox is unchecked), we still fetch all leads
-      // but will filter them on the client side to show:
-      // - Overdue follow-ups
-      // - Today's scheduled follow-ups  
-      // - Today's new leads
-      // This ensures we don't miss any overdue items
-      // When showOnlyToday is false (checkbox is checked), show ALL leads
-      
-      // Prepare headers with authorization token
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const [leadsRes, followUpsRes] = await Promise.all([
-        fetch(`/api/leads?${leadsParams.toString()}`, { 
-          cache: 'no-store',
-          headers,
-        }),
-        fetch('/api/followups?limit=500', { cache: 'no-store' }),
-      ]);
-      
-      const leadsData = await leadsRes.json();
-      const followUpsData = await followUpsRes.json();
-      
-      if (leadsData.success) {
-        setLeads(leadsData.data);
-      } else {
-        setError(leadsData.error || 'Failed to fetch leads');
-      }
-      
-      if (followUpsData.success) {
-        setFollowUps(followUpsData.data);
-      }
-    } catch (err) {
-      setError('Failed to fetch data');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  useEffect(() => {
-    // Only fetch data once when token is available
-    if (token) {
-      fetchData();
-    }
-  }, [token]); // Don't refetch on search - use client-side filtering for instant results
   
   // Restore scroll position IMMEDIATELY when component mounts
   useEffect(() => {
@@ -460,7 +424,7 @@ function LeadsTabContent({
   
   // Also restore after data loads (fallback)
   useEffect(() => {
-    if (!loading && leads.length > 0) {
+    if (!isLoading && leads.length > 0) {
       const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads');
       if (savedPosition) {
         const container = document.getElementById('dashboard-scroll-container');
@@ -475,33 +439,25 @@ function LeadsTabContent({
       }
       setScrollRestored(true);
     }
-  }, [loading, leads.length]);
+  }, [isLoading, leads.length]);
   
   // Use the hook for continuous scroll tracking
   useScrollRestoration('/dashboard/leads', 100);
-  
-  // Refresh data when assignedToMe filter changes
-  useEffect(() => {
-    if (token) {
-      fetchData();
-    }
-  }, [assignedToMe]);
   
   // Refresh data when URL params change (e.g., after redirect with timestamp)
   useEffect(() => {
     const timestamp = searchParams.get('t');
     if (timestamp) {
-      fetchData();
+      refreshAll();
     }
-  }, [searchParams]);
+  }, [searchParams, refreshAll]);
   
-  // Set up real-time sync with Supabase instead of polling on focus
-  // This will automatically update leads and follow-ups as changes occur in the database
-  useLeadsSync(setLeads, setFollowUps);
+  // Note: Removed useLeadsSync - SWR handles data synchronization automatically
+  // with optimistic updates for instant UI feedback
   
   // Handler to refresh data after status changes
   const handleRefreshLeads = () => {
-    fetchData();
+    refreshAll();
   };
 
   // Handler to reset all filters (only local filters now)
@@ -626,8 +582,8 @@ function LeadsTabContent({
   };
 
   const handleCallRemarkSuccess = () => {
-    // Refresh leads data
-    handleRefreshLeads();
+    // Background refresh only (call remark changes don't affect lead list display)
+    setTimeout(() => refreshAll(), 100);
   };
 
   // PERFORMANCE: Create a Map for O(1) follow-up lookups instead of O(n) filtering
@@ -962,20 +918,48 @@ function LeadsTabContent({
         </Button>
       </Flex>
 
-      {error && (
+      {fetchError && (
         <Box bg="red.50" p={4} borderRadius="lg" mb={4} color="red.700">
-          {error}
+          {fetchError.message || 'Failed to fetch data'}
         </Box>
       )}
 
-      {loading && (
-        <Box textAlign="center" py={8}>
-          <Text color="gray.500">Loading leads...</Text>
+      {/* Show skeleton loaders only on TRUE initial load (no cached data) */}
+      {isLoading && (!leads || leads.length === 0) && (
+        <Box>
+          <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
+            <SectionHeaderSkeleton />
+          </Box>
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+            <LeadCardGridSkeleton count={9} />
+          </SimpleGrid>
         </Box>
       )}
 
-      {!loading && (
+      {/* Show content once data is available (from cache or fresh) */}
+      {(!isLoading || (leads && leads.length > 0)) && (
         <>
+      {/* Subtle indicator for background data refresh */}
+      {isValidating && leads.length > 0 && (
+        <Box 
+          position="fixed" 
+          top={4} 
+          right={4} 
+          bg="blue.50" 
+          px={3} 
+          py={2} 
+          borderRadius="md" 
+          boxShadow="md"
+          zIndex={10}
+          display="flex"
+          alignItems="center"
+          gap={2}
+        >
+          <Icon as={HiRefresh} color="blue.500" className="spin-animation" />
+          <Text fontSize="sm" color="blue.700">Updating...</Text>
+        </Box>
+      )}
+      
       {/* Search and Filters */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
@@ -1528,7 +1512,10 @@ function LeadsTabContent({
             }}
             leadId={selectedLead.id}
             leadName={selectedLead.name}
-            onSuccess={handleRefreshLeads}
+            onSuccess={() => {
+              // Optimistic update
+              optimisticUpdateLead(selectedLead.id, { status: 'unreach' });
+            }}
             onBack={() => {
               onUnreachableClose();
               setSelectedLead(null);
@@ -1542,7 +1529,10 @@ function LeadsTabContent({
             }}
             leadId={selectedLead.id}
             leadName={selectedLead.name}
-            onSuccess={handleRefreshLeads}
+            onSuccess={() => {
+              // Optimistic update
+              optimisticUpdateLead(selectedLead.id, { status: 'unqualified' });
+            }}
             onBack={() => {
               onUnqualifiedClose();
               setSelectedLead(null);
@@ -1559,12 +1549,22 @@ function LeadsTabContent({
           leadId={leadToAssign.id}
           leadName={leadToAssign.name}
           currentAssignee={leadToAssign.currentAssignee}
-          onSuccess={handleRefreshLeads}
+          onSuccess={() => {
+            // Background refresh only (assignment doesn't change visible status)
+            setTimeout(() => refreshAll(), 100);
+          }}
         />
       )}
 
       {/* Add Lead Modal */}
-      <AddLeadModal isOpen={isAddLeadOpen} onClose={onAddLeadClose} onSuccess={handleRefreshLeads} />
+      <AddLeadModal 
+        isOpen={isAddLeadOpen} 
+        onClose={onAddLeadClose} 
+        onSuccess={() => {
+          // Background refresh to fetch new lead
+          setTimeout(() => refreshAll(), 100);
+        }} 
+      />
 
       {/* Call Dialer Modal */}
       {leadToCall && (
@@ -1574,7 +1574,12 @@ function LeadsTabContent({
             onCallDialerClose();
             setLeadToCall(null);
           }}
-          onSuccess={handleRefreshLeads}
+          onSuccess={() => {
+            // Optimistic update - increment call attempts
+            optimisticUpdateLead(leadToCall.id, {
+              callAttempts: (leads.find(l => l.id === leadToCall.id)?.callAttempts || 0) + 1
+            });
+          }}
           leadId={leadToCall.id}
           leadName={leadToCall.name}
           leadPhone={leadToCall.phone}
@@ -1610,7 +1615,12 @@ function LeadsTabContent({
           leadId={leadToChangeStatus.id}
           leadName={leadToChangeStatus.name}
           currentStatus={leadToChangeStatus.status}
-          onSuccess={handleRefreshLeads}
+          onSuccess={(newStatus?: string) => {
+            // Optimistic update - instant UI feedback
+            if (newStatus && leadToChangeStatus) {
+              optimisticUpdateLead(leadToChangeStatus.id, { status: newStatus });
+            }
+          }}
         />
       )}
 

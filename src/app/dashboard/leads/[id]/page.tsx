@@ -45,6 +45,8 @@ import { HiArrowLeft, HiPencil, HiPhone, HiCalendar, HiRefresh } from 'react-ico
 import { formatDate, formatDateTime } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useEffect, useState } from 'react';
+import { useLeadDetailData } from '@/shared/hooks/useLeadsData';
+import { LeadCardSkeleton } from '@/shared/components/SkeletonLoaders';
 import CallDialerModal from '@/features/leads/components/CallDialerModal';
 import ChangeStatusModal from '@/features/leads/components/ChangeStatusModal';
 import QuickActionsMenu from '@/shared/components/QuickActionsMenu';
@@ -126,13 +128,20 @@ export default function LeadDetailPage() {
   const { isOpen: isRemarksOpen, onOpen: onRemarksOpen, onClose: onRemarksClose } = useDisclosure();
   const { isOpen: isRescheduleWonOpen, onOpen: onRescheduleWonOpen, onClose: onRescheduleWonClose } = useDisclosure();
 
-  const [lead, setLead] = useState<Lead | null>(null);
+  // Fetch all lead data using SWR for instant cached loading
+  const {
+    lead,
+    callLogs,
+    followUps,
+    activities: activityHistory,
+    isLoading,
+    isValidating,
+    error: fetchError,
+    refreshAll,
+    mutateLead,
+  } = useLeadDetailData(leadId);
+  
   const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
-  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
-  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  const [activityHistory, setActivityHistory] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [requalifyStatus, setRequalifyStatus] = useState<'new' | 'followup'>('new');
   const [requalifyLoading, setRequalifyLoading] = useState(false);
   
@@ -142,9 +151,33 @@ export default function LeadDetailPage() {
   const [rescheduleTime, setRescheduleTime] = useState('09:00');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
 
+  // Show error toast if fetch fails
+  useEffect(() => {
+    if (fetchError) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load lead details',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [fetchError, toast]);
+
   const handleShowRemark = (remark: string | null) => {
     setSelectedRemark(remark);
     onRemarksOpen();
+  };
+
+  // Helper for optimistic updates using SWR's mutate
+  const optimisticUpdate = (updateFn: (currentLead: Lead) => Partial<Lead>) => {
+    if (!lead) return;
+    
+    // Optimistically update UI immediately
+    mutateLead({ ...lead, ...updateFn(lead) }, false);
+    
+    // Revalidate in background after 100ms
+    setTimeout(() => refreshAll(), 100);
   };
 
   // US-8: Auto-reopen Call Dialer Modal if there's unsaved call data after page refresh
@@ -172,69 +205,6 @@ export default function LeadDetailPage() {
     }
   }, [leadId, isCallDialerOpen, onCallDialerOpen]);
 
-  // Function to refresh data
-  const refreshData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const [leadRes, callsRes, followupsRes, activityRes] = await Promise.all([
-        fetch(`/api/leads/${leadId}`, { cache: 'no-store' }),
-        fetch(`/api/calls?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
-        fetch(`/api/followups?leadId=${leadId}&limit=100`, { cache: 'no-store' }),
-        fetch(`/api/activity?leadId=${leadId}&limit=50`, { cache: 'no-store' }),
-      ]);
-
-      if (!leadRes.ok) {
-        throw new Error('Lead not found');
-      }
-
-      const leadDataResponse = await leadRes.json();
-      const callsData = await callsRes.json();
-      const followupsData = await followupsRes.json();
-      const activityData = await activityRes.json();
-
-      // Extract lead data from response wrapper
-      const leadData = leadDataResponse.data || leadDataResponse;
-      setLead(leadData);
-      
-      // Extract data arrays from API responses
-      const leadCalls = Array.isArray(callsData) 
-        ? callsData
-        : callsData.data || [];
-      
-      const leadFollowups = Array.isArray(followupsData)
-        ? followupsData
-        : followupsData.data || [];
-
-      // Extract activity history
-      const activities = Array.isArray(activityData)
-        ? activityData
-        : activityData.data || [];
-
-      setCallLogs(leadCalls);
-      setFollowUps(leadFollowups);
-      setActivityHistory(activities);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load lead');
-      toast({
-        title: 'Error',
-        description: 'Failed to load lead details',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (leadId) {
-      refreshData();
-    }
-  }, [leadId, toast]);
-
   const handleRequalify = async () => {
     if (!lead) return;
 
@@ -256,8 +226,8 @@ export default function LeadDetailPage() {
           duration: 3000,
         });
         onRequalifyClose();
-        // Refresh data to show updated status
-        refreshData();
+        // Optimistic update
+        optimisticUpdate(() => ({ status: requalifyStatus }));
       } else {
         throw new Error('Failed to requalify lead');
       }
@@ -331,10 +301,8 @@ export default function LeadDetailPage() {
         setRescheduleNotes('');
         onRescheduleWonClose();
         
-        // Refresh data to show updated data
-        setTimeout(() => {
-          refreshData();
-        }, 1000);
+        // Optimistic update
+        optimisticUpdate(() => ({ status: 'followup' }));
       } else {
         throw new Error(followUpData.error || 'Failed to schedule follow-up');
       }
@@ -371,23 +339,25 @@ export default function LeadDetailPage() {
     return 'red';
   };
 
-  if (loading) {
+  // Show skeleton loader only on TRUE initial load (no cached data)
+  if (isLoading && !lead) {
     return (
-      <Box p={8} display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <VStack spacing={4}>
-          <Spinner size="lg" color="blue.500" />
-          <Text color="gray.600">Loading lead details...</Text>
+      <Box p={8}>
+        <VStack spacing={6} align="stretch">
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
+          <LeadCardSkeleton />
         </VStack>
       </Box>
     );
   }
 
-  if (error || !lead) {
+  if (fetchError || !lead) {
     return (
       <Box p={8}>
         <VStack spacing={4}>
           <Text color="gray.600" fontSize="lg">
-            {error || 'Lead not found'}
+           {fetchError?.message || 'Lead not found'}
           </Text>
           <Button onClick={() => router.back()} colorScheme="blue">
             Go Back
@@ -449,6 +419,27 @@ export default function LeadDetailPage() {
 
   return (
     <Box p={8}>
+      {/* Subtle indicator for background data refresh */}
+      {isValidating && lead && (
+        <Box 
+          position="fixed" 
+          top={4} 
+          right={4} 
+          bg="blue.50" 
+          px={3} 
+          py={2} 
+          borderRadius="md" 
+          boxShadow="md"
+          zIndex={10}
+          display="flex"
+          alignItems="center"
+          gap={2}
+        >
+          <HiRefresh className="spin-animation" color="blue.500" />
+          <Text fontSize="sm" color="blue.700">Updating...</Text>
+        </Box>
+      )}
+      
       <HStack justify="space-between" mb={6} align="flex-start">
         <VStack align="start" spacing={2}>
           <HStack>
@@ -976,7 +967,12 @@ export default function LeadDetailPage() {
           leadCampaign={lead.campaign}
           onOpenUnreachable={onUnreachableOpen}
           onOpenUnqualified={onUnqualifiedOpen}
-          onSuccess={refreshData}
+          onSuccess={() => {
+            // Optimistic update
+            optimisticUpdate((current) => ({
+              callAttempts: (current.callAttempts || 0) + 1
+            }));
+          }}
         />
       )}
 
@@ -988,8 +984,11 @@ export default function LeadDetailPage() {
           leadId={leadId}
           leadName={lead.name}
           currentStatus={lead.status}
-          onSuccess={() => {
-            refreshData();
+          onSuccess={(newStatus?: string) => {
+            // Optimistic update
+            if (newStatus) {
+              optimisticUpdate(() => ({ status: newStatus }));
+            }
           }}
         />
       )}
@@ -1003,7 +1002,10 @@ export default function LeadDetailPage() {
             leadId={lead.id}
             leadName={lead.name}
             currentAssignee={lead.assignedTo?.name}
-            onSuccess={refreshData}
+            onSuccess={() => {
+              // Background refresh
+              setTimeout(() => refreshAll(), 100);
+            }}
           />
           
           <ConvertToUnreachableModal
@@ -1011,7 +1013,9 @@ export default function LeadDetailPage() {
             onClose={onUnreachableClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => refreshData()}
+            onSuccess={() => {
+              optimisticUpdate(() => ({ status: 'unreach' }));
+            }}
           />
           
           <ConvertToUnqualifiedModal
@@ -1019,7 +1023,9 @@ export default function LeadDetailPage() {
             onClose={onUnqualifiedClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => refreshData()}
+            onSuccess={() => {
+              optimisticUpdate(() => ({ status: 'unqualified' }));
+            }}
           />
           
           <MarkAsWonModal
@@ -1027,7 +1033,9 @@ export default function LeadDetailPage() {
             onClose={onWonClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => refreshData()}
+            onSuccess={() => {
+              optimisticUpdate(() => ({ status: 'won' }));
+            }}
           />
           
           <MarkAsLostModal
@@ -1035,7 +1043,9 @@ export default function LeadDetailPage() {
             onClose={onLostClose}
             leadId={lead.id}
             leadName={lead.name}
-            onSuccess={() => refreshData()}
+            onSuccess={() => {
+              optimisticUpdate(() => ({ status: 'lost' }));
+            }}
           />
         </>
       )}
