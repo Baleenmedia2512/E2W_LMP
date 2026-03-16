@@ -1048,18 +1048,6 @@ export default function CallDialerModal({
                 </Select>
               </FormControl>
 
-              {callStatus === 'busy' && (
-                <Checkbox
-                  isChecked={quickFollowUp}
-                  onChange={(e) => setQuickFollowUp(e.target.checked)}
-                  colorScheme="blue"
-                  size="sm"
-                  mt={2}
-                >
-                  <Text fontSize="sm">📅 Auto-schedule follow-up in 1 hour (quick save)</Text>
-                </Checkbox>
-              )}
-
               <ValidatedTextarea
                 label="Remarks (Optional)"
                 name="remarks"
