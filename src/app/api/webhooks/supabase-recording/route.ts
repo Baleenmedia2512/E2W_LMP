@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { randomUUID } from 'crypto';
+import { autoUpdateBusyToAnswered, autoUpdateCurrentCallStatus } from '@/shared/lib/call-status-auto-update';
 
 /**
  * Webhook endpoint for Supabase Storage to notify when a recording is uploaded
@@ -263,9 +264,18 @@ export async function POST(request: Request) {
         duration: duration || callLog.duration,
       };
       
-      // Only update remarks if it was auto-generated or empty
-      if (!callLog.remarks || callLog.remarks === 'Auto-synced from Call Monitor app') {
-        updateData.remarks = callLog.remarks; // Keep existing or set nothing
+      // AUTO-UPDATE: If status is "busy" but we're adding a recording, change to "answered"
+      if (callLog.callStatus === 'busy') {
+        console.log('[Recording Sync Webhook] 🔄 Auto-updating status: "Busy" → "Answered" (recording indicates call was answered)');
+        updateData.callStatus = 'answer';
+        updateData.remarks = callLog.remarks 
+          ? `${callLog.remarks}\n[Auto-updated: Recording indicates call was answered]`
+          : '[Auto-updated from "Busy" to "Answered" - Recording indicates call was answered]';
+      } else {
+        // Only update remarks if it was auto-generated or empty
+        if (!callLog.remarks || callLog.remarks === 'Auto-synced from Call Monitor app') {
+          updateData.remarks = callLog.remarks; // Keep existing or set nothing
+        }
       }
       // If current remarks exist and are meaningful, keep them
       
@@ -276,6 +286,15 @@ export async function POST(request: Request) {
 
       console.log('[Recording Sync Webhook] ✅ Call log updated successfully! No duplicate created.');
       console.log('[Recording Sync Webhook] 📝 Preserved existing call details (status, remarks, etc.)');
+      
+      // Auto-update PREVIOUS "Busy" calls to "Answered" (non-blocking)
+      autoUpdateBusyToAnswered(prisma, callLog.id, lead.id).then((result) => {
+        if (result.updated) {
+          console.log('[Recording Sync Webhook] 🔄 Previous call updated:', result.message);
+        }
+      }).catch(err => {
+        console.error('[Recording Sync Webhook] ⚠️ Previous call auto-update error (non-critical):', err);
+      });
       
       return NextResponse.json({
         success: true,
@@ -317,6 +336,15 @@ export async function POST(request: Request) {
         attemptNumber: 1,
         remarks: 'Auto-synced from Call Monitor app'
       }
+    });
+
+    // Auto-update PREVIOUS "Busy" calls to "Answered" (non-blocking)
+    autoUpdateBusyToAnswered(prisma, newCallLog.id, lead.id).then((result) => {
+      if (result.updated) {
+        console.log('[Recording Sync Webhook] 🔄 Previous call updated:', result.message);
+      }
+    }).catch(err => {
+      console.error('[Recording Sync Webhook] ⚠️ Previous call auto-update error (non-critical):', err);
     });
 
     // Update lead's call attempts
