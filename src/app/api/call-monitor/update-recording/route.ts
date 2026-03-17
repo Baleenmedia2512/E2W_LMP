@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { autoUpdateBusyToAnswered, autoUpdateCurrentCallStatus } from '@/shared/lib/call-status-auto-update';
 
 /**
  * API endpoint for Call Monitor app to update a call log with
@@ -43,21 +44,42 @@ export async function POST(request: Request) {
       );
     }
 
+    // Prepare update data
+    const updateData: any = {
+      recordingUrl,
+      recordingStatus: 'available',
+      recordingAppCallId: recordingAppCallId || undefined,
+      duration: duration || existingCallLog.duration,
+    };
+
+    // AUTO-UPDATE: If status is "busy" but we're adding a recording, change to "answered"
+    if (existingCallLog.callStatus === 'busy') {
+      console.log('[Update Recording] 🔄 Auto-updating status: "Busy" → "Answered" (recording indicates call was answered)');
+      updateData.callStatus = 'answer';
+      updateData.remarks = existingCallLog.remarks 
+        ? `${existingCallLog.remarks}\n[Auto-updated: Recording indicates call was answered]`
+        : '[Auto-updated from "Busy" to "Answered" - Recording indicates call was answered]';
+    }
+
     // Update call log with recording information
     const updatedCallLog = await prisma.callLog.update({
       where: { id: callLogId },
-      data: {
-        recordingUrl,
-        recordingStatus: 'available',
-        recordingAppCallId: recordingAppCallId || undefined,
-        duration: duration || existingCallLog.duration, // Update duration if provided
-      },
+      data: updateData,
     });
 
     console.log('[Update Recording] ✅ Recording URL updated successfully!');
     console.log(`  Call Log: ${updatedCallLog.id}`);
     console.log(`  Lead: ${existingCallLog.leadId}`);
     console.log(`  Status: ${updatedCallLog.recordingStatus}`);
+
+    // Auto-update PREVIOUS "Busy" calls to "Answered" (non-blocking)
+    autoUpdateBusyToAnswered(prisma, updatedCallLog.id, existingCallLog.leadId).then((result) => {
+      if (result.updated) {
+        console.log('[Update Recording] 🔄 Previous call updated:', result.message);
+      }
+    }).catch(err => {
+      console.error('[Update Recording] ⚠️ Previous call auto-update error (non-critical):', err);
+    });
 
     return NextResponse.json({
       success: true,

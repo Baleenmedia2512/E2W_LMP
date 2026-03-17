@@ -2,6 +2,7 @@
 import prisma from '@/shared/lib/db/prisma';
 import { randomUUID } from 'crypto';
 import { notifyCallLogged, notifyCallCompleted, notifyCallLogSubmitted } from '@/shared/lib/utils/notification-service';
+import { autoUpdateCurrentCallStatus } from '@/shared/lib/call-status-auto-update';
 
 // GET call logs with optional filters
 export async function GET(request: NextRequest) {
@@ -76,15 +77,21 @@ export async function POST(request: NextRequest) {
     
     // 🔍 DUPLICATE PREVENTION: Check if a call log already exists for this lead around this time
     // This prevents duplicates when webhook creates call log before LMS submission
-    // Widened to 10 minutes to catch Call Monitor-created logs
-    const tenMinutes = 10 * 60 * 1000;
+    // Only update if the existing call is incomplete (webhook-only, no manual details)
+    const twoMinutes = 2 * 60 * 1000; // Reduced to 2 minutes for tighter matching
     const existingCallLog = await prisma.callLog.findFirst({
       where: {
         leadId: body.leadId,
         startedAt: {
-          gte: new Date(callStartTime.getTime() - tenMinutes),
-          lte: new Date(callStartTime.getTime() + tenMinutes),
-        }
+          gte: new Date(callStartTime.getTime() - twoMinutes),
+          lte: new Date(callStartTime.getTime() + twoMinutes),
+        },
+        // Only consider incomplete calls (webhook-created, awaiting manual details)
+        OR: [
+          { remarks: null },
+          { remarks: 'Auto-synced from Call Monitor app' },
+          { callStatus: null },
+        ]
       },
       orderBy: {
         startedAt: 'desc'
@@ -96,13 +103,16 @@ export async function POST(request: NextRequest) {
     });
 
     let callLog;
+    let isNewCall = true; // Track if this is a new call
     
-    if (existingCallLog) {
-      // Found existing call log (likely from webhook) - UPDATE it instead of creating duplicate
-      console.log('[Call Log API] ✅ Found existing call log - UPDATING instead of creating duplicate');
+    if (existingCallLog && (!existingCallLog.remarks || existingCallLog.remarks === 'Auto-synced from Call Monitor app')) {
+      // Found incomplete call log (from webhook) - UPDATE it with manual details
+      console.log('[Call Log API] ✅ Found incomplete call log - UPDATING with manual details');
       console.log(`  Existing Call ID: ${existingCallLog.id}`);
       console.log(`  Existing has recording: ${existingCallLog.recordingUrl ? 'YES' : 'NO'}`);
       console.log(`  Time difference: ${Math.abs(existingCallLog.startedAt.getTime() - callStartTime.getTime()) / 1000}s`);
+      
+      isNewCall = false; // This is an update, not a new call
       
       // Update existing call log with LMS details (preserve recording if exists)
       callLog = await prisma.callLog.update({
@@ -125,7 +135,7 @@ export async function POST(request: NextRequest) {
         },
       });
       
-      console.log('[Call Log API] ✅ Updated existing call log - no duplicate created!');
+      console.log('[Call Log API] ✅ Updated incomplete call log - no duplicate created!');
     } else {
       // No existing call log found - create new one (normal flow)
       console.log('[Call Log API] 📝 No existing call found - creating new call log');
@@ -158,9 +168,6 @@ export async function POST(request: NextRequest) {
       where: { id: body.leadId },
       select: { status: true },
     });
-
-    // Only increment call attempts if we created a NEW call log (not updated existing)
-    const isNewCall = !existingCallLog;
     
     // Update lead: increment call attempts only for new calls, always update timestamp
     const updateData: any = {
@@ -243,6 +250,24 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('Failed to send call notification:', error);
       }
+    }
+
+    // Auto-update call status if "Busy" but has recording (run synchronously before response)
+    try {
+      const autoUpdateResult = await autoUpdateCurrentCallStatus(prisma, callLog.id);
+      if (autoUpdateResult.currentCallUpdated) {
+        console.log('[Call Log API] 🔄 Auto-update:', autoUpdateResult.message);
+        // Reload the call log to get updated status
+        callLog = await prisma.callLog.findUnique({
+          where: { id: callLog.id },
+          include: {
+            Lead: { select: { id: true, name: true, status: true } },
+            User: { select: { id: true, name: true, email: true } },
+          },
+        }) || callLog;
+      }
+    } catch (err) {
+      console.error('[Call Log API] ⚠️ Auto-update error (non-critical):', err);
     }
 
     return NextResponse.json(
