@@ -50,33 +50,38 @@ export async function POST(request: Request) {
           data: {
             callStatus: 'answer',
             remarks: call.remarks 
-              ? `${call.remarks}\n[Auto-fixed: Recording indicates call was answered]`
+              ? `${call.remarks}\n[Auto-fixed from "Busy" to "Answered" - Recording indicates call was answered]`
               : '[Auto-fixed from "Busy" to "Answered" - Recording indicates call was answered]',
           }
         });
 
-        // Create audit log
-        await prisma.auditLog.create({
-          data: {
-            id: randomUUID(),
-            userId: 'SYSTEM',
-            action: 'call_status_bulk_fixed',
-            targetType: 'CallLog',
-            targetId: call.id,
-            changes: JSON.stringify({
-              oldStatus: 'busy',
-              newStatus: 'answer',
-              reason: 'One-time fix: Recording indicates call was answered',
-              recordingUrl: call.recordingUrl,
-            }),
-            metadata: JSON.stringify({
-              leadId: call.Lead.id,
-              leadName: call.Lead.name,
-              phoneNumber: call.Lead.phone,
-              fixType: 'bulk_busy_to_answered',
-            }),
-          }
-        });
+        // Try to create audit log (non-critical if table doesn't exist)
+        try {
+          await prisma.auditLog.create({
+            data: {
+              id: randomUUID(),
+              userId: 'SYSTEM',
+              action: 'call_status_bulk_fixed',
+              targetType: 'CallLog',
+              targetId: call.id,
+              changes: JSON.stringify({
+                oldStatus: 'busy',
+                newStatus: 'answer',
+                reason: 'One-time fix: Recording indicates call was answered',
+                recordingUrl: call.recordingUrl,
+              }),
+              metadata: JSON.stringify({
+                leadId: call.Lead.id,
+                leadName: call.Lead.name,
+                phoneNumber: call.Lead.phone,
+                fixType: 'bulk_busy_to_answered',
+              }),
+            }
+          });
+        } catch (auditError) {
+          // Audit log is optional, don't fail the fix if it errors
+          console.log('[Fix Busy Calls] ⚠️ Could not create audit log (non-critical)');
+        }
 
         fixedCount++;
         fixedCalls.push({

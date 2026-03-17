@@ -114,6 +114,25 @@ export async function POST(request: NextRequest) {
       
       isNewCall = false; // This is an update, not a new call
       
+      // Determine if we need to auto-update status from BUSY to ANSWER
+      const shouldAutoUpdate = 
+        (body.callStatus === 'busy' || existingCallLog.callStatus === 'busy') && 
+        existingCallLog.recordingUrl;
+      
+      const finalCallStatus = shouldAutoUpdate 
+        ? 'answer' 
+        : (body.callStatus || existingCallLog.callStatus);
+      
+      const finalRemarks = shouldAutoUpdate
+        ? (body.remarks || existingCallLog.remarks 
+            ? `${body.remarks || existingCallLog.remarks}\n[Auto-updated from "Busy" to "Answered" - Recording indicates call was answered]`
+            : '[Auto-updated from "Busy" to "Answered" - Recording indicates call was answered]')
+        : (body.remarks || existingCallLog.remarks);
+      
+      if (shouldAutoUpdate) {
+        console.log('[Call Log API] 🔄 Auto-updating status: "Busy" → "Answered" (recording exists)');
+      }
+      
       // Update existing call log with LMS details (preserve recording if exists)
       callLog = await prisma.callLog.update({
         where: { id: existingCallLog.id },
@@ -121,8 +140,8 @@ export async function POST(request: NextRequest) {
           callerId: body.callerId, // Update with actual caller
           endedAt: body.endedAt ? new Date(body.endedAt) : existingCallLog.endedAt,
           duration: body.duration || existingCallLog.duration,
-          remarks: body.remarks || existingCallLog.remarks, // Use LMS remarks if provided
-          callStatus: body.callStatus || existingCallLog.callStatus,
+          remarks: finalRemarks, // Use LMS remarks if provided, with auto-update note if needed
+          callStatus: finalCallStatus, // Auto-update to 'answer' if busy with recording
           customerRequirement: body.customerRequirement || existingCallLog.customerRequirement,
           phoneDialed: body.phoneDialed || existingCallLog.phoneDialed,
           recordingStatus: existingCallLog.recordingUrl ? 'available' : (body.recordingStatus || 'pending'),
