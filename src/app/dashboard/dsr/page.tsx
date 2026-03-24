@@ -55,6 +55,8 @@ import {
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useResponsive } from '@/shared/hooks/useResponsive';
+import { useDSRData, useDSRCallLogs } from '@/shared/hooks/useLeadsData';
+import { DashboardStatSkeleton, LeadCardSkeleton } from '@/shared/components/SkeletonLoaders';
 
 // Custom hook for debouncing
 function useDebounce<T>(value: T, delay: number): T {
@@ -143,20 +145,19 @@ export default function DSRPage() {
   const today = new Date();
   const todayString = today.toISOString().split('T')[0];
   
-  // State for API data
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<any>(null);
-  const [apiLeads, setApiLeads] = useState<Lead[]>([]);
-  const [agentPerformanceData, setAgentPerformanceData] = useState<AgentPerformance[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [callLogs, setCallLogs] = useState<any[]>([]); // For Total Calls filter
-  
   // Filter state - DEFAULT TO TODAY (single date selection)
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [selectedAgentId, setSelectedAgentId] = useState('all');
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Fetch DSR data using SWR hooks
+  const { stats, filteredLeads: apiLeads, agentPerformanceData, agents, 
+          isLoading, isValidating, error: fetchError, refresh } = useDSRData(selectedDate, selectedAgentId);
+  
+  // Conditionally fetch call logs when Total Calls card is active
+  const { callLogs, isLoading: callLogsLoading } = 
+    useDSRCallLogs(selectedDate, selectedAgentId, activeCard === 'totalCalls');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -169,39 +170,9 @@ export default function DSRPage() {
   // Debounced search
   const debouncedSearch = useDebounce(searchQuery, 300);
 
-  // Fetch DSR data from API
-  const fetchDSRData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const params = new URLSearchParams();
-      // Send the selected date as both start and end to get data for that specific day
-      if (selectedDate) {
-        params.append('startDate', selectedDate);
-        params.append('endDate', selectedDate);
-      }
-      if (selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
-      
-      const response = await fetch(`/api/dsr/stats?${params.toString()}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch DSR data');
-      }
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        setStats(result.data.stats);
-        setApiLeads(result.data.filteredLeads);
-        setAgentPerformanceData(result.data.agentPerformanceData);
-        setAgents(result.data.agents);
-      } else {
-        throw new Error(result.error || 'Failed to fetch data');
-      }
-    } catch (err) {
-      console.error('Error fetching DSR data:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
+  // Show error toast if fetch fails
+  useEffect(() => {
+    if (fetchError) {
       toast({
         title: 'Error',
         description: 'Failed to fetch DSR data. Please try again.',
@@ -210,47 +181,17 @@ export default function DSRPage() {
         isClosable: true,
         position: 'top-right',
       });
-    } finally {
-      setLoading(false);
     }
-  }, [selectedDate, selectedAgentId, toast]);
-
-  // Fetch data on component mount and when filters change
-  useEffect(() => {
-    fetchDSRData();
-  }, [fetchDSRData]);
+  }, [fetchError, toast]);
 
   // Handle card click - filter leads in the current page
   const handleCardClick = async (type: string) => {
     // Toggle the active card - if same card clicked, deactivate it
     if (activeCard === type) {
       setActiveCard(null);
-      setCallLogs([]); // Clear call logs when deactivating
     } else {
       setActiveCard(type);
-      
-      // Fetch call logs if Total Calls is clicked
-      if (type === 'totalCalls') {
-        try {
-          const params = new URLSearchParams();
-          if (selectedDate) params.append('date', selectedDate);
-          params.append('limit', '1000'); // Get all calls, not just first 50
-          if (selectedAgentId && selectedAgentId !== 'all') params.append('agentId', selectedAgentId);
-          
-          const response = await fetch(`/api/dsr/call-logs?${params.toString()}`);
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-              setCallLogs(result.data.callLogs || []);
-              console.log(`[DSR Filter] Total Calls: Fetched ${result.data.callLogs?.length || 0} call logs`);
-            }
-          }
-        } catch (error) {
-          console.error('[DSR Filter] Error fetching call logs:', error);
-        }
-      } else {
-        setCallLogs([]); // Clear call logs for other filters
-      }
+      // Call logs will be automatically fetched by useDSRCallLogs when activeCard === 'totalCalls'
     }
     
     // Reset to first page when filter changes
@@ -419,8 +360,6 @@ export default function DSRPage() {
     setActiveCard(null);
     // Clear search query
     setSearchQuery('');
-    // Clear call logs
-    setCallLogs([]);
     // Reset pagination
     setCurrentPage(1);
     
@@ -606,15 +545,30 @@ export default function DSRPage() {
     }
   };
 
-  // Show loading state
-  if (loading && !stats) {
+  // Show skeleton loaders only on true initial load
+  if (isLoading && (!stats || !apiLeads || apiLeads.length === 0)) {
     return (
-      <Center h="400px">
-        <VStack spacing={4}>
-          <Spinner size="xl" color={THEME_COLORS.primary} thickness="4px" />
-          <Text color={THEME_COLORS.medium}>Loading DSR data...</Text>
-        </VStack>
-      </Center>
+      <Box p={{ base: 3, sm: 4, md: 6 }} maxW="100%" overflowX="hidden">
+        <Heading size={{ base: 'md', md: 'lg' }} mb={{ base: 4, md: 6 }} color={THEME_COLORS.dark}>
+          Daily Sales Report (DSR)
+        </Heading>
+        
+        {/* Skeleton for stats cards */}
+        <SimpleGrid columns={{ base: 2, md: 4, lg: 8 }} spacing={{ base: 2, md: 4 }} mb={{ base: 4, md: 6 }}>
+          {[...Array(8)].map((_, i) => (
+            <DashboardStatSkeleton key={i} />
+          ))}
+        </SimpleGrid>
+        
+        {/* Skeleton for table */}
+        <Card boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.primary}>
+          <CardBody p={{ base: 3, md: 6 }}>
+            {[...Array(5)].map((_, i) => (
+              <LeadCardSkeleton key={i} />
+            ))}
+          </CardBody>
+        </Card>
+      </Box>
     );
   }
 
@@ -641,8 +595,8 @@ export default function DSRPage() {
             <IconButton
               aria-label="Refresh"
               icon={<HiRefresh />}
-              onClick={fetchDSRData}
-              isLoading={loading}
+              onClick={refresh}
+              isLoading={isValidating}
               colorScheme="gray"
               variant="outline"
               size={{ base: 'sm', md: 'md' }}
@@ -788,6 +742,25 @@ export default function DSRPage() {
           </VStack>
         </CardBody>
       </Card>
+
+      {/* Background Update Indicator */}
+      {isValidating && stats && (
+        <Flex
+          align="center"
+          justify="center"
+          mb={4}
+          p={2}
+          bg="blue.50"
+          borderRadius="md"
+          borderLeft="4px solid"
+          borderColor="blue.400"
+        >
+          <Spinner size="sm" color="blue.400" mr={2} />
+          <Text fontSize="sm" color="blue.700" fontWeight="medium">
+            Updating data...
+          </Text>
+        </Flex>
+      )}
 
       {/* KPI Cards - All metrics for selected date */}
       {stats && (

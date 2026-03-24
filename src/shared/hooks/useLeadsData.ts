@@ -338,3 +338,106 @@ export function useCallLogs(statusFilter: string = 'all') {
     refresh: () => mutate(),
   };
 }
+
+/**
+ * Hook for fetching DSR (Daily Sales Report) data
+ * Provides automatic caching for instant navigation
+ */
+export function useDSRData(selectedDate: string, selectedAgentId: string = 'all') {
+  const params = new URLSearchParams();
+  // Send the selected date as both start and end to get data for that specific day
+  if (selectedDate) {
+    params.append('startDate', selectedDate);
+    params.append('endDate', selectedDate);
+  }
+  if (selectedAgentId !== 'all') {
+    params.append('agentId', selectedAgentId);
+  }
+
+  const fetchDSRData = async (url: string) => {
+    const res = await fetch(url, { cache: 'no-store' });
+    
+    if (!res.ok) {
+      throw new Error('Failed to fetch DSR data');
+    }
+    
+    const result = await res.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fetch data');
+    }
+    
+    return result.data;
+  };
+
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    `/api/dsr/stats?${params.toString()}`,
+    fetchDSRData,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      dedupingInterval: 5000,
+      keepPreviousData: true,
+    }
+  );
+
+  return {
+    stats: data?.stats || null,
+    filteredLeads: data?.filteredLeads || [],
+    agentPerformanceData: data?.agentPerformanceData || [],
+    agents: data?.agents || [],
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+    refresh: () => mutate(),
+  };
+}
+
+/**
+ * Hook for fetching DSR call logs (conditionally)
+ */
+export function useDSRCallLogs(selectedDate: string, selectedAgentId: string = 'all', enabled: boolean = false) {
+  const params = new URLSearchParams();
+  if (selectedDate) params.append('date', selectedDate);
+  params.append('limit', '1000');
+  if (selectedAgentId && selectedAgentId !== 'all') {
+    params.append('agentId', selectedAgentId);
+  }
+
+  const fetchCallLogs = async (url: string) => {
+    const res = await fetch(url, { cache: 'no-store' });
+    
+    if (!res.ok) {
+      throw new Error('Failed to fetch call logs');
+    }
+    
+    const result = await res.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fetch call logs');
+    }
+    
+    return result.data.callLogs || [];
+  };
+
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    enabled ? `/api/dsr/call-logs?${params.toString()}` : null,
+    fetchCallLogs,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      dedupingInterval: 5000,
+      keepPreviousData: true,
+    }
+  );
+
+  return {
+    callLogs: data || [],
+    isLoading,
+    isValidating,
+    error,
+    mutate,
+    refresh: () => mutate(),
+  };
+}
