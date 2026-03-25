@@ -60,9 +60,8 @@ export async function GET(request: NextRequest) {
       // Explicit assignedToId parameter
       where.assignedToId = assignedToId;
     } else if (currentUserId) {
-      // DEFAULT BEHAVIOR: Always filter by current user UNLESS they are Team Lead or Super Agent
-      // Team Lead and Super Agent can see all leads by default (unless "Assigned to Me" is checked)
-      const canSeeAllLeads = currentUserRole === 'Team Lead' || currentUserRole === 'Super Agent';
+      // DEFAULT BEHAVIOR: All roles can see all leads by default (unless "Assigned to Me" is checked)
+      const canSeeAllLeads = true;
       
       if (!canSeeAllLeads) {
         // Normal agents (Sales Agent) ALWAYS see only their assigned leads
