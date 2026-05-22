@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Heading,
@@ -158,6 +158,25 @@ export default function DSRPage() {
   // Conditionally fetch call logs when Total Calls card is active
   const { callLogs, isLoading: callLogsLoading } = 
     useDSRCallLogs(selectedDate, selectedAgentId, activeCard === 'totalCalls');
+  
+  // ── Bug 5 fix: Track when filters change so we show skeletons instead of stale KPIs ──
+  const [isLoadingNewFilters, setIsLoadingNewFilters] = useState(false);
+  const prevFiltersRef = useRef({ date: selectedDate, agent: selectedAgentId });
+
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    if (prev.date !== selectedDate || prev.agent !== selectedAgentId) {
+      setIsLoadingNewFilters(true);
+      prevFiltersRef.current = { date: selectedDate, agent: selectedAgentId };
+    }
+  }, [selectedDate, selectedAgentId]);
+
+  useEffect(() => {
+    if (!isValidating && isLoadingNewFilters) {
+      setIsLoadingNewFilters(false);
+    }
+  }, [isValidating, isLoadingNewFilters]);
+  // ──────────────────────────────────────────────────────────────────────────────────────
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -380,7 +399,13 @@ export default function DSRPage() {
     if (!apiLeads) return [];
     
     // Special handling for Total Calls - show call logs, not leads
-    if (activeCard === 'totalCalls' && callLogs.length > 0) {
+    // Bug 1 fix: when callLogs are still loading, return empty array (show spinner)
+    // instead of falling back to the wrong leads-filtered-by-hadCallToday data
+    if (activeCard === 'totalCalls') {
+      if (callLogsLoading || callLogs.length === 0) {
+        // Still loading — return empty so the table shows a spinner, not wrong content
+        return [];
+      }
       // Transform call logs to look like leads for table display
       const transformedCallLogs = callLogs.map(call => ({
         id: call.id,
@@ -433,12 +458,9 @@ export default function DSRPage() {
       console.log(`[DSR Filter] Follow-Up Calls: ${filtered.length} leads`);
       
     } else if (activeCard === 'totalCalls') {
-      // Total Calls: CallLog.createdAt = selected_date (all calls)
-      // Show ALL leads that had ANY call on selected date
-      filtered = filtered.filter(lead => 
-        lead.activityFlags?.hadCallToday === true
-      );
-      console.log(`[DSR Filter] Total Calls: ${filtered.length} leads`);
+      // This branch is now unreachable (handled above) — kept as safety fallback
+      filtered = [];
+      console.log(`[DSR Filter] Total Calls: waiting for call logs`);
       
     } else if (activeCard === 'overdue') {
       // Overdue Calls Handled: CallLog.createdAt = selected_date AND FollowUp.scheduledAt < selected_date
@@ -678,7 +700,11 @@ export default function DSRPage() {
                 <Input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setCurrentPage(1);   // Bug 6 fix: reset pagination
+                    setActiveCard(null); // Bug 7 fix: clear card filter
+                  }}
                   max={todayString}
                   borderColor={THEME_COLORS.light}
                   _hover={{ borderColor: THEME_COLORS.primary }}
@@ -694,7 +720,11 @@ export default function DSRPage() {
                 </Text>
                 <Select
                   value={selectedAgentId}
-                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedAgentId(e.target.value);
+                    setCurrentPage(1);   // Bug 6 fix: reset pagination
+                    setActiveCard(null); // Bug 7 fix: clear card filter
+                  }}
                   borderColor={THEME_COLORS.light}
                   _hover={{ borderColor: THEME_COLORS.primary }}
                   _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
@@ -763,7 +793,14 @@ export default function DSRPage() {
       )}
 
       {/* KPI Cards - All metrics for selected date */}
-      {stats && (
+      {/* Bug 5 fix: show skeletons when filters just changed so stale data from previous date is hidden */}
+      {isLoadingNewFilters ? (
+        <SimpleGrid columns={{ base: 2, md: 4, lg: 8 }} spacing={{ base: 2, md: 4 }} mb={{ base: 4, md: 6 }}>
+          {[...Array(8)].map((_, i) => (
+            <DashboardStatSkeleton key={i} />
+          ))}
+        </SimpleGrid>
+      ) : stats && (
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
           {/* New Calls Card */}
           <Tooltip label={`${stats.newCallsCount} new calls (attemptNumber = 1) made on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
@@ -1214,9 +1251,21 @@ export default function DSRPage() {
                 ) : (
                   <Tr>
                     <Td colSpan={activeCard === 'totalCalls' ? 7 : 9} textAlign="center" py={8}>
-                      <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
-                        No {activeCard === 'totalCalls' ? 'calls' : 'leads'} found for the selected filters
-                      </Text>
+                      {/* Bug 1 fix: show spinner while totalCalls call logs are loading */}
+                      {activeCard === 'totalCalls' && callLogsLoading ? (
+                        <Center py={4}>
+                          <Spinner size="lg" color={THEME_COLORS.primary} mr={3} />
+                          <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
+                            Loading call logs...
+                          </Text>
+                        </Center>
+                      ) : (
+                        <Text color={THEME_COLORS.medium} fontSize={{ base: 'sm', md: 'md' }}>
+                          {activeCard
+                            ? `No ${activeCard === 'totalCalls' ? 'calls' : 'leads'} found for the selected filters`
+                            : 'Click a card above to filter results'}
+                        </Text>
+                      )}
                     </Td>
                   </Tr>
                 )}

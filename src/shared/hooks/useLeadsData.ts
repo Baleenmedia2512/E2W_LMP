@@ -378,6 +378,7 @@ export function useDSRData(selectedDate: string, selectedAgentId: string = 'all'
       revalidateOnReconnect: true,
       dedupingInterval: 5000,
       keepPreviousData: true,
+      refreshInterval: 60000, // Auto-refresh every 60 seconds
     }
   );
 
@@ -429,6 +430,7 @@ export function useDSRCallLogs(selectedDate: string, selectedAgentId: string = '
       revalidateOnReconnect: true,
       dedupingInterval: 5000,
       keepPreviousData: true,
+      refreshInterval: enabled ? 60000 : 0, // Auto-refresh every 60s when active
     }
   );
 

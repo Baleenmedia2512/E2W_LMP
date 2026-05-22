@@ -70,7 +70,11 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             phone: true,
+            email: true,
+            source: true,
+            campaign: true,
             status: true,
+            is_existing: true,
           },
         },
         User: {
