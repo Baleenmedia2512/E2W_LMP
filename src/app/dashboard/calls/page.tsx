@@ -431,18 +431,21 @@ export default function CallsPage() {
               },
             }}
           >
-            <Box w="1800px" h="1px" />
+            <Box w="2100px" h="1px" />
           </Box>
 
           {/* Bottom Scrollbar with Table */}
           <Box 
             ref={bottomScrollRef}
-            overflowX="auto" 
+            overflowX="auto"
+            overflowY="auto"
+            maxH="calc(100vh - 320px)"
             w="full"
             onScroll={handleBottomScroll}
             css={{
               '&::-webkit-scrollbar': {
-                height: '8px',
+                height: '0px',
+                width: '8px',
               },
               '&::-webkit-scrollbar-track': {
                 background: '#f1f1f1',
@@ -457,8 +460,8 @@ export default function CallsPage() {
               },
             }}
           >
-            <Table variant="simple" size={{ base: 'sm', md: 'sm' }} minW="1800px">
-              <Thead bg="gray.50">
+            <Table variant="simple" size={{ base: 'sm', md: 'sm' }} minW="2100px">
+              <Thead bg="gray.50" position="sticky" top={0} zIndex={3}>
                 <Tr>
                   <Th 
                     fontSize={{ base: 'xs', sm: 'sm' }} 
@@ -482,6 +485,7 @@ export default function CallsPage() {
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Call Status</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Lead Status</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">Agent Name</Th>
+                  <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="220px">Remarks</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">Recording</Th>
                   <Th fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }}>Actions</Th>
                 </Tr>
@@ -549,6 +553,23 @@ export default function CallsPage() {
                       <Td fontSize={{ base: 'xs', sm: 'sm' }} px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} whiteSpace="nowrap">
                         <Text noOfLines={1}>{group.latestCall.caller.name || 'N/A'}</Text>
                       </Td>
+                      <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="220px">
+                        {(group.latestCall.remarks || group.latestCall.customerRequirement) ? (
+                          <Text
+                            fontSize={{ base: 'xs', sm: 'sm' }}
+                            noOfLines={2}
+                            cursor="pointer"
+                            color="gray.700"
+                            onClick={() => handleShowRemark(group.latestCall.remarks || group.latestCall.customerRequirement)}
+                            _hover={{ color: 'blue.600' }}
+                            title="Click to view full remarks"
+                          >
+                            {group.latestCall.remarks || group.latestCall.customerRequirement}
+                          </Text>
+                        ) : (
+                          <Text fontSize={{ base: 'xs', sm: 'sm' }} color="gray.400">—</Text>
+                        )}
+                      </Td>
                       <Td px={{ base: 2, md: 4 }} py={{ base: 2, md: 3 }} minW="180px">
                         <CallRecordingPlayer
                           recordingUrl={group.latestCall.recordingUrl}
@@ -589,7 +610,7 @@ export default function CallsPage() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={9} textAlign="center" py={8}>
+                    <Td colSpan={10} textAlign="center" py={8}>
                       <Text color="gray.500" fontSize={{ base: 'xs', sm: 'sm' }}>
                         {searchQuery || statusFilter !== 'all'
                           ? 'No call logs match your filters'
