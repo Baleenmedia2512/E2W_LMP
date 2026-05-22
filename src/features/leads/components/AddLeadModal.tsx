@@ -11,7 +11,6 @@ import {
   FormControl,
   FormLabel,
   Input,
-  Select,
   VStack,
   SimpleGrid,
   useToast,
@@ -19,8 +18,13 @@ import {
   Text,
   Box,
   HStack,
+  Divider,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useFormValidation } from '@/shared/hooks/useFormValidation';
 import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges';
@@ -400,6 +404,17 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     }
   };
 
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const handleMenuSelect = (name: string, value: string) => {
+    if (errors[name]) clearError(name);
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleQuickSave = () => {
+    formRef.current?.requestSubmit();
+  };
+
   const resetAndClose = () => {
     setFormData({
       date: currentDate,
@@ -427,10 +442,16 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={handleClose} size={{ base: 'full', md: 'xl' }}>
+      <Modal isOpen={isOpen} onClose={handleClose} size={{ base: 'full', md: 'xl' }} scrollBehavior="inside">
         <ModalOverlay />
-        <ModalContent mx={{ base: 0, md: 4 }} my={{ base: 0, md: 16 }}>
-          <ModalHeader color="blue.500" fontSize={{ base: 'lg', md: '2xl' }}>
+        <ModalContent
+          mx={0}
+          my={0}
+          borderRadius={{ base: 0, md: 'md' }}
+          maxH={{ base: '100dvh', md: '90vh' }}
+          h={{ base: '100dvh', md: 'auto' }}
+        >
+          <ModalHeader color="blue.500" fontSize={{ base: 'md', md: '2xl' }} py={{ base: 3, md: 4 }} px={{ base: 4, md: 6 }}>
             Add New Lead
             {hasChanges && (
               <Text as="span" color="orange.500" fontSize="sm" ml={2}>
@@ -439,10 +460,11 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
             )}
           </ModalHeader>
           <ModalCloseButton />
-          <ModalBody pb={6}>
-            <form onSubmit={handleSubmit}>
+          <ModalBody pb={6} px={{ base: 4, md: 6 }} overflowY="auto">
+            <form ref={formRef} onSubmit={handleSubmit}>
               <VStack spacing={4} align="stretch">
-                {/* Phone Number - Top of form for quick lookup */}
+
+                {/* 1. Client Contact */}
                 <ValidatedInput
                   label="Client Contact"
                   name="phone"
@@ -454,22 +476,12 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   placeholder="Enter 10 digit phone number"
                   maxLength={10}
                   size={{ base: 'sm', md: 'md' }}
-                  helperText={
-                    isCheckingPhone 
-                      ? "Checking for existing lead..." 
-                      : "10 digits required"
-                  }
+                  helperText={isCheckingPhone ? "Checking for existing lead..." : "10 digits required"}
                 />
 
-                {/* Prefill Prompt - Show when existing lead found */}
+                {/* Prefill Prompt */}
                 {showPrefillPrompt && existingLead && (
-                  <Box
-                    p={2.5}
-                    bg="blue.50"
-                    borderRadius="md"
-                    borderWidth="1px"
-                    borderColor="blue.200"
-                  >
+                  <Box p={2.5} bg="blue.50" borderRadius="md" borderWidth="1px" borderColor="blue.200">
                     <HStack justify="space-between" align="start" spacing={2}>
                       <VStack align="start" spacing={1} flex="1">
                         <Text fontSize="sm" fontWeight="semibold" color="blue.700">
@@ -479,107 +491,133 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                           Please update the lead if any changes or additional information are required.
                         </Text>
                         <HStack spacing={3} pt={0.5} flexWrap="wrap">
-                          <Text fontSize="xs" fontWeight="medium" color="gray.800">
-                            👤 {existingLead.name}
-                          </Text>
-                          {existingLead.source && (
-                            <Text fontSize="xs" color="gray.600">
-                              📱 {existingLead.source}
-                            </Text>
-                          )}
-                          {existingLead.campaign && (
-                            <Text fontSize="xs" color="gray.600">
-                              📢 {existingLead.campaign}
-                            </Text>
-                          )}
+                          <Text fontSize="xs" fontWeight="medium" color="gray.800">👤 {existingLead.name}</Text>
+                          {existingLead.source && <Text fontSize="xs" color="gray.600">📱 {existingLead.source}</Text>}
+                          {existingLead.campaign && <Text fontSize="xs" color="gray.600">📢 {existingLead.campaign}</Text>}
                         </HStack>
                       </VStack>
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        colorScheme="blue"
-                        onClick={() => setShowPrefillPrompt(false)}
-                        minW="auto"
-                      >
-                        ✕
-                      </Button>
+                      <Button size="xs" variant="ghost" colorScheme="blue" onClick={() => setShowPrefillPrompt(false)} minW="auto">✕</Button>
                     </HStack>
                   </Box>
                 )}
 
-                <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
-                  <FormControl>
-                    <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
-                      Date:
-                    </FormLabel>
-                    <Input
-                      type="date"
-                      name="date"
-                      value={formData.date}
-                      onChange={handleChange}
-                      size={{ base: 'sm', md: 'md' }}
-                    />
-                  </FormControl>
+                {/* 2. Client Name */}
+                <ValidatedInput
+                  label="Client Name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  error={errors.name}
+                  isRequired={true}
+                  placeholder="Enter client name"
+                  size={{ base: 'sm', md: 'md' }}
+                  maxLength={100}
+                  showCharCount={true}
+                />
 
-                  <FormControl>
-                    <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
-                      Time:
-                    </FormLabel>
-                    <Input
-                      type="time"
-                      name="time"
-                      value={formData.time}
-                      onChange={handleChange}
+                {/* 3. Source (renamed from Client Platform) */}
+                <FormControl isRequired isInvalid={!!errors.source}>
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
+                    Source <Text as="span" color="red.500">*</Text>
+                  </FormLabel>
+                  <Menu matchWidth>
+                    <MenuButton
+                      as={Button}
+                      w="100%"
+                      textAlign="left"
+                      variant="outline"
+                      fontWeight="normal"
+                      color={formData.source ? 'gray.800' : 'gray.400'}
                       size={{ base: 'sm', md: 'md' }}
-                    />
-                  </FormControl>
-                </SimpleGrid>
-
-                <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
-                  <FormControl isRequired isInvalid={!!errors.source}>
-                    <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
-                      Client Platform <Text as="span" color="red.500">*</Text>
-                    </FormLabel>
-                    <Select
-                      name="source"
-                      value={formData.source}
-                      onChange={handleChange}
-                      placeholder="Select a Platform"
-                      size={{ base: 'sm', md: 'md' }}
+                      borderColor={errors.source ? 'red.500' : 'gray.200'}
+                      _hover={{ borderColor: 'blue.300' }}
+                      rightIcon={<Text as="span" fontSize="xs">▾</Text>}
                     >
-                      <option value="Website">Website</option>
-                      <option value="Meta">Meta</option>
-                      <option value="Referral">Referral</option>
-                      <option value="Cold Call">Cold Call</option>
-                      <option value="WhatsApp">WhatsApp</option>
-                      <option value="Direct">Direct</option>
-                      <option value="Just Dial">Just Dial</option>
-                      <option value="Indiamart">Indiamart</option>
-                      <option value="Sulekha">Sulekha</option>
-                      <option value="LG">LG</option>
-                      <option value="Consultant">Consultant</option>
-                      <option value="Own">Own</option>
-                      <option value="Web App DB">Web App DB</option>
-                      <option value="Online">Online</option>
-                    </Select>
-                    {errors.source && <FormErrorMessage>{errors.source}</FormErrorMessage>}
-                  </FormControl>
+                      {formData.source || 'Select a Source'}
+                    </MenuButton>
+                    <MenuList maxH="220px" overflowY="auto" zIndex={2000} fontSize={{ base: 'sm', md: 'md' }}>
+                      {['Website','Meta','Referral','Cold Call','WhatsApp','Direct','Just Dial','Indiamart','Sulekha','LG','Consultant','Own','Web App DB','Online','Newspaper'].map(opt => (
+                        <MenuItem
+                          key={opt}
+                          onClick={() => handleMenuSelect('source', opt)}
+                          bg={formData.source === opt ? 'blue.50' : undefined}
+                          fontWeight={formData.source === opt ? 'semibold' : 'normal'}
+                        >
+                          {opt}
+                        </MenuItem>
+                      ))}
+                    </MenuList>
+                  </Menu>
+                  {errors.source && <FormErrorMessage>{errors.source}</FormErrorMessage>}
+                </FormControl>
 
-                  <ValidatedInput
-                    label="Client Name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    error={errors.name}
-                    isRequired={true}
-                    placeholder="Enter client name"
-                    size={{ base: 'sm', md: 'md' }}
-                    maxLength={100}
-                    showCharCount={true}
-                  />
+                {/* 4. Handled By (name only) */}
+                <FormControl>
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">Handled By:</FormLabel>
+                  <Menu matchWidth>
+                    <MenuButton
+                      as={Button}
+                      w="100%"
+                      textAlign="left"
+                      variant="outline"
+                      fontWeight="normal"
+                      color={formData.assignedToId ? 'gray.800' : 'gray.400'}
+                      size={{ base: 'sm', md: 'md' }}
+                      borderColor="gray.200"
+                      _hover={{ borderColor: 'blue.300' }}
+                      rightIcon={<Text as="span" fontSize="xs">▾</Text>}
+                    >
+                      {agents.find(a => a.id === formData.assignedToId)?.name || 'Loading...'}
+                    </MenuButton>
+                    <MenuList maxH="200px" overflowY="auto" zIndex={2000} fontSize={{ base: 'sm', md: 'md' }}>
+                      {agents.map(agent => (
+                        <MenuItem
+                          key={agent.id}
+                          onClick={() => handleMenuSelect('assignedToId', agent.id)}
+                          bg={formData.assignedToId === agent.id ? 'blue.50' : undefined}
+                          fontWeight={formData.assignedToId === agent.id ? 'semibold' : 'normal'}
+                        >
+                          {agent.name}
+                        </MenuItem>
+                      ))}
+                    </MenuList>
+                  </Menu>
+                </FormControl>
+
+                {/* Quick Save button */}
+                <Button
+                  onClick={handleQuickSave}
+                  colorScheme="green"
+                  size={{ base: 'md', md: 'lg' }}
+                  width="full"
+                  isLoading={loading}
+                  loadingText="Saving..."
+                  isDisabled={!formData.phone || !formData.name || !formData.source || loading}
+                >
+                  ⚡ Quick Save
+                </Button>
+
+                {/* Optional Details divider */}
+                <HStack spacing={3} pt={2}>
+                  <Divider />
+                  <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" fontWeight="600">OPTIONAL DETAILS</Text>
+                  <Divider />
+                </HStack>
+
+                {/* Date / Time */}
+                <SimpleGrid columns={2} spacing={3}>
+                  <FormControl>
+                    <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">Date:</FormLabel>
+                    <Input type="date" name="date" value={formData.date} onChange={handleChange} size={{ base: 'sm', md: 'md' }} />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">Time:</FormLabel>
+                    <Input type="time" name="time" value={formData.time} onChange={handleChange} size={{ base: 'sm', md: 'md' }} />
+                  </FormControl>
                 </SimpleGrid>
 
+                {/* Ad Enquiry */}
                 <ValidatedInput
                   label="Ad Enquiry"
                   name="campaign"
@@ -591,7 +629,8 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   maxLength={100}
                 />
 
-                <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
+                {/* Email / Alternate Phone */}
+                <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
                   <ValidatedInput
                     label="Client Email Address"
                     name="email"
@@ -604,7 +643,6 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                     size={{ base: 'sm', md: 'md' }}
                     maxLength={100}
                   />
-
                   <ValidatedInput
                     label="Alternate Phone"
                     name="alternatePhone"
@@ -619,6 +657,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   />
                 </SimpleGrid>
 
+                {/* Address */}
                 <ValidatedInput
                   label="Address"
                   name="address"
@@ -630,43 +669,14 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   maxLength={200}
                 />
 
-                <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={4}>
-                  <ValidatedInput
-                    label="City"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                    error={errors.city}
-                    placeholder="City (optional)"
-                    size={{ base: 'sm', md: 'md' }}
-                    maxLength={50}
-                  />
-
-                  <ValidatedInput
-                    label="State"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleChange}
-                    error={errors.state}
-                    placeholder="State (optional)"
-                    size={{ base: 'sm', md: 'md' }}
-                    maxLength={50}
-                  />
-
-                  <ValidatedInput
-                    label="Pincode"
-                    name="pincode"
-                    value={formData.pincode}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    error={errors.pincode}
-                    placeholder="6 digit pincode (optional)"
-                    maxLength={6}
-                    size={{ base: 'sm', md: 'md' }}
-                    helperText="6 digits (optional)"
-                  />
+                {/* City / State / Pincode */}
+                <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3}>
+                  <ValidatedInput label="City" name="city" value={formData.city} onChange={handleChange} error={errors.city} placeholder="City (optional)" size={{ base: 'sm', md: 'md' }} maxLength={50} />
+                  <ValidatedInput label="State" name="state" value={formData.state} onChange={handleChange} error={errors.state} placeholder="State (optional)" size={{ base: 'sm', md: 'md' }} maxLength={50} />
+                  <ValidatedInput label="Pincode" name="pincode" value={formData.pincode} onChange={handleChange} onBlur={handleBlur} error={errors.pincode} placeholder="6 digit pincode (optional)" maxLength={6} size={{ base: 'sm', md: 'md' }} helperText="6 digits (optional)" />
                 </SimpleGrid>
 
+                {/* Remarks */}
                 <ValidatedTextarea
                   label="Remarks"
                   name="customerRequirement"
@@ -680,27 +690,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   rows={3}
                 />
 
-                <FormControl>
-                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
-                    Handled By:
-                  </FormLabel>
-                  <Select
-                    name="assignedToId"
-                    value={formData.assignedToId}
-                    onChange={handleChange}
-                    size={{ base: 'sm', md: 'md' }}
-                  >
-                    {agents.length === 0 && (
-                      <option value="">Loading...</option>
-                    )}
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} ({agent.email})
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-
+                {/* Full Submit */}
                 <Button
                   type="submit"
                   colorScheme="blue"
@@ -713,6 +703,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                 >
                   Submit
                 </Button>
+
               </VStack>
             </form>
           </ModalBody>

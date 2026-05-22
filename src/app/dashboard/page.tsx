@@ -29,12 +29,15 @@ import {
   FormControl,
   FormLabel,
   useToast,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle, FiXCircle } from 'react-icons/fi';
+import { HiPlus } from 'react-icons/hi';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
+import AddLeadModal from '@/features/leads/components/AddLeadModal';
 
 const StatCard = ({
   label,
@@ -104,6 +107,7 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 export default function DashboardPage() {
   const router = useRouter();
   const toast = useToast();
+  const { isOpen: isAddLeadOpen, onOpen: onAddLeadOpen, onClose: onAddLeadClose } = useDisclosure();
   
   const [startDate, setStartDate] = useState<string>(() => {
     // Default to Today
@@ -299,6 +303,15 @@ export default function DashboardPage() {
         w="full"
       >
         <Heading size={{ base: 'md', md: 'lg' }}>Dashboard</Heading>
+        <Button
+          size={{ base: 'sm', md: 'md' }}
+          colorScheme="blue"
+          leftIcon={<HiPlus />}
+          onClick={onAddLeadOpen}
+          width={{ base: 'full', sm: 'auto' }}
+        >
+          Add Lead
+        </Button>
       </Flex>
 
       {/* Stats Grid */}
@@ -494,6 +507,15 @@ export default function DashboardPage() {
           </Box>
         )}
       </Box>
+
+      <AddLeadModal
+        isOpen={isAddLeadOpen}
+        onClose={onAddLeadClose}
+        onSuccess={() => {
+          onAddLeadClose();
+          mutate();
+        }}
+      />
     </VStack>
   );
 }
