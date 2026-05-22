@@ -528,14 +528,16 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     // Must have had a call today
     if (!leadsWithCallsToday.has(lead.id)) return false;
     
-    // Determine the reference date (selected date or today)
+    // Determine the reference date: START of selected day.
+    // A follow-up is only "overdue" if it was scheduled BEFORE the selected date
+    // (i.e., a past date), NOT same-day follow-ups.
     let referenceDate: Date;
-    if (dateRange?.endDate) {
-      referenceDate = typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate;
-      referenceDate.setHours(23, 59, 59, 999); // End of selected date
+    if (dateRange?.startDate) {
+      referenceDate = typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : new Date((dateRange.startDate as Date).getTime());
+      referenceDate.setHours(0, 0, 0, 0); // Start of selected date
     } else {
-      referenceDate = new Date();
-      // Use current time for today
+      const now = new Date();
+      referenceDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     }
     
     // Check if this lead had any follow-up scheduled BEFORE now (overdue)
@@ -553,11 +555,12 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     if (!leadsWithCallsToday.has(lead.id)) return;
     
     let referenceDate: Date;
-    if (dateRange?.endDate) {
-      referenceDate = typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate;
-      referenceDate.setHours(23, 59, 59, 999);
+    if (dateRange?.startDate) {
+      referenceDate = typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : new Date((dateRange.startDate as Date).getTime());
+      referenceDate.setHours(0, 0, 0, 0); // Start of selected date
     } else {
-      referenceDate = new Date();
+      const now = new Date();
+      referenceDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     }
     
     const leadFollowups = followups.filter((f: any) => f.leadId === lead.id);

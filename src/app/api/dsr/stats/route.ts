@@ -272,16 +272,36 @@ export async function GET(request: NextRequest) {
       agents: agents.length
     });
 
-    // Build a map of leadId -> most recent scheduled follow-up date for overdue detection
-    const leadFollowupMap = new Map<string, Date>();
+    // Build a SET of lead IDs that have ANY active follow-up scheduled before the reference date.
+    // CRITICAL: Must use .some() (any overdue follow-up), NOT just the latest/most-recent follow-up.
+    // Using only the latest follow-up would miss leads that have BOTH an old overdue follow-up
+    // AND a future scheduled follow-up — causing KPI count vs table row count mismatches.
+    const overdueReferenceDate = (() => {
+      if (startDateParam) {
+        const d = new Date(startDateParam);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    })();
+
+    // Group follow-ups by leadId for quick lookup
+    const followupsByLeadId = new Map<string, Date[]>();
     allFollowups.forEach((followup: any) => {
-      const scheduledDate = typeof followup.scheduledAt === 'string' 
-        ? new Date(followup.scheduledAt) 
+      const scheduledDate = typeof followup.scheduledAt === 'string'
+        ? new Date(followup.scheduledAt)
         : followup.scheduledAt;
-      
-      const existing = leadFollowupMap.get(followup.leadId);
-      if (!existing || scheduledDate > existing) {
-        leadFollowupMap.set(followup.leadId, scheduledDate);
+      const existing = followupsByLeadId.get(followup.leadId) || [];
+      existing.push(scheduledDate);
+      followupsByLeadId.set(followup.leadId, existing);
+    });
+
+    // A lead is "overdue" if it has ANY active follow-up scheduled before the reference date
+    const overdueLeadIds = new Set<string>();
+    followupsByLeadId.forEach((dates, leadId) => {
+      if (dates.some(d => d < overdueReferenceDate)) {
+        overdueLeadIds.add(leadId);
       }
     });
 
@@ -302,24 +322,9 @@ export async function GET(request: NextRequest) {
       // A lead is "New Call" if it had a call today AND its callAttempts field = 1
       const isNewCall = hadCallToday && (lead.callAttempts || 0) === 1;
       
-      // 4️⃣ Overdue Calls Handled: CallLog.createdAt = selected_date AND FollowUp.scheduledAt < selected_date
-      // A lead had an overdue call if it had a call today AND there was a follow-up scheduled before today
-      const hadOverdueCallToday = hadCallToday && (() => {
-        // Determine reference date (end of selected date or current time)
-        let referenceDate: Date;
-        if (endDateParam) {
-          referenceDate = new Date(endDateParam);
-          referenceDate.setHours(23, 59, 59, 999);
-        } else {
-          referenceDate = new Date();
-        }
-        
-        // Check if this lead had a follow-up scheduled before the reference date
-        const scheduledFollowup = leadFollowupMap.get(lead.id);
-        if (!scheduledFollowup) return false;
-        
-        return scheduledFollowup < referenceDate;
-      })();
+      // 4️⃣ Overdue Calls Handled: CallLog.createdAt = selected_date AND lead has ANY follow-up before selected_date
+      // Uses the overdueLeadIds set (built with .some() logic) to match calculateDSRMetrics exactly
+      const hadOverdueCallToday = hadCallToday && overdueLeadIds.has(lead.id);
       
       // 2️⃣ Follow-Up Calls: CallLog.createdAt = selected_date AND Lead.callAttempts > 1 AND NOT overdue
       // A lead is "Follow-Up" if it had a call today AND its callAttempts field > 1 AND it's NOT an overdue call
@@ -460,57 +465,40 @@ export async function GET(request: NextRequest) {
         });
 
         // Build map of leadId -> most recent scheduled follow-up date
-        const leadFollowupMap = new Map<string, Date>();
+        // Build a follow-up lookup grouped by leadId for .some() overdue check
+        const agentFollowupsByLeadId = new Map<string, Date[]>();
         agentFollowups.forEach((followup: any) => {
-          const scheduledDate = typeof followup.scheduledAt === 'string' 
-            ? new Date(followup.scheduledAt) 
+          const scheduledDate = typeof followup.scheduledAt === 'string'
+            ? new Date(followup.scheduledAt)
             : followup.scheduledAt;
-          
-          const existing = leadFollowupMap.get(followup.leadId);
-          if (!existing || scheduledDate > existing) {
-            leadFollowupMap.set(followup.leadId, scheduledDate);
-          }
+          const existing = agentFollowupsByLeadId.get(followup.leadId) || [];
+          existing.push(scheduledDate);
+          agentFollowupsByLeadId.set(followup.leadId, existing);
         });
 
-        // 7️⃣ Overdue Calls Handled: Leads with calls on selected date where followup was overdue
-        const overdueLeads = agentLeads.filter((lead: any) => {
-          if (!agentLeadIds.has(lead.id)) return false;
-          
-          const scheduledFollowup = leadFollowupMap.get(lead.id);
-          if (!scheduledFollowup) return false;
-          
-          // Determine reference date
-          let refDate: Date;
-          if (endDateParam) {
-            refDate = new Date(endDateParam);
-            refDate.setHours(23, 59, 59, 999);
-          } else {
-            refDate = new Date();
+        // 7️⃣ Overdue Calls Handled: lead has ANY active follow-up before start of selected day
+        // Use .some() to match calculateDSRMetrics — catches leads with both past AND future follow-ups
+        const buildAgentRefDate = (): Date => {
+          if (startDateParam) {
+            const d = new Date(startDateParam);
+            d.setHours(0, 0, 0, 0);
+            return d;
           }
-          
-          return scheduledFollowup < refDate;
-        }).length;
+          const now = new Date();
+          return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        };
+        const agentRefDate = buildAgentRefDate();
 
-        // Get set of overdue lead IDs
+        // Build set of overdue lead IDs using .some() — ANY overdue follow-up qualifies
         const overdueLeadIds = new Set<string>();
-        agentLeads.forEach((lead: any) => {
-          if (!agentLeadIds.has(lead.id)) return;
-          
-          const scheduledFollowup = leadFollowupMap.get(lead.id);
-          if (!scheduledFollowup) return;
-          
-          let refDate: Date;
-          if (endDateParam) {
-            refDate = new Date(endDateParam);
-            refDate.setHours(23, 59, 59, 999);
-          } else {
-            refDate = new Date();
-          }
-          
-          if (scheduledFollowup < refDate) {
-            overdueLeadIds.add(lead.id);
+        agentLeadIds.forEach((leadId: string) => {
+          const dates = agentFollowupsByLeadId.get(leadId) || [];
+          if (dates.some(d => d < agentRefDate)) {
+            overdueLeadIds.add(leadId);
           }
         });
+
+        const overdueLeads = overdueLeadIds.size;
 
         // 4️⃣ Follow-up Calls: Leads that had calls today AND callAttempts > 1 AND NOT overdue
         // This ensures follow-up and overdue are mutually exclusive
