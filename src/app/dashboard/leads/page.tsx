@@ -23,9 +23,11 @@ import { HiSearch, HiX } from 'react-icons/hi';
 import LeadsTabContent from '@/features/leads/components/LeadsTabContent';
 import LeadOutcomesTabContent from '@/features/leads/components/LeadOutcomesTabContent';
 import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 export default function UnifiedLeadsPage() {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [leadsCount, setLeadsCount] = useState(0);
   const [leadOutcomesCount, setLeadOutcomesCount] = useState(0);
@@ -66,6 +68,14 @@ export default function UnifiedLeadsPage() {
       setActiveTabIndex(0);
     }
   }, [searchParams]);
+
+  // Default owner filter to logged-in Sales Agent's own ID, and date to Today
+  useEffect(() => {
+    if (user?.id && user?.role === 'Sales Agent') {
+      setGlobalOwnerFilter(user.id);
+      setGlobalDateRangeFilter('today');
+    }
+  }, [user?.id, user?.role]);
 
   const handleLeadsCountChange = (count: number) => {
     setLeadsCount(count);
