@@ -347,11 +347,18 @@ export async function GET(request: NextRequest) {
         ? lead.CallLog[0].remarks 
         : null;
       
+      // Get the nearest FUTURE follow-up date for this lead
+      const leadFollowupDates = followupsByLeadId.get(lead.id) || [];
+      const now = new Date();
+      const futureFollowups = leadFollowupDates.filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
+      const nextFollowupAt = futureFollowups.length > 0 ? futureFollowups[0].toISOString() : null;
+
       return {
         ...lead,
         assignedTo: lead.User_Lead_assignedToIdToUser,
         createdBy: lead.User_Lead_createdByIdToUser,
         callLogRemarks: mostRecentCallRemarks,  // Add call log remarks
+        nextFollowupAt,
         User_Lead_assignedToIdToUser: undefined,
         User_Lead_createdByIdToUser: undefined,
         CallLog: undefined,
