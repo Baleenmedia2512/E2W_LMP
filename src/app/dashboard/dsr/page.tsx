@@ -24,6 +24,7 @@ import {
   Divider,
   Icon,
   useToast,
+  useDisclosure,
   Spinner,
   Center,
   Tooltip,
@@ -33,6 +34,20 @@ import {
   MenuList,
   MenuItem,
   ButtonGroup,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalCloseButton,
+  ModalFooter,
+  Grid,
+  GridItem,
+  Tabs,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
 } from '@chakra-ui/react';
 import { 
   HiFilter, 
@@ -114,6 +129,8 @@ interface Lead {
   callStatus?: string;
   callAttempts?: number;
   duration?: number;
+  nextFollowupAt?: string | null;
+  leadId?: string; // Actual lead ID (differs from id when showing call logs in totalCalls mode)
 }
 
 interface AgentPerformance {
@@ -188,6 +205,13 @@ export default function DSRPage() {
   
   // Debounced search
   const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // Lead Details Modal state
+  const { isOpen: isLeadModalOpen, onOpen: onLeadModalOpen, onClose: onLeadModalClose } = useDisclosure();
+  const { isOpen: isRemarkModalOpen, onOpen: onRemarkModalOpen, onClose: onRemarkModalClose } = useDisclosure();
+  const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
+  const [selectedLeadDetails, setSelectedLeadDetails] = useState<any | null>(null);
+  const [isLeadDetailsLoading, setIsLeadDetailsLoading] = useState(false);
 
   // Show error toast if fetch fails
   useEffect(() => {
@@ -369,6 +393,33 @@ export default function DSRPage() {
     setCurrentPage(1);
   };
 
+  // Open small remarks modal
+  const handleRemarkClick = (text: string) => {
+    setSelectedRemark(text);
+    onRemarkModalOpen();
+  };
+
+  // Open lead details modal — works for both regular leads and call-log rows
+  const handleLeadNameClick = async (leadId: string) => {
+    if (!leadId) return;
+    setSelectedLeadDetails(null);
+    setIsLeadDetailsLoading(true);
+    onLeadModalOpen();
+    try {
+      const res = await fetch(`/api/leads/${leadId}`);
+      const json = await res.json();
+      if (json.success) {
+        setSelectedLeadDetails(json.data);
+      } else {
+        toast({ title: 'Error', description: 'Failed to load lead details', status: 'error', duration: 3000, isClosable: true, position: 'top-right' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load lead details', status: 'error', duration: 3000, isClosable: true, position: 'top-right' });
+    } finally {
+      setIsLeadDetailsLoading(false);
+    }
+  };
+
   // Reset all filters to default state
   const handleResetFilters = () => {
     // Reset to today's date
@@ -409,6 +460,7 @@ export default function DSRPage() {
       // Transform call logs to look like leads for table display
       const transformedCallLogs = callLogs.map(call => ({
         id: call.id,
+        leadId: call.Lead?.id || call.id, // Actual lead ID for the details modal
         name: call.Lead?.name || 'Unknown',
         phone: call.Lead?.phone || '',
         email: call.Lead?.email || '',
@@ -1111,11 +1163,15 @@ export default function DSRPage() {
             )}
           </Box>
 
-          <Box 
-            overflowX="auto" 
+          <Box
+            overflowX="auto"
+            overflowY="auto"
+            maxHeight="calc(100vh - 420px)"
+            minHeight="200px"
             css={{
               '&::-webkit-scrollbar': {
                 height: '8px',
+                width: '8px',
               },
               '&::-webkit-scrollbar-track': {
                 background: '#f1f1f1',
@@ -1130,12 +1186,21 @@ export default function DSRPage() {
             }}
           >
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
-              <Thead bg="gray.50">
+              <Thead bg="gray.50" position="sticky" top={0} zIndex={1}>
                 <Tr>
                   {activeCard === 'totalCalls' && (
                     <Th color={THEME_COLORS.dark}>Time</Th>
                   )}
-                  <Th color={THEME_COLORS.dark}>Lead Name</Th>
+                  <Th
+                    color={THEME_COLORS.dark}
+                    position="sticky"
+                    left={activeCard === 'totalCalls' ? '60px' : 0}
+                    zIndex={2}
+                    bg="gray.50"
+                    boxShadow="2px 0 4px rgba(0,0,0,0.08)"
+                  >
+                    Lead Name
+                  </Th>
                   <Th color={THEME_COLORS.dark}>Phone</Th>
                   <Th color={THEME_COLORS.dark} display={{ base: 'none', md: 'table-cell' }}>Email</Th>
                   {activeCard === 'totalCalls' ? (
@@ -1173,7 +1238,20 @@ export default function DSRPage() {
                           })}
                         </Td>
                       )}
-                      <Td fontWeight="medium" color={lead.is_existing ? "green.600" : THEME_COLORS.primary} fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
+                      <Td
+                        fontWeight="medium"
+                        color={lead.is_existing ? "green.600" : THEME_COLORS.primary}
+                        fontSize={{ base: 'xs', md: 'sm' }}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        _hover={{ textDecoration: 'underline', opacity: 0.8 }}
+                        onClick={() => handleLeadNameClick((lead as any).leadId || lead.id)}
+                        position="sticky"
+                        left={activeCard === 'totalCalls' ? '60px' : 0}
+                        zIndex={1}
+                        bg="white"
+                        boxShadow="2px 0 4px rgba(0,0,0,0.06)"
+                      >
                         {lead.name}
                       </Td>
                       <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">{formatPhoneForDisplay(lead.phone)}</Td>
@@ -1221,6 +1299,14 @@ export default function DSRPage() {
                             >
                               {lead.status === 'unreach' ? 'UNREACHABLE' : lead.status?.toUpperCase()}
                             </Badge>
+                            {lead.status === 'followup' && lead.nextFollowupAt && (
+                              <Text fontSize="xs" color="gray.600" mt={1} whiteSpace="nowrap">
+                                📅 {new Date(lead.nextFollowupAt).toLocaleString('en-IN', {
+                                  day: '2-digit', month: 'short',
+                                  hour: '2-digit', minute: '2-digit', hour12: true,
+                                })}
+                              </Text>
+                            )}
                           </Td>
                           <Td display={{ base: 'none', lg: 'table-cell' }}>
                             <Badge 
@@ -1241,8 +1327,20 @@ export default function DSRPage() {
                           <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
                             {lead.campaign || '-'}
                           </Td>
-                          <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
-                            {(lead as any).callLogRemarks || (lead as any).remarks || '-'}
+                          <Td
+                            fontSize={{ base: 'xs', md: 'sm' }}
+                            display={{ base: 'none', xl: 'table-cell' }}
+                            cursor={(lead as any).callLogRemarks || (lead as any).remarks ? 'pointer' : 'default'}
+                            _hover={(lead as any).callLogRemarks || (lead as any).remarks ? { bg: `${THEME_COLORS.light}30`, textDecoration: 'underline' } : {}}
+                            onClick={() => {
+                              const text = (lead as any).callLogRemarks || (lead as any).remarks;
+                              if (text) handleRemarkClick(text);
+                            }}
+                            title={(lead as any).callLogRemarks || (lead as any).remarks ? 'Click to view full remarks' : ''}
+                          >
+                            <Text noOfLines={2} maxW="160px" fontSize={{ base: 'xs', md: 'sm' }}>
+                              {(lead as any).callLogRemarks || (lead as any).remarks || '-'}
+                            </Text>
                           </Td>
                         </>
                       )}
@@ -1321,11 +1419,14 @@ export default function DSRPage() {
             </Text>
           </Box>
 
-          <Box 
+          <Box
             overflowX="auto"
+            overflowY="auto"
+            maxHeight="400px"
             css={{
               '&::-webkit-scrollbar': {
                 height: '8px',
+                width: '8px',
               },
               '&::-webkit-scrollbar-track': {
                 background: '#f1f1f1',
@@ -1340,13 +1441,18 @@ export default function DSRPage() {
             }}
           >
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
-              <Thead bg="gray.50">
+              <Thead bg="gray.50" position="sticky" top={0} zIndex={1}>
                 <Tr>
                   <Th 
                     color={THEME_COLORS.dark}
                     cursor="pointer"
                     onClick={() => handleSort('agentName')}
                     _hover={{ bg: 'gray.100' }}
+                    position="sticky"
+                    left={0}
+                    zIndex={2}
+                    bg="gray.50"
+                    boxShadow="2px 0 4px rgba(0,0,0,0.08)"
                   >
                     <Flex align="center" gap={1}>
                       Agent Name
@@ -1477,7 +1583,17 @@ export default function DSRPage() {
                       _hover={{ bg: `${THEME_COLORS.light}20` }}
                       transition="all 0.2s"
                     >
-                      <Td color={THEME_COLORS.primary} fontWeight="semibold" fontSize={{ base: 'xs', md: 'sm' }}>
+                      <Td
+                        color={THEME_COLORS.primary}
+                        fontWeight="semibold"
+                        fontSize={{ base: 'xs', md: 'sm' }}
+                        position="sticky"
+                        left={0}
+                        zIndex={1}
+                        bg="white"
+                        boxShadow="2px 0 4px rgba(0,0,0,0.06)"
+                        whiteSpace="nowrap"
+                      >
                         {row.agentName}
                       </Td>
                       <Td isNumeric fontSize={{ base: 'xs', md: 'sm' }}>
@@ -1536,6 +1652,270 @@ export default function DSRPage() {
           </Box>
         </CardBody>
       </Card>
+
+      {/* Lead Details Modal — opens on lead name click or remarks click */}
+      <Modal isOpen={isLeadModalOpen} onClose={onLeadModalClose} size="2xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.600" />
+        <ModalContent maxH="85vh">
+          <ModalHeader borderBottom="1px" borderColor="gray.100" pb={3}>
+            {isLeadDetailsLoading ? (
+              <HStack spacing={3}>
+                <Spinner size="sm" color={THEME_COLORS.primary} />
+                <Text fontSize="md" fontWeight="semibold">Loading...</Text>
+              </HStack>
+            ) : selectedLeadDetails ? (
+              <HStack spacing={2} flexWrap="wrap">
+                <Text color={THEME_COLORS.dark} fontWeight="bold">{selectedLeadDetails.name}</Text>
+                <Badge
+                  bg={
+                    selectedLeadDetails.status === 'won' ? 'green.500' :
+                    selectedLeadDetails.status === 'lost' ? 'red.500' :
+                    selectedLeadDetails.status === 'followup' ? THEME_COLORS.medium :
+                    selectedLeadDetails.status === 'unreach' ? 'gray.500' :
+                    selectedLeadDetails.status === 'unqualified' ? 'orange.500' :
+                    THEME_COLORS.primary
+                  }
+                  color="white"
+                  fontSize="xs"
+                >
+                  {selectedLeadDetails.status === 'unreach' ? 'UNREACHABLE' : selectedLeadDetails.status?.toUpperCase()}
+                </Badge>
+                {selectedLeadDetails.is_existing && (
+                  <Badge bg="green.100" color="green.700" fontSize="xs">Existing Customer</Badge>
+                )}
+              </HStack>
+            ) : 'Lead Details'}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody p={0}>
+            {isLeadDetailsLoading ? (
+              <Center py={12}><Spinner size="xl" color={THEME_COLORS.primary} /></Center>
+            ) : selectedLeadDetails ? (
+              <Tabs colorScheme="red" size="sm" isLazy>
+                <TabList px={4} bg="gray.50" borderBottom="1px" borderColor="gray.200">
+                  <Tab fontWeight="semibold" _selected={{ color: THEME_COLORS.primary, borderBottomColor: THEME_COLORS.primary }}>
+                    Lead Info
+                  </Tab>
+                  <Tab fontWeight="semibold" _selected={{ color: THEME_COLORS.primary, borderBottomColor: THEME_COLORS.primary }}>
+                    Call History ({selectedLeadDetails.CallLog?.length || 0})
+                  </Tab>
+                  <Tab fontWeight="semibold" _selected={{ color: THEME_COLORS.primary, borderBottomColor: THEME_COLORS.primary }}>
+                    Follow-ups ({selectedLeadDetails.FollowUp?.length || 0})
+                  </Tab>
+                </TabList>
+                <TabPanels>
+                  {/* Tab 1 — Lead Info */}
+                  <TabPanel p={4}>
+                    <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4}>
+                      <GridItem>
+                        <VStack align="start" spacing={3}>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Name</Text>
+                            <Text fontWeight="medium">{selectedLeadDetails.name}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Phone</Text>
+                            <Text>{formatPhoneForDisplay(selectedLeadDetails.phone)}</Text>
+                          </Box>
+                          {selectedLeadDetails.alternatePhone && (
+                            <Box>
+                              <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Alt Phone</Text>
+                              <Text>{formatPhoneForDisplay(selectedLeadDetails.alternatePhone)}</Text>
+                            </Box>
+                          )}
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Email</Text>
+                            <Text>{selectedLeadDetails.email || '—'}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Source</Text>
+                            <Badge bg={THEME_COLORS.accent} color="white">{selectedLeadDetails.source}</Badge>
+                          </Box>
+                          {selectedLeadDetails.campaign && (
+                            <Box>
+                              <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Campaign</Text>
+                              <Text>{selectedLeadDetails.campaign}</Text>
+                            </Box>
+                          )}
+                          {selectedLeadDetails.city && (
+                            <Box>
+                              <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>City</Text>
+                              <Text>{selectedLeadDetails.city}</Text>
+                            </Box>
+                          )}
+                        </VStack>
+                      </GridItem>
+                      <GridItem>
+                        <VStack align="start" spacing={3}>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Assigned To</Text>
+                            <Text fontWeight="medium" color={THEME_COLORS.primary}>{selectedLeadDetails.assignedTo?.name || 'Unassigned'}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Call Attempts</Text>
+                            <Badge bg={THEME_COLORS.medium} color="white">{selectedLeadDetails.callAttempts || 0}</Badge>
+                          </Box>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Created</Text>
+                            <Text>{selectedLeadDetails.createdAt ? formatDate(new Date(selectedLeadDetails.createdAt)) : '—'}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={0.5}>Last Updated</Text>
+                            <Text>{selectedLeadDetails.updatedAt ? formatDate(new Date(selectedLeadDetails.updatedAt)) : '—'}</Text>
+                          </Box>
+                        </VStack>
+                      </GridItem>
+                    </Grid>
+                    {selectedLeadDetails.customerRequirement && (
+                      <>
+                        <Divider my={4} />
+                        {selectedLeadDetails.customerRequirement && (
+                          <Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" mb={1}>Customer Requirement</Text>
+                            <Box bg="blue.50" p={3} borderRadius="md" borderLeft="3px solid" borderColor="blue.400">
+                              <Text fontSize="sm">{selectedLeadDetails.customerRequirement}</Text>
+                            </Box>
+                          </Box>
+                        )}
+                      </>
+                    )}
+                  </TabPanel>
+
+                  {/* Tab 2 — Call History */}
+                  <TabPanel p={4}>
+                    {selectedLeadDetails.CallLog?.length > 0 ? (
+                      <VStack spacing={3} align="stretch">
+                        {selectedLeadDetails.CallLog.map((call: any, idx: number) => (
+                          <Box
+                            key={call.id}
+                            p={3}
+                            border="1px"
+                            borderColor="gray.200"
+                            borderRadius="md"
+                            bg={idx === 0 ? `${THEME_COLORS.light}15` : 'white'}
+                          >
+                            <Flex justify="space-between" align="flex-start" mb={2} flexWrap="wrap" gap={2}>
+                              <HStack spacing={2} flexWrap="wrap">
+                                <Badge
+                                  bg={
+                                    call.callStatus === 'completed' || call.callStatus === 'answer' ? 'green.500' :
+                                    call.callStatus === 'no_answer' ? 'orange.500' :
+                                    call.callStatus === 'busy' ? 'yellow.600' :
+                                    call.callStatus === 'unreachable' ? 'red.500' :
+                                    'gray.400'
+                                  }
+                                  color="white"
+                                  fontSize="xs"
+                                >
+                                  {call.callStatus || 'N/A'}
+                                </Badge>
+                                <Badge bg={THEME_COLORS.medium} color="white" fontSize="xs">
+                                  Attempt #{call.attemptNumber}
+                                </Badge>
+                                {call.duration && (
+                                  <Badge variant="outline" colorScheme="gray" fontSize="xs">
+                                    {call.duration}s
+                                  </Badge>
+                                )}
+                              </HStack>
+                              <Text fontSize="xs" color="gray.500" whiteSpace="nowrap">
+                                {call.createdAt ? new Date(call.createdAt).toLocaleString('en-IN', {
+                                  day: '2-digit', month: 'short', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit', hour12: true,
+                                }) : '—'}
+                              </Text>
+                            </Flex>
+                            {call.remarks ? (
+                              <Box bg="gray.50" p={2} borderRadius="sm" borderLeft="3px solid" borderColor={THEME_COLORS.light}>
+                                <Text fontSize="sm" color={THEME_COLORS.dark}>{call.remarks}</Text>
+                              </Box>
+                            ) : (
+                              <Text fontSize="sm" color="gray.400" fontStyle="italic">No remarks recorded</Text>
+                            )}
+                          </Box>
+                        ))}
+                      </VStack>
+                    ) : (
+                      <Center py={8}>
+                        <Text color="gray.400">No call history available</Text>
+                      </Center>
+                    )}
+                  </TabPanel>
+
+                  {/* Tab 3 — Follow-ups */}
+                  <TabPanel p={4}>
+                    {selectedLeadDetails.FollowUp?.length > 0 ? (
+                      <VStack spacing={3} align="stretch">
+                        {selectedLeadDetails.FollowUp.map((fu: any) => {
+                          const scheduledDate = new Date(fu.scheduledAt);
+                          const isOverdue = scheduledDate < new Date() && fu.status !== 'completed';
+                          return (
+                            <Box
+                              key={fu.id}
+                              p={3}
+                              border="1px"
+                              borderColor={isOverdue ? 'red.200' : 'gray.200'}
+                              borderRadius="md"
+                              bg={fu.status === 'completed' ? 'green.50' : isOverdue ? 'red.50' : 'white'}
+                            >
+                              <Flex justify="space-between" align="flex-start" mb={2} flexWrap="wrap" gap={2}>
+                                <Text
+                                  fontSize="xs"
+                                  color={isOverdue ? 'red.600' : 'gray.500'}
+                                  fontWeight={isOverdue ? 'bold' : 'normal'}
+                                  whiteSpace="nowrap"
+                                >
+                                  📅 {scheduledDate.toLocaleString('en-IN', {
+                                    day: '2-digit', month: 'short', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit', hour12: true,
+                                  })}
+                                  {isOverdue && ' — OVERDUE'}
+                                </Text>
+                              </Flex>
+                              {fu.notes ? (
+                                <Box bg="gray.50" p={2} borderRadius="sm" borderLeft="3px solid" borderColor={isOverdue ? 'red.300' : THEME_COLORS.light}>
+                                  <Text fontSize="sm">{fu.notes}</Text>
+                                </Box>
+                              ) : (
+                                <Text fontSize="sm" color="gray.400" fontStyle="italic">No notes</Text>
+                              )}
+                            </Box>
+                          );
+                        })}
+                      </VStack>
+                    ) : (
+                      <Center py={8}>
+                        <Text color="gray.400">No follow-ups scheduled</Text>
+                      </Center>
+                    )}
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
+            ) : (
+              <Center py={8}><Text color="gray.400">Failed to load lead details. Please try again.</Text></Center>
+            )}
+          </ModalBody>
+          <ModalFooter borderTop="1px" borderColor="gray.100" py={3}>
+            <Button onClick={onLeadModalClose} size="sm" colorScheme="gray">Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Remarks Modal */}
+      <Modal isOpen={isRemarkModalOpen} onClose={onRemarkModalClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader fontSize="md">Remarks</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Box bg="gray.50" p={4} borderRadius="md" border="1px solid" borderColor="gray.200">
+              <Text whiteSpace="pre-wrap" fontSize="md">
+                {selectedRemark || 'No remarks provided'}
+              </Text>
+            </Box>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
