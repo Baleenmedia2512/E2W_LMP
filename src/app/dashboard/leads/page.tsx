@@ -69,11 +69,11 @@ export default function UnifiedLeadsPage() {
     }
   }, [searchParams]);
 
-  // Default owner filter to logged-in Sales Agent's own ID, and date to Today
+  // Default owner filter to logged-in Sales Agent's own ID
   useEffect(() => {
     if (user?.id && user?.role === 'Sales Agent') {
       setGlobalOwnerFilter(user.id);
-      setGlobalDateRangeFilter('today');
+      setGlobalDateRangeFilter('all');
     }
   }, [user?.id, user?.role]);
 
