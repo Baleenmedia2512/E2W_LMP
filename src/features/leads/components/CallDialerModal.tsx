@@ -65,6 +65,7 @@ export default function CallDialerModal({
   const [callPhase, setCallPhase] = useState<CallPhase>('dialing');
   const { errors, setError, clearError, clearAllErrors } = useFormValidation();
   const confirmDialog = useConfirmDialog();
+  const cancelDialog = useConfirmDialog();
   
   // Define callSaved before using it in useUnsavedChanges
   const [callSaved, setCallSaved] = useState(false);
@@ -722,6 +723,41 @@ export default function CallDialerModal({
     }
   };
 
+  const handleCancelCall = () => {
+    cancelDialog.onOpen();
+  };
+
+  const handleCancelCallConfirmed = () => {
+    // Discard: always remove from localStorage, never save to DB
+    localStorage.removeItem(`unsaved_call_${leadId}`);
+    setCallPhase('dialing');
+    setStartTime(null);
+    setEndTime(null);
+    setDuration(0);
+    setCallTimer(0);
+    setCallStatus('answer');
+    setCustomerRequirement('');
+    setRemarks('');
+    setRemarksInitialized(false);
+    setCallDate('');
+    setCallTime('');
+    setFollowUpTimeframe('tomorrow');
+    setFollowUpDate('');
+    setFollowUpTime('');
+    setFollowUpNotes('');
+    setFollowUpPriority('medium');
+    setNextAction(null);
+    setUnqualifiedReason('');
+    setUnqualifiedNotes('');
+    setUnreachableReason('');
+    setUnreachableNotes('');
+    setCallSaved(false);
+    setHasUnsavedChanges(false);
+    clearAllErrors();
+    cancelDialog.onClose();
+    onClose();
+  };
+
   const handleCloseWithConfirm = () => {
     if (hasUnsavedChanges && !callSaved) {
       confirmDialog.onOpen();
@@ -1356,15 +1392,28 @@ export default function CallDialerModal({
 
         <ModalFooter>
           {callPhase === 'ended' && !['followup', 'win', 'lost', 'unqualified', 'unreachable'].includes(nextAction || '') && (
-            <Button 
-              width="full"
-              colorScheme="blue" 
-              onClick={handleSaveCall}
-              isDisabled={callSaved}
-              size="lg"
-            >
-              {callSaved ? 'Call Saved' : 'Save Call'}
-            </Button>
+            <HStack width="full" spacing={3}>
+              {!callSaved && (
+                <Button
+                  flex="1"
+                  colorScheme="red"
+                  variant="outline"
+                  onClick={handleCancelCall}
+                  size="lg"
+                >
+                  Cancel Call
+                </Button>
+              )}
+              <Button
+                flex="1"
+                colorScheme="blue"
+                onClick={handleSaveCall}
+                isDisabled={callSaved}
+                size="lg"
+              >
+                {callSaved ? 'Call Saved' : 'Save Call'}
+              </Button>
+            </HStack>
           )}
         </ModalFooter>
       </ModalContent>
@@ -1378,6 +1427,17 @@ export default function CallDialerModal({
       message="You have unsaved call details. Are you sure you want to close? All entered information will be lost."
       confirmText="Discard"
       cancelText="Keep Editing"
+      confirmColorScheme="red"
+    />
+
+    <ConfirmDialog
+      isOpen={cancelDialog.isOpen}
+      onClose={cancelDialog.onClose}
+      onConfirm={handleCancelCallConfirmed}
+      title="Discard This Call?"
+      message="This call will NOT be saved to the database. The lead will have no record of this call attempt."
+      confirmText="Yes, Discard"
+      cancelText="Keep"
       confirmColorScheme="red"
     />
   </>
