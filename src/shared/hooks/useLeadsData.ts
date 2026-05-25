@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import useSWR from 'swr';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import type { Lead } from '@/shared/types';
@@ -314,13 +315,13 @@ export function useLeadDetailData(leadId: string | null) {
  * Provides automatic caching for instant navigation
  */
 export function useCallLogs(statusFilter: string = 'all') {
+  // Always fetch all logs — statusFilter applied client-side so changing the
+  // dropdown never triggers a new API call (instant, no extra DB hit)
   const params = new URLSearchParams({ limit: '100' });
-  if (statusFilter !== 'all') {
-    params.append('status', statusFilter);
-  }
 
   const fetchCallLogs = async (url: string) => {
-    const res = await fetch(url, { cache: 'no-store' });
+    // Removed cache: 'no-store' — let SWR and browser cache work normally
+    const res = await fetch(url);
     const result = await res.json();
     
     if (!result.success) {
@@ -341,13 +342,20 @@ export function useCallLogs(statusFilter: string = 'all') {
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
-      dedupingInterval: 5000,
+      dedupingInterval: 60000, // 60s cache — revisiting within 1 min is instant
       keepPreviousData: true,
     }
   );
 
+  // Apply statusFilter client-side — no extra API call on dropdown change
+  const callLogs = useMemo(() => {
+    const all = data || [];
+    if (statusFilter === 'all') return all;
+    return all.filter((log: any) => log.callStatus === statusFilter);
+  }, [data, statusFilter]);
+
   return {
-    callLogs: data || [],
+    callLogs,
     isLoading,
     isValidating,
     error,

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import useSWR from 'swr';
+import { fetcher } from '@/shared/lib/swr';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -126,12 +128,84 @@ export default function LeadOutcomesTabContent({
   // Ref for scrolling to Won section
   const wonSectionRef = useRef<HTMLDivElement>(null);
   
-  // State for data
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [owners, setOwners] = useState<{ id: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  // Only include custom dates in SWR key — avoids double-fetch when min/max dates are computed
+  const customStart = dateRangeFilter === 'custom' ? startDate : '';
+  const customEnd = dateRangeFilter === 'custom' ? endDate : '';
+
+  const outcomesUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (ownerFilter !== 'all') params.append('assignedToId', ownerFilter);
+    if (sourceFilter !== 'all') params.append('source', sourceFilter);
+    if (dateRangeFilter !== 'all' && dateRangeFilter !== 'custom') {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const fmt = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dateRangeFilter === 'today') {
+        const t = fmt(today); params.append('startDate', t); params.append('endDate', t);
+      } else if (dateRangeFilter === 'week') {
+        const w = new Date(today); w.setDate(w.getDate() - 7);
+        params.append('startDate', fmt(w)); params.append('endDate', fmt(today));
+      } else if (dateRangeFilter === 'month') {
+        const m = new Date(today); m.setDate(m.getDate() - 30);
+        params.append('startDate', fmt(m)); params.append('endDate', fmt(today));
+      }
+    }
+    if (dateRangeFilter === 'custom') {
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+    }
+    params.append('limit', '2000');
+    return `/api/leads/outcomes?${params.toString()}`;
+  }, [ownerFilter, sourceFilter, dateRangeFilter, customStart, customEnd]);
+
+  // SWR for outcomes — cached 30s, no refetch on focus
+  const { data: outcomesRawData, isLoading, isValidating: isRefreshing } = useSWR(
+    outcomesUrl,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 30000 }
+  );
+
+  // SWR for users — cached 5 min (users rarely change)
+  const { data: usersRawData } = useSWR('/api/users', fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 300000,
+  });
+
+  // Derive leads and owners from SWR data
+  const leads = useMemo(() => outcomesRawData?.data || [], [outcomesRawData]);
+  const owners = useMemo(() => usersRawData?.data || [], [usersRawData]);
+  const loading = isLoading && (!outcomesRawData);
+
+  // Notify parent about available owners
+  useEffect(() => {
+    if (usersRawData?.data && onOwnersLoad) {
+      onOwnersLoad(usersRawData.data);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usersRawData?.data]);
+
   const [dateRangeComputed, setDateRangeComputed] = useState(false);
+
+  // Compute min/max date range from outcomes data on first load (dateRangeFilter = 'all')
+  useEffect(() => {
+    if (outcomesRawData?.data && outcomesRawData.data.length > 0 && !dateRangeComputed && dateRangeFilter === 'all') {
+      const fetchedLeads = outcomesRawData.data as Lead[];
+      const dates = fetchedLeads.map((l: Lead) => new Date(l.updatedAt).getTime());
+      const minDate = new Date(Math.min(...dates));
+      const maxDate = new Date(Math.max(...dates));
+      minDate.setDate(minDate.getDate() - 1);
+      const fmt = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const minStr = fmt(minDate);
+      const maxStr = fmt(maxDate);
+      setDataMinDate(minStr);
+      setDataMaxDate(maxStr);
+      setStartDate(minStr);
+      setEndDate(maxStr);
+      setDateRangeComputed(true);
+    }
+  }, [outcomesRawData, dateRangeComputed, dateRangeFilter]);
   const [rescheduleLeadId, setRescheduleLeadId] = useState<string | null>(null);
   const [rescheduleLeadName, setRescheduleLeadName] = useState<string>('');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -168,121 +242,7 @@ export default function LeadOutcomesTabContent({
     lost: { field: 'updatedAt', direction: 'desc' },
   });
 
-  const fetchData = async () => {
-    try {
-      // Only show full loading spinner on initial load
-      if (!initialLoadComplete) {
-        setLoading(true);
-      }
-      
-      // Build query params
-      const params = new URLSearchParams();
-      // Removed search from API - using client-side filtering for instant results
-      if (ownerFilter !== 'all') params.append('assignedToId', ownerFilter);
-      if (sourceFilter !== 'all') params.append('source', sourceFilter);
-      
-      // Handle date range filter
-      if (dateRangeFilter !== 'all' && dateRangeFilter !== 'custom') {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        // Format date as YYYY-MM-DD in local timezone
-        const formatLocalDate = (date: Date) => {
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        };
-        
-        if (dateRangeFilter === 'today') {
-          const todayStr = formatLocalDate(today);
-          params.append('startDate', todayStr);
-          params.append('endDate', todayStr);
-        } else if (dateRangeFilter === 'week') {
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          params.append('startDate', formatLocalDate(weekAgo));
-          params.append('endDate', formatLocalDate(today));
-        } else if (dateRangeFilter === 'month') {
-          const monthAgo = new Date(today);
-          monthAgo.setDate(monthAgo.getDate() - 30);
-          params.append('startDate', formatLocalDate(monthAgo));
-          params.append('endDate', formatLocalDate(today));
-        }
-      }
-      
-      // Custom date range (when dateRangeFilter is 'custom')
-      if (dateRangeFilter === 'custom' || startDate || endDate) {
-        if (startDate) params.append('startDate', startDate);
-        if (endDate) params.append('endDate', endDate);
-      }
-      
-      // Use smaller limit when searching for better performance
-      params.append('limit', '2000');
-      
-      const [leadsRes, usersRes] = await Promise.all([
-        fetch(`/api/leads/outcomes?${params.toString()}`),
-        fetch('/api/users'),
-      ]);
-      
-      const leadsData = await leadsRes.json();
-      const usersData = await usersRes.json();
-      
-      if (leadsData.success) {
-        const fetchedLeads = leadsData.data || [];
-        setLeads(fetchedLeads);
-        
-        // On initial load, compute min and max dates from the data for display
-        // Subtract 1 day from min to ensure all leads are included when filtering
-        if (!dateRangeComputed && fetchedLeads.length > 0) {
-          const dates = fetchedLeads.map((lead: Lead) => new Date(lead.updatedAt).getTime());
-          const minDate = new Date(Math.min(...dates));
-          const maxDate = new Date(Math.max(...dates));
-          
-          // Subtract 1 day from minDate to account for timezone differences
-          minDate.setDate(minDate.getDate() - 1);
-          
-          // Format dates as YYYY-MM-DD
-          const formatDateStr = (date: Date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          };
-          
-          const minDateStr = formatDateStr(minDate);
-          const maxDateStr = formatDateStr(maxDate);
-          
-          // Store the computed min/max dates
-          setDataMinDate(minDateStr);
-          setDataMaxDate(maxDateStr);
-          
-          setStartDate(minDateStr);
-          setEndDate(maxDateStr);
-          setDateRangeComputed(true);
-        }
-      }
-      
-      if (usersData.success) {
-        const ownersData = usersData.data || [];
-        setOwners(ownersData);
-        // Notify parent about available owners for the global filter
-        if (onOwnersLoad) {
-          onOwnersLoad(ownersData);
-        }
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load data',
-        status: 'error',
-        duration: 3000,
-      });
-    } finally {
-      setLoading(false);
-      setInitialLoadComplete(true);
-    }
-  };
+
 
   // Fetch historical won leads
   const fetchHistoricalWonLeads = async () => {
@@ -386,10 +346,6 @@ export default function LeadOutcomesTabContent({
       }
     }
   }, [dateRangeFilter, dataMinDate, dataMaxDate]);
-
-  useEffect(() => {
-    fetchData();
-  }, [ownerFilter, sourceFilter, dateRangeFilter, startDate, endDate]); // Removed searchQuery - filter client-side
 
   // Use the hook for continuous scroll tracking
   useScrollRestoration('/dashboard/leads/outcomes', 100);
