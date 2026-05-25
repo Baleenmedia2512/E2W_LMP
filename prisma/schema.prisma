@@ -128,6 +128,11 @@ model Lead {
   @@index([createdById])
   @@index([source])
   @@index([status])
+  // Composite indexes for common query patterns — eliminates multi-index merges in PostgreSQL
+  @@index([status, createdAt])                    // Default view: filter by status + sort by date
+  @@index([assignedToId, status, createdAt])      // Agent view: filter by owner + status + sort by date
+  @@index([status, assignedToId])                 // Count queries: status + owner lookup
+  @@index([updatedAt])                            // Outcomes tab sorts by updatedAt
 }
 
 model Notification {

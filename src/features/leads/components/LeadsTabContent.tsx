@@ -362,6 +362,8 @@ function LeadsTabContent({
     status: string;
   } | null>(null);
   // Fetch leads and follow-ups using SWR for optimal caching and revalidation
+  // assignedToId pushes owner filtering to the DB — when a specific agent is selected,
+  // the API returns only their leads instead of all 2000+ being filtered in JS
   const {
     leads,
     followUps,
@@ -373,7 +375,11 @@ function LeadsTabContent({
     mutateFollowUps,
   } = useLeadsAndFollowUps({
     assignedToMe: assignedToMe && ownerFilter === 'all',
-    limit: 2000,
+    assignedToId: ownerFilter !== 'all' ? ownerFilter : undefined, // Server-side owner filter
+    // dashboardMode=true (default): fetches only new leads + leads with follow-ups (~200-400 rows)
+    // dashboardMode=false (Show All): fetches full dataset (2000 rows, only on demand)
+    dashboardMode: showOnlyToday,
+    limit: showOnlyToday ? 500 : 2000,
     refreshInterval: 0, // Manual refresh only
   });
 
@@ -381,16 +387,11 @@ function LeadsTabContent({
   const optimisticUpdateLead = (leadId: string, updates: Partial<Lead>) => {
     if (!leads) return;
     
-    // Find and update the lead in the array optimistically
+    // Update SWR cache immediately — UI reflects change instantly, no spinner
     const updatedLeads = leads.map(lead => 
       lead.id === leadId ? { ...lead, ...updates } : lead
     );
-    
-    // Update SWR cache immediately (no revalidation)
-    mutateLeads(updatedLeads, false);
-    
-    // Background refresh after 100ms
-    setTimeout(() => refreshAll(), 100);
+    mutateLeads(updatedLeads, false); // false = don't re-fetch (was triggering a full 2000-lead reload after 100ms)
   };
   
   // Scroll restoration state - hide content until scroll is restored

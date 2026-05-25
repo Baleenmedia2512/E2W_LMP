@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const mode = searchParams.get('mode'); // 'dashboard' = smart fetch for default view
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
@@ -78,6 +79,40 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // ─── DASHBOARD MODE ────────────────────────────────────────────────────────
+    // When mode=dashboard (the default leads page view), only fetch leads that
+    // are actually visible on the dashboard instead of all 2000+ records.
+    //
+    // The dashboard shows exactly two groups of leads:
+    //   1. "New Leads" section  → leads with status='new' (never had a follow-up)
+    //   2. "Overdue/Scheduled"  → leads that have at least one active follow-up
+    //
+    // Everything else (qualified with no follow-up, old leads with no action) is
+    // NOT shown on the default dashboard, so there's no reason to fetch them.
+    // This cuts the query from 2000+ rows down to ~100–400 rows.
+    if (mode === 'dashboard') {
+      const outcomeStatuses = ['won', 'lost', 'unqualified', 'unreach', 'unreachable'];
+
+      // Exclude leads that are in terminal/outcome statuses
+      where.status = { notIn: outcomeStatuses };
+
+      // Only fetch leads the dashboard will actually display:
+      // new-status leads (New Leads section) OR leads with pending follow-ups (Overdue + Scheduled)
+      where.AND = [
+        {
+          OR: [
+            { status: 'new' },
+            {
+              FollowUp: {
+                some: { status: { notIn: ['completed', 'cancelled'] } },
+              },
+            },
+          ],
+        },
+      ];
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     const [leads, total] = await Promise.all([
       prisma.lead.findMany({
         where,
@@ -86,7 +121,7 @@ export async function GET(request: NextRequest) {
           User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
           CallLog: { 
             orderBy: { createdAt: 'desc' }, 
-            take: 10,
+            take: 3, // Only need last 3 for list view (was 10 = 20,000 extra rows for 2000 leads)
             select: {
               id: true,
               remarks: true,
@@ -98,19 +133,8 @@ export async function GET(request: NextRequest) {
               attemptNumber: true,
             }
           },
-          FollowUp: {
-            where: { status: { notIn: ['completed', 'cancelled'] } }, // Fetch all active follow-ups
-            orderBy: { scheduledAt: 'desc' },
-            take: 5,
-            select: {
-              id: true,
-              scheduledAt: true,
-              status: true,
-              notes: true,
-              customerRequirement: true,
-              createdAt: true,
-            }
-          },
+          // FollowUp removed from list API — already fetched separately via /api/followups
+          // Removing this saves 5 rows × N leads = thousands of DB rows per request
         },
         orderBy: { createdAt: 'desc' },
         skip,
