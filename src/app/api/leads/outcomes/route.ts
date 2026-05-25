@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '2000');
+    const limit = parseInt(searchParams.get('limit') || '500'); // Reduced from 2000 — outcomes tab already filters server-side
     const skip = (page - 1) * limit;
 
     // Build where clause
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
           User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
           CallLog: { 
             orderBy: { createdAt: 'desc' }, 
-            take: 10,
+            take: 3, // Reduced from 10 — only last 3 needed for list display
             select: {
               id: true,
               remarks: true,
@@ -81,18 +81,7 @@ export async function GET(request: NextRequest) {
               attemptNumber: true,
             }
           },
-          FollowUp: {
-            orderBy: { scheduledAt: 'desc' },
-            take: 5,
-            select: {
-              id: true,
-              scheduledAt: true,
-              status: true,
-              notes: true,
-              customerRequirement: true,
-              createdAt: true,
-            }
-          },
+          // FollowUp removed — not used in LeadOutcomesTabContent, saves 5 rows × N leads per request
         },
         orderBy: { updatedAt: 'desc' },
         skip,
