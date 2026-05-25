@@ -343,6 +343,7 @@ function LeadsTabContent({
   const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
   const [showOnlyToday, setShowOnlyToday] = useState<boolean>(true); // Default: show only today's leads
   const [visibleCount, setVisibleCount] = useState<number>(50); // Lazy loading: initially show 50 leads
+  const [visibleNewLeadsCount, setVisibleNewLeadsCount] = useState<number>(15); // Lazy loading for New Leads section
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
   const [leadToAssign, setLeadToAssign] = useState<{
     id: string;
@@ -469,6 +470,7 @@ function LeadsTabContent({
     setAssignedToMe(false);
     setShowOnlyToday(true); // Reset to default: show only today's leads
     setVisibleCount(50); // Reset lazy loading
+    setVisibleNewLeadsCount(15); // Reset new leads lazy loading
   };
   
   // Update current time every minute for visual updates
@@ -797,24 +799,31 @@ function LeadsTabContent({
     return { ...categorized, statusFiltered: [] };
   }, [filteredLeads, followUps, currentTime, statusFilter, showOnlyToday]); // Re-calculate when time updates or showOnlyToday changes
 
-  // Lazy loaded leads - only limit when showing all leads (showOnlyToday = false)
+  // Lazy loaded leads - limit New Leads section always; limit others only in "Show All" mode
   const lazyLoadedLeads = useMemo(() => {
-    // When showing only today's leads, return all (typically small count, no lazy loading needed)
+    // When showing only today's leads, still lazy-load the New Leads section for fast render
     if (showOnlyToday) {
-      const totalItems = categorizedLeads.overdue.length + categorizedLeads.newLeads.length + 
+      const slicedNewLeads = categorizedLeads.newLeads.slice(0, visibleNewLeadsCount);
+      const totalNewLeads = categorizedLeads.newLeads.length;
+      const hasMoreNewLeads = slicedNewLeads.length < totalNewLeads;
+
+      const totalItems = categorizedLeads.overdue.length + totalNewLeads +
                          categorizedLeads.future.length + categorizedLeads.statusFiltered.length;
+      const visibleItems = categorizedLeads.overdue.length + slicedNewLeads.length +
+                           categorizedLeads.future.length + categorizedLeads.statusFiltered.length;
       return {
         ...categorizedLeads,
+        newLeads: slicedNewLeads,
         totalItems,
-        visibleItems: totalItems,
-        hasMore: false,
+        visibleItems,
+        hasMore: hasMoreNewLeads,
         // Per-category totals and hasMore flags
         totalOverdue: categorizedLeads.overdue.length,
-        totalNewLeads: categorizedLeads.newLeads.length,
+        totalNewLeads,
         totalFuture: categorizedLeads.future.length,
         totalStatusFiltered: categorizedLeads.statusFiltered.length,
         hasMoreOverdue: false,
-        hasMoreNewLeads: false,
+        hasMoreNewLeads,
         hasMoreFuture: false,
         hasMoreStatusFiltered: false,
       };
@@ -863,7 +872,7 @@ function LeadsTabContent({
       hasMoreFuture,
       hasMoreStatusFiltered,
     };
-  }, [categorizedLeads, visibleCount, showOnlyToday]);
+  }, [categorizedLeads, visibleCount, visibleNewLeadsCount, showOnlyToday]);
 
   // Update parent component with total filtered leads count (not just visible)
   useEffect(() => {
@@ -875,6 +884,16 @@ function LeadsTabContent({
   // Load more handler for lazy loading
   const handleLoadMore = () => {
     setVisibleCount(prev => prev + 50);
+  };
+
+  // Reset new leads visible count when filters change so "Load More" resets
+  useEffect(() => {
+    setVisibleNewLeadsCount(15);
+  }, [searchQuery, statusFilter, sourceFilter, ownerFilter, dateRangeFilter, attemptsFilter, clientTypeFilter, showOnlyToday]);
+
+  // Load more handler specifically for New Leads section
+  const handleLoadMoreNewLeads = () => {
+    setVisibleNewLeadsCount(prev => prev + 15);
   };
 
   const getStatusColor = (status: string) => {
@@ -1022,6 +1041,7 @@ function LeadsTabContent({
               onChange={(e) => {
                 setShowOnlyToday(!e.target.checked);
                 setVisibleCount(50); // Reset lazy loading when toggling
+                setVisibleNewLeadsCount(15); // Reset new leads lazy loading
               }}
               size={{ base: 'sm', md: 'md' }}
               colorScheme="blue"
@@ -1126,6 +1146,7 @@ function LeadsTabContent({
             </Flex>
             
             {!isNewLeadsCollapsed && (lazyLoadedLeads.newLeads.length > 0 ? (
+              <>
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 2, md: 3 }}>
                 {lazyLoadedLeads.newLeads.map(({ lead, followUp }) => {
                   const lastCall = getLastCallForLead(lead.id);
@@ -1170,6 +1191,20 @@ function LeadsTabContent({
                   );
                 })}
               </SimpleGrid>
+              {/* Load More for New Leads */}
+              {lazyLoadedLeads.hasMoreNewLeads && (
+                <Flex justify="center" mt={4}>
+                  <Button
+                    onClick={handleLoadMoreNewLeads}
+                    size="sm"
+                    variant="outline"
+                    colorScheme="blue"
+                  >
+                    Load More ({lazyLoadedLeads.totalNewLeads - lazyLoadedLeads.newLeads.length} remaining)
+                  </Button>
+                </Flex>
+              )}
+              </>
             ) : (
               <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="lg" textAlign="center">
                 <Text color="gray.500" fontSize={{ base: 'sm', md: 'md' }}>No new leads</Text>

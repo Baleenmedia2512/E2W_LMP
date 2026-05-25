@@ -51,6 +51,13 @@ export default function UnifiedLeadsPage() {
   };
   
   const [activeTabIndex, setActiveTabIndex] = useState(getInitialTab());
+  // Lazy mount: only render LeadOutcomesTabContent when first visited
+  const [hasVisitedOutcomes, setHasVisitedOutcomes] = useState(() => getInitialTab() === 1);
+
+  const handleTabChange = (index: number) => {
+    if (index === 1) setHasVisitedOutcomes(true);
+    setActiveTabIndex(index);
+  };
 
   // Callback for global search - use transition to keep UI responsive
   const handleGlobalSearch = useCallback((query: string) => {
@@ -64,6 +71,7 @@ export default function UnifiedLeadsPage() {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'outcomes') {
       setActiveTabIndex(1);
+      setHasVisitedOutcomes(true);
     } else {
       setActiveTabIndex(0);
     }
@@ -240,7 +248,7 @@ export default function UnifiedLeadsPage() {
       {/* Tabs */}
       <Tabs 
         index={activeTabIndex} 
-        onChange={setActiveTabIndex}
+        onChange={handleTabChange}
         variant="enclosed"
         colorScheme="blue"
       >
@@ -308,19 +316,21 @@ export default function UnifiedLeadsPage() {
             />
           </TabPanel>
 
-          {/* Lead Outcomes Tab Panel - With global filters and search */}
+          {/* Lead Outcomes Tab Panel - Only mounted when first visited */}
           <TabPanel p={0} pt={4}>
-            <LeadOutcomesTabContent 
-              onCountChange={handleLeadOutcomesCountChange}
-              globalSearchQuery={globalSearchQuery}
-              globalClientTypeFilter={globalClientTypeFilter}
-              globalSourceFilter={globalSourceFilter}
-              globalOwnerFilter={globalOwnerFilter}
-              globalDateRangeFilter={globalDateRangeFilter}
-              onOwnersLoad={(owners) => {
-                setAvailableOwners(owners);
-              }}
-            />
+            {hasVisitedOutcomes && (
+              <LeadOutcomesTabContent 
+                onCountChange={handleLeadOutcomesCountChange}
+                globalSearchQuery={globalSearchQuery}
+                globalClientTypeFilter={globalClientTypeFilter}
+                globalSourceFilter={globalSourceFilter}
+                globalOwnerFilter={globalOwnerFilter}
+                globalDateRangeFilter={globalDateRangeFilter}
+                onOwnersLoad={(owners) => {
+                  setAvailableOwners(owners);
+                }}
+              />
+            )}
           </TabPanel>
         </TabPanels>
       </Tabs>
