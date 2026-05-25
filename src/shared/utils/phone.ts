@@ -22,7 +22,12 @@ export function cleanPhoneNumber(phone: string | null | undefined): string {
   // Remove all non-digit characters
   const digitsOnly = phone.replace(/\D/g, '');
   
-  // Extract last 10 digits
+  // If 11 digits starting with 0, it's a trunk-prefixed landline (e.g. 04442699090) — preserve as-is
+  if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) {
+    return digitsOnly;
+  }
+  
+  // Extract last 10 digits (handles +91/0091 prefixed mobile numbers)
   const last10Digits = digitsOnly.slice(-10);
   
   return last10Digits;
@@ -56,8 +61,8 @@ export function formatPhoneForDisplay(phone: string | null | undefined): string 
 export function formatPhoneForDialer(phone: string | null | undefined): string | null {
   const cleaned = cleanPhoneNumber(phone);
   
-  // Validate: must be exactly 10 digits
-  if (cleaned.length !== 10) {
+  // Valid: 10-digit mobile OR 11-digit trunk-prefixed landline (e.g. 04442699090)
+  if (cleaned.length !== 10 && !(cleaned.length === 11 && cleaned.startsWith('0'))) {
     return null;
   }
   
@@ -75,7 +80,7 @@ export function formatPhoneForDialer(phone: string | null | undefined): string |
  */
 export function isValidPhone(phone: string | null | undefined): boolean {
   const cleaned = cleanPhoneNumber(phone);
-  return cleaned.length === 10;
+  return cleaned.length === 10 || (cleaned.length === 11 && cleaned.startsWith('0'));
 }
 
 /**
