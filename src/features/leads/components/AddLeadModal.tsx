@@ -552,9 +552,9 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   {errors.source && <FormErrorMessage>{errors.source}</FormErrorMessage>}
                 </FormControl>
 
-                {/* 4. Handled By (name only) */}
+                {/* 4. Assigned To (name only) */}
                 <FormControl>
-                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">Handled By:</FormLabel>
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">Assigned To:</FormLabel>
                   <Menu matchWidth>
                     <MenuButton
                       as={Button}
@@ -585,7 +585,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   </Menu>
                 </FormControl>
 
-                {/* Quick Save button */}
+                {/* Quick Submit button */}
                 <Button
                   onClick={handleQuickSave}
                   colorScheme="green"
@@ -595,7 +595,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   loadingText="Saving..."
                   isDisabled={!formData.phone || !formData.name || !formData.source || loading}
                 >
-                  ⚡ Quick Save
+                  ⚡ Quick Submit
                 </Button>
 
                 {/* Optional Details divider */}
