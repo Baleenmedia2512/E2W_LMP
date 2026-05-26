@@ -130,15 +130,15 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   };
 
   return (
-    <Center minH="100vh" bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
-      <Container maxW="md" py={12}>
-        <VStack spacing={8}>
+    <Center minH="100dvh" bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)" px={{ base: 4, sm: 6 }}>
+      <Container maxW="md" py={{ base: 6, md: 12 }} px={0} w="full">
+        <VStack spacing={{ base: 5, md: 8 }}>
           {/* Header */}
           <VStack spacing={2} textAlign="center" color="white">
-            <Heading size="2xl" fontWeight="bold">
+            <Heading size={{ base: 'xl', md: '2xl' }} fontWeight="bold">
               E2W LMS
             </Heading>
-            <Text fontSize="lg" opacity={0.9}>
+            <Text fontSize={{ base: 'md', md: 'lg' }} opacity={0.9}>
               Lead Management System
             </Text>
           </VStack>
@@ -147,14 +147,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           <Box
             w="full"
             bg="white"
-            rounded="lg"
+            rounded={{ base: 'lg', md: 'xl' }}
             shadow="xl"
-            p={8}
-            boxShadow="0 20px 25px -5rgba(0, 0, 0, 0.1)"
+            p={{ base: 5, sm: 6, md: 8 }}
+            boxShadow="0 20px 25px -5px rgba(0, 0, 0, 0.1)"
           >
             <VStack spacing={6} as="form" onSubmit={handleSubmit}>
               <VStack spacing={1} w="full" textAlign="center">
-                <Heading size="lg" color="gray.800">
+                <Heading size={{ base: 'md', md: 'lg' }} color="gray.800">
                   Sign In
                 </Heading>
                 <Text color="gray.600" fontSize="sm">
@@ -293,7 +293,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
           {/* Footer */}
           <VStack spacing={1} textAlign="center" color="white">
-            <Text fontSize="sm" opacity={0.8}>
+            <Text fontSize={{ base: 'xs', sm: 'sm' }} opacity={0.8}>
               © 2025 E2W Lead Management System. All rights reserved.
             </Text>
           </VStack>

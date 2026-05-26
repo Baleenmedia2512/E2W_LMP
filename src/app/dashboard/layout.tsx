@@ -47,14 +47,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Flex h="100vh" overflow="hidden">
+    <Flex h="100dvh" overflow="hidden">
       {/* Desktop Sidebar */}
       {!isMobile && <Sidebar />}
       
       {/* Mobile Drawer */}
       <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
         <DrawerOverlay />
-        <DrawerContent>
+        <DrawerContent maxW={{ base: '280px', sm: '320px' }}>
           <DrawerCloseButton />
           <DrawerBody p={0}>
             <Sidebar onNavigate={onClose} />
@@ -62,15 +62,23 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </DrawerContent>
       </Drawer>
 
-      <Flex flex="1" direction="column" overflow="hidden">
+      <Flex flex="1" direction="column" overflow="hidden" minW={0}>
         <Header onMenuClick={onOpen} />
         <Box 
           flex="1" 
-          overflow="auto" 
+          overflowY="auto"
+          overflowX="hidden"
           bg="gray.50"
           id="dashboard-scroll-container"
+          css={{
+            WebkitOverflowScrolling: 'touch',
+          }}
         >
-          <Container maxW="container.xl" py={{ base: 4, md: 6 }} px={{ base: 4, md: 6 }}>
+          <Container 
+            maxW="container.xl" 
+            py={{ base: 3, md: 6 }} 
+            px={{ base: 3, sm: 4, md: 6 }}
+          >
             {children}
           </Container>
         </Box>

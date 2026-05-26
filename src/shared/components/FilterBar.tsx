@@ -51,7 +51,7 @@ export default function FilterBar({
       <VStack spacing={3} align="stretch">
         {/* Search and View Mode */}
         <Flex gap={2} flexWrap="wrap" align="center">
-          <InputGroup flex="1" minW={{ base: 'full', md: '300px' }}>
+          <InputGroup flex={{ base: '1 1 100%', sm: '1 1 auto' }} minW={{ sm: '220px' }}>
             <InputLeftElement>
               <HiSearch />
             </InputLeftElement>
@@ -59,6 +59,7 @@ export default function FilterBar({
               placeholder="Search by name, email, phone..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
+              size={{ base: 'sm', md: 'md' }}
             />
           </InputGroup>
 
@@ -109,11 +110,13 @@ export default function FilterBar({
         </Flex>
 
         {/* Filter Dropdowns */}
-        <HStack spacing={{ base: 2, md: 3 }} flexWrap="wrap">
+        <Flex gap={2} flexWrap="wrap">
           <Select
             value={statusFilter}
             onChange={(e) => onStatusChange(e.target.value)}
-            maxW="200px"
+            flex={{ base: '1 1 calc(50% - 4px)', sm: '0 1 auto' }}
+            minW={{ sm: '140px' }}
+            maxW={{ sm: '180px' }}
             size="sm"
             bg={statusFilter ? 'blue.50' : 'white'}
           >
@@ -130,7 +133,9 @@ export default function FilterBar({
           <Select
             value={sourceFilter}
             onChange={(e) => onSourceChange(e.target.value)}
-            maxW="200px"
+            flex={{ base: '1 1 calc(50% - 4px)', sm: '0 1 auto' }}
+            minW={{ sm: '140px' }}
+            maxW={{ sm: '180px' }}
             size="sm"
             bg={sourceFilter ? 'blue.50' : 'white'}
           >
@@ -155,7 +160,9 @@ export default function FilterBar({
           <Select
             value={dateFilter}
             onChange={(e) => onDateChange(e.target.value)}
-            maxW="200px"
+            flex={{ base: '1 1 calc(50% - 4px)', sm: '0 1 auto' }}
+            minW={{ sm: '120px' }}
+            maxW={{ sm: '160px' }}
             size="sm"
             bg={dateFilter !== 'all' ? 'blue.50' : 'white'}
           >
@@ -164,7 +171,7 @@ export default function FilterBar({
             <option value="week">This Week</option>
             <option value="month">This Month</option>
           </Select>
-        </HStack>
+        </Flex>
       </VStack>
     </Box>
   );

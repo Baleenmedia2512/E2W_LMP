@@ -50,11 +50,14 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   return (
     <Box
       w={{ base: 'full', lg: '64' }}
+      minW={{ lg: '16rem' }}
       bg={bgColor}
       borderRight={{ base: 'none', lg: '1px' }}
       borderColor={borderColor}
-      h="full"
+      h="100dvh"
       overflowY="auto"
+      overflowX="hidden"
+      flexShrink={0}
     >
       <VStack spacing={0} align="stretch" h="full">
         {/* Logo */}
