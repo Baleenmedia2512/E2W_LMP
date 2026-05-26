@@ -131,7 +131,7 @@ export default function DashboardPage() {
     fetcher,
     {
       refreshInterval: autoRefresh ? 30000 : 0, // Refresh every 30 seconds when enabled
-      revalidateOnFocus: true, // Revalidate when window regains focus
+      revalidateOnFocus: false, // Don't refetch on window focus
       revalidateOnReconnect: true, // Revalidate when reconnecting
       dedupingInterval: 2000, // Dedupe requests within 2 seconds
       errorRetryCount: 3, // Retry up to 3 times on failure

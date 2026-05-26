@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -70,35 +70,67 @@ import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
 
 
 
+// ---------------------------------------------------------------------------
+// Shared minute-tick subscription — ONE setInterval for ALL LeadAge instances
+// ---------------------------------------------------------------------------
+type TickCallback = () => void;
+const minuteTickCallbacks = new Set<TickCallback>();
+let minuteTickTimer: ReturnType<typeof setInterval> | null = null;
+
+function subscribeToMinuteTick(cb: TickCallback): () => void {
+  minuteTickCallbacks.add(cb);
+  if (!minuteTickTimer) {
+    minuteTickTimer = setInterval(() => {
+      minuteTickCallbacks.forEach(fn => fn());
+    }, 60000);
+  }
+  return () => {
+    minuteTickCallbacks.delete(cb);
+    if (minuteTickCallbacks.size === 0 && minuteTickTimer) {
+      clearInterval(minuteTickTimer);
+      minuteTickTimer = null;
+    }
+  };
+}
+
 // Component to show elapsed time since lead creation
 const LeadAge = ({ createdAt }: { createdAt: string | Date }) => {
   const [age, setAge] = useState('');
+  const computeAge = useRef(() => {
+    const now = new Date();
+    const created = new Date(createdAt);
+    const diffMs = now.getTime() - created.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) {
+      setAge(`${diffDays}d ${diffHours % 24}h`);
+    } else if (diffHours > 0) {
+      setAge(`${diffHours}h ${diffMinutes % 60}m`);
+    } else {
+      setAge(`${diffMinutes}m`);
+    }
+  });
 
   useEffect(() => {
-    const updateAge = () => {
+    // Keep the ref up to date when createdAt changes
+    computeAge.current = () => {
       const now = new Date();
       const created = new Date(createdAt);
       const diffMs = now.getTime() - created.getTime();
-      
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
       if (diffDays > 0) {
-        const hours = diffHours % 24;
-        setAge(`${diffDays}d ${hours}h`);
+        setAge(`${diffDays}d ${diffHours % 24}h`);
       } else if (diffHours > 0) {
-        const minutes = diffMinutes % 60;
-        setAge(`${diffHours}h ${minutes}m`);
+        setAge(`${diffHours}h ${diffMinutes % 60}m`);
       } else {
         setAge(`${diffMinutes}m`);
       }
     };
-
-    updateAge();
-    const timer = setInterval(updateAge, 60000); // Update every minute
-
-    return () => clearInterval(timer);
+    computeAge.current();
+    return subscribeToMinuteTick(() => computeAge.current());
   }, [createdAt]);
 
   return (
@@ -404,9 +436,6 @@ function LeadsTabContent({
   const [isNewLeadsCollapsed, setIsNewLeadsCollapsed] = useState(false);
   const [isStatusFilteredCollapsed, setIsStatusFilteredCollapsed] = useState(false);
 
-  // Auto-refresh every minute to update overdue status
-  const [currentTime, setCurrentTime] = useState(new Date());
-  
   // Restore scroll position IMMEDIATELY when component mounts
   useEffect(() => {
     const savedPosition = sessionStorage.getItem('scroll_position_/dashboard/leads');
@@ -474,13 +503,9 @@ function LeadsTabContent({
   };
   
   // Update current time every minute for visual updates
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update every minute
+  // NOTE: currentTime is no longer a memo dep; LeadAge uses a shared timer instead.
+  // Kept here only if needed for other time-sensitive UI outside categorizedLeads.
 
-    return () => clearInterval(timer);
-  }, []);
 
   // Modals
   const { isOpen: isAddLeadOpen, onOpen: onAddLeadOpen, onClose: onAddLeadClose } = useDisclosure();
@@ -797,7 +822,7 @@ function LeadsTabContent({
     }
     
     return { ...categorized, statusFiltered: [] };
-  }, [filteredLeads, followUps, currentTime, statusFilter, showOnlyToday]); // Re-calculate when time updates or showOnlyToday changes
+  }, [filteredLeads, followUps, statusFilter, showOnlyToday]); // currentTime removed — new Date() is called inline inside categorizeAndSortLeads
 
   // Lazy loaded leads - limit New Leads section always; limit others only in "Show All" mode
   const lazyLoadedLeads = useMemo(() => {
