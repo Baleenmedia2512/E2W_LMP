@@ -82,195 +82,87 @@ export async function GET(request: NextRequest) {
       referenceDate.setHours(23, 59, 59, 999);
     }
 
-    console.log('[DSR Stats API] Fetching data from database...');
-
-    // Fetch all data needed for DSR calculations with try-catch for each query
-    let allLeads, allFollowups, allCalls, filteredLeads, agents;
-    let leadsCreatedOnDate: any[] = [];
-    let callsOnDate: any[] = [];
-    let leadsUpdatedOnDate: any[] = [];
-    
-    try {
-      // 1. Fetch all leads with relevant fields
-      allLeads = await prisma.lead.findMany({
-        where: agentId ? { assignedToId: agentId } : {},
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-          assignedToId: true,
-          callAttempts: true,
-        },
-      });
-      console.log('[DSR Stats API] Fetched leads:', allLeads.length);
-    } catch (error) {
-      console.error('[DSR Stats API] Error fetching leads:', error);
-      throw new Error('Failed to fetch leads');
-    }
+    // ── Batch 1: all independent queries run in PARALLEL (was 6 sequential round-trips) ──────
+    let allLeads: any[], allFollowups: any[], allCalls: any[];
+    let leadsCreatedOnDate: any[], leadsUpdatedOnDate: any[], agents: any[];
 
     try {
-      // 2. Fetch all followups
-      allFollowups = await prisma.followUp.findMany({
-        where: agentId ? {
-          status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
-          Lead: {
-            assignedToId: agentId,
+      [allLeads, allFollowups, allCalls, leadsCreatedOnDate, leadsUpdatedOnDate, agents] = await Promise.all([
+        // 1. All leads — no date filter needed; used for metrics + in-memory per-agent computation
+        prisma.lead.findMany({
+          where: agentId ? { assignedToId: agentId } : {},
+          select: { id: true, status: true, createdAt: true, updatedAt: true, assignedToId: true, callAttempts: true },
+        }),
+        // 2. Active follow-ups (for overdue detection)
+        prisma.followUp.findMany({
+          where: agentId ? {
+            status: { notIn: ['completed', 'cancelled'] },
+            Lead: { assignedToId: agentId },
+          } : {
+            status: { notIn: ['completed', 'cancelled'] },
           },
-        } : {
-          status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
-        },
-        select: {
-          id: true,
-          leadId: true,
-          scheduledAt: true,
-          createdAt: true,
-        },
-      });
-      console.log('[DSR Stats API] Fetched followups:', allFollowups.length);
-    } catch (error) {
-      console.error('[DSR Stats API] Error fetching followups:', error);
-      throw new Error('Failed to fetch followups');
-    }
-
-    try {
-      // 3. Fetch all calls with attemptNumber and callStatus
-      // IMPORTANT: Apply date filter here to avoid counting calls outside selected date
-      const callsWhere: any = {};
-      if (Object.keys(dateFilter).length > 0) {
-        callsWhere.createdAt = dateFilter;
-      }
-      if (agentId) {
-        callsWhere.callerId = agentId;
-      }
-      
-      allCalls = await prisma.callLog.findMany({
-        where: callsWhere,
-        select: {
-          id: true,
-          leadId: true,
-          createdAt: true,
-          attemptNumber: true,
-          callStatus: true,
-        },
-      });
-      console.log('[DSR Stats API] ===== TOTAL CALLS COUNT =====');
-      console.log('[DSR Stats API] Fetched calls for date range:', allCalls.length);
-      console.log('[DSR Stats API] Date filter:', dateFilter);
-      console.log('[DSR Stats API] Agent filter:', agentId || 'None');
-      console.log('[DSR Stats API] ================================');
-    } catch (error) {
-      console.error('[DSR Stats API] Error fetching calls:', error);
-      throw new Error('Failed to fetch calls');
-    }
-
-    try {
-      // 4. Get leads for table display based on what happened on the selected date
-      // This will be all leads that had ANY activity on the selected date:
-      // - Leads created on the date
-      // - Leads that had calls on the date
-      // - Leads whose status changed on the date
-      
-      leadsCreatedOnDate = await prisma.lead.findMany({
-        where: {
-          createdAt: dateFilter,
-          ...(agentId && { assignedToId: agentId }),
-        },
-        select: { id: true },
-      });
-
-      callsOnDate = await prisma.callLog.findMany({
-        where: {
-          createdAt: dateFilter,
-          ...(agentId && { callerId: agentId }), // Use callerId for consistency
-        },
-        select: { 
-          leadId: true,
-          attemptNumber: true,
-          createdAt: true,
-        },
-      });
-
-      leadsUpdatedOnDate = await prisma.lead.findMany({
-        where: {
-          updatedAt: dateFilter,
-          ...(agentId && { assignedToId: agentId }),
-        },
-        select: { id: true },
-      });
-
-      // Combine all lead IDs that had activity on the selected date
-      const activeLeadIds = new Set([
-        ...leadsCreatedOnDate.map((l: any) => l.id),
-        ...callsOnDate.map((c: any) => c.leadId),
-        ...leadsUpdatedOnDate.map((l: any) => l.id),
+          select: { id: true, leadId: true, scheduledAt: true, createdAt: true },
+        }),
+        // 3. Calls on selected date — also serves as callsOnDate; adds callerId for per-agent grouping
+        prisma.callLog.findMany({
+          where: callsWhere,
+          select: { id: true, leadId: true, createdAt: true, attemptNumber: true, callStatus: true, callerId: true },
+        }),
+        // 4. Lead IDs created on selected date
+        prisma.lead.findMany({
+          where: { createdAt: dateFilter, ...(agentId && { assignedToId: agentId }) },
+          select: { id: true },
+        }),
+        // 5. Lead IDs updated on selected date
+        prisma.lead.findMany({
+          where: { updatedAt: dateFilter, ...(agentId && { assignedToId: agentId }) },
+          select: { id: true },
+        }),
+        // 6. Active agents
+        prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, email: true },
+          orderBy: { name: 'asc' },
+        }),
       ]);
+    } catch (error) {
+      console.error('[DSR Stats API] Error fetching data:', error);
+      throw new Error('Failed to fetch DSR data');
+    }
 
-      // Fetch full lead details for all active leads
+    // allCalls is already date-filtered — it IS callsOnDate (eliminates a redundant round-trip)
+    const callsOnDate = allCalls;
+
+    console.log('[DSR Stats API] Parallel batch — leads:', allLeads.length,
+      '| followups:', allFollowups.length, '| calls:', allCalls.length, '| agents:', agents.length);
+
+    // ── Batch 2: filteredLeads (depends on union of active lead IDs from Batch 1) ────────────
+    const activeLeadIds = new Set([
+      ...leadsCreatedOnDate.map((l: any) => l.id),
+      ...callsOnDate.map((c: any) => c.leadId),
+      ...leadsUpdatedOnDate.map((l: any) => l.id),
+    ]);
+
+    let filteredLeads: any[];
+    try {
       filteredLeads = await prisma.lead.findMany({
-        where: {
-          id: { in: Array.from(activeLeadIds) },
-        },
+        where: { id: { in: Array.from(activeLeadIds) } },
         include: {
-          User_Lead_assignedToIdToUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          User_Lead_createdByIdToUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
+          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+          User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
           CallLog: {
-            where: {
-              createdAt: dateFilter,
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
+            where: { createdAt: dateFilter },
+            orderBy: { createdAt: 'desc' },
             take: 1,
           },
         },
         orderBy: { createdAt: 'desc' },
       });
-      
       console.log('[DSR Stats API] Fetched filtered leads:', filteredLeads.length);
     } catch (error) {
       console.error('[DSR Stats API] Error fetching filtered leads:', error);
       throw new Error('Failed to fetch filtered leads');
     }
-
-    try {
-      // 5. Get all active agents
-      agents = await prisma.user.findMany({
-        where: {
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-        orderBy: { name: 'asc' },
-      });
-      console.log('[DSR Stats API] Fetched agents:', agents.length);
-    } catch (error) {
-      console.error('[DSR Stats API] Error fetching agents:', error);
-      throw new Error('Failed to fetch agents');
-    }
-
-    console.log('[DSR Stats API] Database queries complete. Data counts:', {
-      allLeads: allLeads.length,
-      allFollowups: allFollowups.length,
-      allCalls: allCalls.length,
-      filteredLeads: filteredLeads.length,
-      agents: agents.length
-    });
 
     // Build a SET of lead IDs that have ANY active follow-up scheduled before the reference date.
     // CRITICAL: Must use .some() (any overdue follow-up), NOT just the latest/most-recent follow-up.
@@ -407,169 +299,66 @@ export async function GET(request: NextRequest) {
 
     console.log('[DSR Stats API] Metrics calculated. Total Calls from DB-filtered data:', metrics.calls.total);
 
-    // Calculate agent performance data with all required metrics
-    // IMPORTANT: Use EXACT same logic as DSR KPIs but grouped by agent
-    console.log('[DSR Stats API] Calculating agent performance...');
-    const agentPerformanceData = await Promise.all(
-      (agentId ? agents.filter((a: any) => a.id === agentId) : agents).map(async (agent: any) => {
-        console.log(`[DSR Stats API] Calculating metrics for agent: ${agent.name}`);
-        
-        // 1️⃣ Fetch calls made BY this agent (callerId) on selected date
-        const agentCallsWhere: any = {
-          callerId: agent.id, // ← Use callerId, not Lead.assignedToId
-        };
-        if (Object.keys(dateFilter).length > 0) {
-          agentCallsWhere.createdAt = dateFilter;
+    // ── Agent performance: computed from in-memory data — zero extra DB queries ──────────────
+    console.log('[DSR Stats API] Calculating agent performance (in-memory)...');
+
+    const dateStart: Date | undefined = (dateFilter as any).gte;
+    const dateEnd: Date | undefined = (dateFilter as any).lte;
+    const inDateRange = (date: Date | string): boolean => {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      if (dateStart && d < dateStart) return false;
+      if (dateEnd && d > dateEnd) return false;
+      return true;
+    };
+
+    const agentPerformanceData = (agentId ? agents.filter((a: any) => a.id === agentId) : agents).map((agent: any) => {
+      // Calls made BY this agent on selected date (callerId added to allCalls select in Batch 1)
+      const agentCalls = allCalls.filter((c: any) => c.callerId === agent.id);
+      const agentLeadIds = new Set(agentCalls.map((c: any) => c.leadId));
+
+      // Leads called by this agent — check callAttempts from already-fetched allLeads
+      const agentLeadsForCalls = allLeads.filter((l: any) => agentLeadIds.has(l.id));
+
+      // Overdue detection: reuse global followupsByLeadId + overdueReferenceDate already in scope
+      const agentOverdueLeadIds = new Set<string>();
+      agentLeadIds.forEach((leadId: string) => {
+        const dates = followupsByLeadId.get(leadId) || [];
+        if (dates.some((d: Date) => d < overdueReferenceDate)) {
+          agentOverdueLeadIds.add(leadId);
         }
-        
-        const agentCalls = await prisma.callLog.findMany({
-          where: agentCallsWhere,
-          select: {
-            id: true,
-            leadId: true,
-            attemptNumber: true,
-            createdAt: true,
-          },
-        });
+      });
 
-        // Get unique lead IDs from agent's calls
-        const agentLeadIds = new Set(agentCalls.map((c: any) => c.leadId));
+      const newLeads = agentLeadsForCalls.filter((l: any) => (l.callAttempts || 0) === 1).length;
+      const totalCalls = agentCalls.length;
+      const overdueLeadsCount = agentOverdueLeadIds.size;
+      const followUps = agentLeadsForCalls.filter((l: any) =>
+        (l.callAttempts || 0) > 1 && !agentOverdueLeadIds.has(l.id)
+      ).length;
 
-        // 2️⃣ Fetch full lead data for these leads to check callAttempts
-        const agentLeads = await prisma.lead.findMany({
-          where: {
-            id: { in: Array.from(agentLeadIds) },
-          },
-          select: {
-            id: true,
-            callAttempts: true,
-            status: true,
-            updatedAt: true,
-          },
-        });
+      // Outcome metrics: leads ASSIGNED to this agent whose status changed in date range
+      const agentLeadsForOutcomes = allLeads.filter((l: any) =>
+        l.assignedToId === agent.id && inDateRange(l.updatedAt)
+      );
+      const won = agentLeadsForOutcomes.filter((l: any) => l.status === 'won').length;
+      const lost = agentLeadsForOutcomes.filter((l: any) => l.status === 'lost').length;
+      const unreachable = agentLeadsForOutcomes.filter((l: any) => l.status === 'unreach').length;
+      const unqualified = agentLeadsForOutcomes.filter((l: any) => l.status === 'unqualified').length;
 
-        // Create a map of leadId -> Lead for quick lookup
-        const leadMap = new Map(agentLeads.map((l: any) => [l.id, l]));
-
-        // 3️⃣ New Calls: Leads that had calls today AND callAttempts = 1
-        const newLeads = agentLeads.filter((lead: any) => 
-          agentLeadIds.has(lead.id) && (lead.callAttempts || 0) === 1
-        ).length;
-
-        // 5️⃣ Total Calls: All calls made by this agent on selected date
-        const totalCalls = agentCalls.length;
-
-        // 6️⃣ Fetch follow-ups for leads called by this agent
-        const agentFollowups = await prisma.followUp.findMany({
-          where: {
-            status: { notIn: ['completed', 'cancelled'] }, // All active follow-ups
-            leadId: { in: Array.from(agentLeadIds) },
-          },
-          select: {
-            leadId: true,
-            scheduledAt: true,
-          },
-        });
-
-        // Build map of leadId -> most recent scheduled follow-up date
-        // Build a follow-up lookup grouped by leadId for .some() overdue check
-        const agentFollowupsByLeadId = new Map<string, Date[]>();
-        agentFollowups.forEach((followup: any) => {
-          const scheduledDate = typeof followup.scheduledAt === 'string'
-            ? new Date(followup.scheduledAt)
-            : followup.scheduledAt;
-          const existing = agentFollowupsByLeadId.get(followup.leadId) || [];
-          existing.push(scheduledDate);
-          agentFollowupsByLeadId.set(followup.leadId, existing);
-        });
-
-        // 7️⃣ Overdue Calls Handled: lead has ANY active follow-up before start of selected day
-        // Use .some() to match calculateDSRMetrics — catches leads with both past AND future follow-ups
-        const buildAgentRefDate = (): Date => {
-          if (startDateParam) {
-            const d = new Date(startDateParam);
-            d.setHours(0, 0, 0, 0);
-            return d;
-          }
-          const now = new Date();
-          return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        };
-        const agentRefDate = buildAgentRefDate();
-
-        // Build set of overdue lead IDs using .some() — ANY overdue follow-up qualifies
-        const overdueLeadIds = new Set<string>();
-        agentLeadIds.forEach((leadId: string) => {
-          const dates = agentFollowupsByLeadId.get(leadId) || [];
-          if (dates.some(d => d < agentRefDate)) {
-            overdueLeadIds.add(leadId);
-          }
-        });
-
-        const overdueLeads = overdueLeadIds.size;
-
-        // 4️⃣ Follow-up Calls: Leads that had calls today AND callAttempts > 1 AND NOT overdue
-        // This ensures follow-up and overdue are mutually exclusive
-        const followUps = agentLeads.filter((lead: any) => 
-          agentLeadIds.has(lead.id) && (lead.callAttempts || 0) > 1 && !overdueLeadIds.has(lead.id)
-        ).length;
-
-        // 8️⃣ Lead Outcome Metrics - Use assignedToId for outcomes
-        const [won, lost, unreachable, unqualified] = await Promise.all([
-          // Won - leads marked won by agent in date range
-          prisma.lead.count({
-            where: {
-              assignedToId: agent.id,
-              status: 'won',
-              ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
-            },
-          }),
-          
-          // Lost - leads marked lost by agent in date range
-          prisma.lead.count({
-            where: {
-              assignedToId: agent.id,
-              status: 'lost',
-              ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
-            },
-          }),
-          
-          // Unreachable - leads marked unreachable by agent in date range
-          prisma.lead.count({
-            where: {
-              assignedToId: agent.id,
-              status: 'unreach',
-              ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
-            },
-          }),
-          
-          // Unqualified - leads marked unqualified by agent in date range
-          prisma.lead.count({
-            where: {
-              assignedToId: agent.id,
-              status: 'unqualified',
-              ...(Object.keys(dateFilter).length > 0 && { updatedAt: dateFilter }),
-            },
-          }),
-        ]);
-
-        console.log(`[DSR Stats API] Agent ${agent.name}: newLeads=${newLeads}, followUps=${followUps}, totalCalls=${totalCalls}, overdue=${overdueLeads}`);
-
-        return {
-          agentId: agent.id,
-          agentName: agent.name || 'Unknown',
-          agentEmail: agent.email,
-          date: endDateParam ? new Date(endDateParam) : new Date(),
-          newLeads,
-          followUps,
-          totalCalls,
-          won,
-          lost,
-          unreachable,
-          unqualified,
-          overdue: overdueLeads,
-        };
-      })
-    );
+      return {
+        agentId: agent.id,
+        agentName: agent.name || 'Unknown',
+        agentEmail: agent.email,
+        date: endDateParam ? new Date(endDateParam) : new Date(),
+        newLeads,
+        followUps,
+        totalCalls,
+        won,
+        lost,
+        unreachable,
+        unqualified,
+        overdue: overdueLeadsCount,
+      };
+    });
 
     console.log('[DSR Stats API] Agent performance calculated. Preparing response...');
 

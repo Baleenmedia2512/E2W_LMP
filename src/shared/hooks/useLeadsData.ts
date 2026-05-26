@@ -380,7 +380,7 @@ export function useDSRData(selectedDate: string, selectedAgentId: string = 'all'
   }
 
   const fetchDSRData = async (url: string) => {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(url);
     
     if (!res.ok) {
       throw new Error('Failed to fetch DSR data');
@@ -401,7 +401,7 @@ export function useDSRData(selectedDate: string, selectedAgentId: string = 'all'
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
-      dedupingInterval: 5000,
+      dedupingInterval: 30000, // 30s — cache survives normal page navigation
       keepPreviousData: true,
       refreshInterval: 60000, // Auto-refresh every 60 seconds
     }
@@ -432,7 +432,7 @@ export function useDSRCallLogs(selectedDate: string, selectedAgentId: string = '
   }
 
   const fetchCallLogs = async (url: string) => {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(url);
     
     if (!res.ok) {
       throw new Error('Failed to fetch call logs');
@@ -453,7 +453,7 @@ export function useDSRCallLogs(selectedDate: string, selectedAgentId: string = '
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
-      dedupingInterval: 5000,
+      dedupingInterval: 30000, // 30s — cache survives normal page navigation
       keepPreviousData: true,
       refreshInterval: enabled ? 60000 : 0, // Auto-refresh every 60s when active
     }
