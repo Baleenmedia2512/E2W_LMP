@@ -7,8 +7,10 @@ import {
   Card,
   CardBody,
   Container,
+  Flex,
   Heading,
   HStack,
+  SimpleGrid,
   Tab,
   Table,
   TabList,
@@ -151,8 +153,8 @@ export default function QuotationsPage() {
   };
 
   const QuotationTable = ({ quotations }: { quotations: typeof demoQuotations }) => (
-    <Box overflowX="auto">
-      <Table variant="simple">
+    <Box overflowX="auto" sx={{ WebkitOverflowScrolling: 'touch' }}>
+      <Table variant="simple" size={{ base: 'sm', md: 'md' }} minW="700px">
         <Thead>
           <Tr>
             <Th>Quotation #</Th>
@@ -242,64 +244,70 @@ export default function QuotationsPage() {
   );
 
   return (
-    <Container maxW="container.xl" py={8}>
-      <Stack spacing={6}>
+    <Container maxW="container.xl" py={{ base: 4, md: 8 }} px={{ base: 3, md: 4 }}>
+      <Stack spacing={{ base: 4, md: 6 }}>
         {/* Header */}
-        <HStack justify="space-between">
-          <Box>
-            <Heading size="lg">Quotations</Heading>
-            <Text color="gray.600" mt={1}>
+        <Flex justify="space-between" align="flex-start" flexWrap="wrap" gap={3}>
+          <Box flex="1" minW={0}>
+            <Heading size={{ base: 'md', md: 'lg' }}>Quotations</Heading>
+            <Text color="gray.600" mt={1} fontSize={{ base: 'sm', md: 'md' }}>
               Manage advertisement quotations for leads and customers
             </Text>
           </Box>
-          <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleNewQuotation}>
+          <Button
+            leftIcon={<AddIcon />}
+            colorScheme="blue"
+            onClick={handleNewQuotation}
+            size={{ base: 'sm', md: 'md' }}
+            flexShrink={0}
+          >
             New Quotation
           </Button>
-        </HStack>
+        </Flex>
 
         {/* Stats Cards */}
-        <HStack spacing={4}>
-          <Card flex={1}>
-            <CardBody>
-              <Text fontSize="sm" color="gray.600">
+        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={{ base: 3, md: 4 }}>
+          <Card>
+            <CardBody p={{ base: 3, md: 4 }}>
+              <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mb={1}>
                 Total Quotations
               </Text>
-              <Heading size="lg" color="blue.600">
+              <Heading size={{ base: 'lg', md: 'xl' }} color="blue.600">
                 {quotations.length}
               </Heading>
             </CardBody>
           </Card>
-          <Card flex={1}>
-            <CardBody>
-              <Text fontSize="sm" color="gray.600">
+          <Card>
+            <CardBody p={{ base: 3, md: 4 }}>
+              <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mb={1}>
                 Sent
               </Text>
-              <Heading size="lg" color="blue.600">
+              <Heading size={{ base: 'lg', md: 'xl' }} color="blue.600">
                 {quotations.filter((q) => q.status === 'sent').length}
               </Heading>
             </CardBody>
           </Card>
-          <Card flex={1}>
-            <CardBody>
-              <Text fontSize="sm" color="gray.600">
+          <Card>
+            <CardBody p={{ base: 3, md: 4 }}>
+              <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mb={1}>
                 Accepted
               </Text>
-              <Heading size="lg" color="green.600">
+              <Heading size={{ base: 'lg', md: 'xl' }} color="green.600">
                 {quotations.filter((q) => q.status === 'accepted').length}
               </Heading>
             </CardBody>
           </Card>
-          <Card flex={1}>
-            <CardBody>
-              <Text fontSize="sm" color="gray.600">
+          <Card>
+            <CardBody p={{ base: 3, md: 4 }}>
+              <Text fontSize={{ base: 'xs', md: 'sm' }} color="gray.600" mb={1}>
                 Total Value
               </Text>
-              <Heading size="lg" color="purple.600">
+              <Heading size={{ base: 'md', md: 'lg' }} color="purple.600">
                 ₹{quotations.reduce((sum, q) => sum + q.total, 0).toLocaleString()}
               </Heading>
             </CardBody>
           </Card>
-        </HStack>
+        </SimpleGrid>
 
         {/* Search */}
         <Card>
@@ -319,9 +327,9 @@ export default function QuotationsPage() {
 
         {/* Quotations List with Tabs */}
         <Card>
-          <CardBody>
+          <CardBody p={{ base: 2, md: 4 }}>
             <Tabs colorScheme="blue">
-              <TabList>
+              <TabList overflowX="auto" overflowY="hidden" sx={{ scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
                 <Tab>All ({filteredQuotations.length})</Tab>
                 <Tab>Draft ({getQuotationsByStatus('draft').length})</Tab>
                 <Tab>Sent ({getQuotationsByStatus('sent').length})</Tab>
