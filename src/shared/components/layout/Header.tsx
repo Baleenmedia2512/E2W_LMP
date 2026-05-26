@@ -45,7 +45,15 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <Box bg={bgColor} borderBottom="1px" borderColor={borderColor} px={{ base: 4, md: 6 }} py={{ base: 3, md: 4 }}>
+    <Box 
+      bg={bgColor} 
+      borderBottom="1px" 
+      borderColor={borderColor} 
+      px={{ base: 3, sm: 4, md: 6 }} 
+      py={{ base: 2, sm: 3, md: 4 }}
+      flexShrink={0}
+      zIndex={10}
+    >
       <Flex justify="space-between" align="center">
         <HStack spacing={3}>
           {isMobile && (
@@ -80,10 +88,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   bg="purple.500"
                 />
               </MenuButton>
-              <MenuList>
+          <MenuList zIndex={1400} minW="200px">
                 <MenuItem isDisabled>
                   <Flex direction="column">
-                    <Text fontWeight="600">{user.name || 'User'}</Text>
+                    <Text fontWeight="600" fontSize="sm">{user.name || 'User'}</Text>
                     <Text fontSize="xs" color="gray.500">
                       {user.role}
                     </Text>

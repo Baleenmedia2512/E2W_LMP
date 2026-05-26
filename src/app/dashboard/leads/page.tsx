@@ -156,15 +156,16 @@ export default function UnifiedLeadsPage() {
           />
           
           {/* Filter Row */}
-          <Flex gap={3} flexWrap="wrap" align="center">
+          <Flex gap={2} flexWrap="wrap" align="center">
             <Select
               value={globalClientTypeFilter}
               onChange={(e) => setGlobalClientTypeFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '200px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+              size="sm"
+              flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
+              maxW={{ sm: '200px' }}
+              minW={{ base: '0', sm: '130px' }}
             >
-              <option value="all">Both Clients & Existing</option>
+              <option value="all">Clients & Leads</option>
               <option value="existing">Clients Only</option>
               <option value="non-existing">Leads Only</option>
             </Select>
@@ -172,9 +173,10 @@ export default function UnifiedLeadsPage() {
             <Select
               value={globalSourceFilter}
               onChange={(e) => setGlobalSourceFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '180px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+              size="sm"
+              flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
+              maxW={{ sm: '160px' }}
+              minW={{ base: '0', sm: '120px' }}
             >
               <option value="all">All Sources</option>
               <option value="Website">Website</option>
@@ -196,9 +198,10 @@ export default function UnifiedLeadsPage() {
             <Select
               value={globalAttemptsFilter}
               onChange={(e) => setGlobalAttemptsFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '180px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+              size="sm"
+              flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
+              maxW={{ sm: '160px' }}
+              minW={{ base: '0', sm: '120px' }}
             >
               <option value="all">All Attempts</option>
               <option value="0">0 Attempts</option>
@@ -210,9 +213,10 @@ export default function UnifiedLeadsPage() {
             <Select
               value={globalOwnerFilter}
               onChange={(e) => setGlobalOwnerFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '180px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+              size="sm"
+              flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
+              maxW={{ sm: '160px' }}
+              minW={{ base: '0', sm: '120px' }}
             >
               <option value="all">All Owners</option>
               {availableOwners.map(owner => (
@@ -223,9 +227,10 @@ export default function UnifiedLeadsPage() {
             <Select
               value={globalDateRangeFilter}
               onChange={(e) => setGlobalDateRangeFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '180px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+              size="sm"
+              flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
+              maxW={{ sm: '150px' }}
+              minW={{ base: '0', sm: '110px' }}
             >
               <option value="all">All Time</option>
               <option value="today">Today</option>
@@ -238,12 +243,12 @@ export default function UnifiedLeadsPage() {
               <Button
                 leftIcon={<HiX />}
                 onClick={handleResetGlobalFilters}
-                size={{ base: 'sm', md: 'md' }}
+                size="sm"
                 variant="outline"
                 colorScheme="red"
-                flex={{ base: '1 1 100%', sm: '0 1 auto' }}
+                flex={{ base: '1 1 100%', sm: '0 0 auto' }}
               >
-                Reset Filters
+                Reset
               </Button>
             )}
           </Flex>

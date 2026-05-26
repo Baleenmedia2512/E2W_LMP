@@ -152,12 +152,12 @@ const ModernLeadCard = memo(({
           </HStack>
 
           {/* Action Buttons */}
-          <HStack spacing={0.5} flexShrink={0}>
+          <HStack spacing={{ base: 1, md: 0.5 }} flexShrink={0}>
             <Tooltip label="Call" placement="top">
               <IconButton
                 aria-label="Call"
                 icon={<HiPhone />}
-                size="xs"
+                size={{ base: 'sm', md: 'xs' }}
                 colorScheme="green"
                 variant="ghost"
                 onClick={onCallClick}
@@ -170,7 +170,7 @@ const ModernLeadCard = memo(({
               <IconButton
                 aria-label="WhatsApp"
                 icon={<FaWhatsapp />}
-                size="xs"
+                size={{ base: 'sm', md: 'xs' }}
                 colorScheme="whatsapp"
                 variant="ghost"
                 isDisabled={!isValidWhatsAppPhone(lead.phone)}
@@ -181,7 +181,7 @@ const ModernLeadCard = memo(({
               <IconButton
                 aria-label="Change Status"
                 icon={<HiRefresh />}
-                size="xs"
+                size={{ base: 'sm', md: 'xs' }}
                 colorScheme="purple"
                 variant="ghost"
                 onClick={onChangeStatusClick}
@@ -192,7 +192,7 @@ const ModernLeadCard = memo(({
                 <IconButton
                   aria-label="View"
                   icon={<HiEye />}
-                  size="xs"
+                  size={{ base: 'sm', md: 'xs' }}
                   colorScheme="blue"
                   variant="ghost"
                   onClick={onViewClick}

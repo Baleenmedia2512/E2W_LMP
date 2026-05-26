@@ -647,7 +647,7 @@ export default function DSRPage() {
   }
 
   return (
-    <Box p={{ base: 3, sm: 4, md: 6 }} maxW="100%" overflowX="hidden" bg={{ base: 'gray.50', md: 'transparent' }}>
+    <Box maxW="100%" overflowX="hidden">
       {/* Header with refresh button */}
       <Flex justify="space-between" align="center" mb={{ base: 4, md: 6 }} flexWrap="wrap" gap={3}>
         <Heading size={{ base: 'md', md: 'lg' }} color={THEME_COLORS.dark}>
@@ -847,7 +847,7 @@ export default function DSRPage() {
       {/* KPI Cards - All metrics for selected date */}
       {/* Bug 5 fix: show skeletons when filters just changed so stale data from previous date is hidden */}
       {isLoadingNewFilters ? (
-        <SimpleGrid columns={{ base: 2, md: 4, lg: 8 }} spacing={{ base: 2, md: 4 }} mb={{ base: 4, md: 6 }}>
+        <SimpleGrid columns={{ base: 2, sm: 2, md: 4 }} spacing={{ base: 2, md: 4 }} mb={{ base: 4, md: 6 }}>
           {[...Array(8)].map((_, i) => (
             <DashboardStatSkeleton key={i} />
           ))}

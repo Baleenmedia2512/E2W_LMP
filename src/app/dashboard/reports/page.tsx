@@ -101,7 +101,7 @@ export default function ReportsPage() {
   if (loading) {
     return (
       <Box>
-        <Heading size="lg" mb={6}>Reports & Analytics</Heading>
+        <Heading size={{ base: 'md', md: 'lg' }} mb={6}>Reports & Analytics</Heading>
         <Text color="gray.500">Loading reports...</Text>
       </Box>
     );
@@ -110,7 +110,7 @@ export default function ReportsPage() {
   if (error || !data) {
     return (
       <Box>
-        <Heading size="lg" mb={6}>Reports & Analytics</Heading>
+        <Heading size={{ base: 'md', md: 'lg' }} mb={6}>Reports & Analytics</Heading>
         <Box bg="red.50" p={4} borderRadius="lg" color="red.700">
           {error || 'Failed to load reports'}
         </Box>
@@ -120,15 +120,16 @@ export default function ReportsPage() {
 
   return (
     <Box>
-      <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={4}>
-        <Heading size="lg">
+      <Flex justify="space-between" align="center" mb={{ base: 4, md: 6 }} flexWrap="wrap" gap={3}>
+        <Heading size={{ base: 'md', md: 'lg' }}>
           Reports & Analytics
         </Heading>
         <Button 
           colorScheme="blue" 
-          size="md"
+          size={{ base: 'sm', md: 'md' }}
           onClick={handleExport}
           variant="outline"
+          w={{ base: 'full', sm: 'auto' }}
         >
           Export Report
         </Button>
@@ -138,49 +139,51 @@ export default function ReportsPage() {
       <Card mb={6}>
         <CardBody>
           <VStack spacing={4} align="stretch">
-            <HStack spacing={4} flexWrap="wrap">
-              <Box>
+            <Flex gap={3} flexWrap="wrap" align="flex-end">
+              <Box flex={{ base: '1 1 100%', sm: '1 1 auto' }} minW={{ sm: '140px' }}>
                 <Text fontSize="sm" fontWeight="semibold" mb={2}>Start Date</Text>
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   max={endDate}
-                  size="md"
+                  size={{ base: 'sm', md: 'md' }}
                 />
               </Box>
-              <Box>
+              <Box flex={{ base: '1 1 100%', sm: '1 1 auto' }} minW={{ sm: '140px' }}>
                 <Text fontSize="sm" fontWeight="semibold" mb={2}>End Date</Text>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   min={startDate}
-                  size="md"
+                  size={{ base: 'sm', md: 'md' }}
                 />
               </Box>
-              <Box>
+              <Box flex={{ base: '1 1 100%', sm: '0 0 auto' }}>
                 <Text fontSize="sm" fontWeight="semibold" mb={2}>Filter By</Text>
-                <HStack spacing={2}>
+                <Flex gap={2} flexWrap="wrap">
                   <Button
-                    size="md"
+                    size={{ base: 'sm', md: 'md' }}
                     colorScheme={dateFilterType === 'created' ? 'blue' : 'gray'}
                     variant={dateFilterType === 'created' ? 'solid' : 'outline'}
                     onClick={() => setDateFilterType('created')}
+                    flex={{ base: '1 1 auto', sm: '0 0 auto' }}
                   >
                     Created Date
                   </Button>
                   <Button
-                    size="md"
+                    size={{ base: 'sm', md: 'md' }}
                     colorScheme={dateFilterType === 'updated' ? 'blue' : 'gray'}
                     variant={dateFilterType === 'updated' ? 'solid' : 'outline'}
                     onClick={() => setDateFilterType('updated')}
+                    flex={{ base: '1 1 auto', sm: '0 0 auto' }}
                   >
                     Updated Date
                   </Button>
-                </HStack>
+                </Flex>
               </Box>
-            </HStack>
+            </Flex>
             <Box>
               <Text fontSize="sm" color="gray.600">
                 Showing leads {dateFilterType === 'created' ? 'created' : 'updated'} from {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}
@@ -379,10 +382,11 @@ export default function ReportsPage() {
       {/* Leads by Agent Table */}
       <Card>
         <CardHeader>
-          <Heading size="md">Leads by Agent</Heading>
+          <Heading size={{ base: 'sm', md: 'md' }}>Leads by Agent</Heading>
         </CardHeader>
-        <CardBody>
-          <Table variant="simple" size="md">
+        <CardBody p={{ base: 0, md: 4 }} pt={{ base: 0, md: 0 }}>
+          <Box overflowX="auto" sx={{ WebkitOverflowScrolling: 'touch' }}>
+          <Table variant="simple" size={{ base: 'sm', md: 'md' }} minW="400px">
             <Thead>
               <Tr>
                 <Th>Agent Name</Th>
@@ -402,7 +406,7 @@ export default function ReportsPage() {
                         value={percentage} 
                         size="sm" 
                         colorScheme="blue" 
-                        w="100px"
+                        w={{ base: '60px', md: '100px' }}
                         borderRadius="full"
                       />
                     </HStack>
@@ -418,6 +422,7 @@ export default function ReportsPage() {
               )}
             </Tbody>
           </Table>
+          </Box>
         </CardBody>
       </Card>
     </Box>
