@@ -51,13 +51,7 @@ import {
   HiRefresh,
 } from 'react-icons/hi';
 import { FaWhatsapp } from 'react-icons/fa';
-import AddLeadModal from '@/features/leads/components/AddLeadModal';
-import AssignLeadModal from '@/features/leads/components/AssignLeadModal';
-import ConvertToUnreachableModal from '@/features/leads/components/ConvertToUnreachableModal';
-import ConvertToUnqualifiedModal from '@/features/leads/components/ConvertToUnqualifiedModal';
-import CallDialerModal from '@/features/leads/components/CallDialerModal';
-import ChangeStatusModal from '@/features/leads/components/ChangeStatusModal';
-import EditCallRemarkModal from '@/features/leads/components/EditCallRemarkModal';
+import dynamic from 'next/dynamic';
 import ModernLeadCard from '@/features/leads/components/ModernLeadCard';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatDateTime } from '@/shared/lib/date-utils';
@@ -67,6 +61,16 @@ import { openWhatsApp, isValidWhatsAppPhone } from '@/shared/utils/whatsapp';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
+
+// Modals are lazy-loaded — their JS is NOT bundled into the initial page chunk.
+// Each modal's code only downloads the first time a user actually opens it.
+const AddLeadModal = dynamic(() => import('@/features/leads/components/AddLeadModal'), { ssr: false });
+const AssignLeadModal = dynamic(() => import('@/features/leads/components/AssignLeadModal'), { ssr: false });
+const ConvertToUnreachableModal = dynamic(() => import('@/features/leads/components/ConvertToUnreachableModal'), { ssr: false });
+const ConvertToUnqualifiedModal = dynamic(() => import('@/features/leads/components/ConvertToUnqualifiedModal'), { ssr: false });
+const CallDialerModal = dynamic(() => import('@/features/leads/components/CallDialerModal'), { ssr: false });
+const ChangeStatusModal = dynamic(() => import('@/features/leads/components/ChangeStatusModal'), { ssr: false });
+const EditCallRemarkModal = dynamic(() => import('@/features/leads/components/EditCallRemarkModal'), { ssr: false });
 
 
 

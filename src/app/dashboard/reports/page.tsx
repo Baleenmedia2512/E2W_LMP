@@ -27,7 +27,9 @@ import {
   useToast,
   Flex,
 } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { fetcher } from '@/shared/lib/swr';
 
 interface ReportsData {
   totalLeads: number;
@@ -46,9 +48,6 @@ interface ReportsData {
 }
 
 export default function ReportsPage() {
-  const [data, setData] = useState<ReportsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>(() => {
     const date = new Date();
     date.setDate(date.getDate() - 7); // 7 days ago
@@ -56,6 +55,17 @@ export default function ReportsPage() {
   });
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
   const [dateFilterType, setDateFilterType] = useState<'created' | 'updated'>('created');
+
+  // SWR — cached, re-fetches automatically when filters change
+  const reportsUrl = `/api/reports?startDate=${startDate}&endDate=${endDate}&dateFilterType=${dateFilterType}`;
+  const { data: rawData, isLoading: loading, error: swrError } = useSWR(
+    reportsUrl,
+    fetcher,
+    { keepPreviousData: true, dedupingInterval: 30000, revalidateOnFocus: false }
+  );
+  const data: ReportsData | null = rawData?.success ? rawData.data : null;
+  const error: string | null = swrError || (!rawData?.success && rawData) ? 'Failed to fetch reports' : null;
+
   const toast = useToast();
 
   const handleExport = () => {
@@ -69,34 +79,7 @@ export default function ReportsPage() {
     });
   };
 
-      useEffect(() => {
-    const fetchReports = async () => {
-      try {
-        setLoading(true);
-        
-        // Use the new optimized reports API endpoint
-        const params = new URLSearchParams();
-        params.append('startDate', startDate);
-        params.append('endDate', endDate);
-        params.append('dateFilterType', dateFilterType);
-        
-        const response = await fetch(`/api/reports?${params.toString()}`);
-        const result = await response.json();
-        
-        if (result.success) {
-          setData(result.data);
-        } else {
-          setError('Failed to fetch reports');
-        }
-      } catch (err) {
-        setError('Failed to fetch reports');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReports();
-  }, [startDate, endDate, dateFilterType]);
+
 
   if (loading) {
     return (
