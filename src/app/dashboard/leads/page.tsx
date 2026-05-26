@@ -24,6 +24,8 @@ import LeadsTabContent from '@/features/leads/components/LeadsTabContent';
 import LeadOutcomesTabContent from '@/features/leads/components/LeadOutcomesTabContent';
 import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import useSWR from 'swr';
+import { fetcher } from '@/shared/lib/swr';
 
 export default function UnifiedLeadsPage() {
   const searchParams = useSearchParams();
@@ -40,8 +42,18 @@ export default function UnifiedLeadsPage() {
   const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>('all');
   const [globalDateRangeFilter, setGlobalDateRangeFilter] = useState<string>('all');
   
-  // State for available owners (populated when LeadOutcomesTabContent loads)
+  // Fetch users directly so the Owner filter is populated immediately on mount
+  const { data: usersData } = useSWR('/api/users', fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
+
+  // State for available owners
   const [availableOwners, setAvailableOwners] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (usersData?.data) setAvailableOwners(usersData.data);
+  }, [usersData?.data]);
   
   // Initialize tab based on query parameter or search state
   const getInitialTab = () => {

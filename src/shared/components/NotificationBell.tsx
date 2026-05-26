@@ -19,7 +19,8 @@ import {
 import { FiBell, FiEye, FiInfo, FiCheckCircle, FiAlertTriangle, FiAlertCircle } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 interface Notification {
   id: string;
@@ -34,43 +35,65 @@ interface Notification {
 
 export default function NotificationBell() {
   const router = useRouter();
+  const pathname = usePathname();
   const toast = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPolling, setIsPolling] = useState(true);
+  const notificationsRef = useRef<Notification[]>([]);
+  const isNavigatingRef = useRef(false);
+
+  // Track the latest notifications in a ref to avoid re-creating the interval
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
+
+  // Pause polling briefly after every route change
+  useEffect(() => {
+    isNavigatingRef.current = true;
+    const timer = setTimeout(() => {
+      isNavigatingRef.current = false;
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [pathname]);
 
   useEffect(() => {
     const fetchNotifications = async () => {
+      // Skip fetch if we are mid-navigation
+      if (isNavigatingRef.current) return;
+
       try {
         const res = await fetch('/api/notifications?limit=50');
         if (!res.ok) throw new Error('Failed to fetch notifications');
         const data = await res.json();
-        
+
         const notificationsList = Array.isArray(data) ? data : data.data || [];
-        
-        // Check if there are new unread notifications
-        const prevUnreadCount = notifications.filter(n => !n.isRead).length;
-        const newUnreadCount = notificationsList.filter((n: Notification) => !n.isRead).length;
-        
-        // Show toast for new notifications (only if we had notifications before)
-        if (notifications.length > 0 && newUnreadCount > prevUnreadCount) {
-          const newNotifications = notificationsList.filter(
-            (n: Notification) => !n.isRead && !notifications.find(old => old.id === n.id)
-          );
-          
-          if (newNotifications.length > 0) {
-            const latestNotification = newNotifications[0];
-            toast({
-              title: latestNotification.title,
-              description: latestNotification.message,
-              status: latestNotification.type as any,
-              duration: 5000,
-              isClosable: true,
-              position: 'top-right',
-            });
+        const prev = notificationsRef.current;
+
+        // Show toast for new unread notifications only when we already had data
+        if (prev.length > 0) {
+          const prevUnreadCount = prev.filter(n => !n.isRead).length;
+          const newUnreadCount = notificationsList.filter((n: Notification) => !n.isRead).length;
+
+          if (newUnreadCount > prevUnreadCount) {
+            const newNotifications = notificationsList.filter(
+              (n: Notification) => !n.isRead && !prev.find(old => old.id === n.id)
+            );
+
+            if (newNotifications.length > 0) {
+              const latestNotification = newNotifications[0];
+              toast({
+                title: latestNotification.title,
+                description: latestNotification.message,
+                status: latestNotification.type as any,
+                duration: 5000,
+                isClosable: true,
+                position: 'top-right',
+              });
+            }
           }
         }
-        
+
         setNotifications(notificationsList);
       } catch (error) {
         console.error('Failed to load notifications:', error);
@@ -81,15 +104,17 @@ export default function NotificationBell() {
 
     fetchNotifications();
 
-    // Real-time polling: Check every 10 seconds for new notifications
+    // Poll every 30 seconds (reduced from 10s)
     const interval = setInterval(() => {
-      if (isPolling) {
+      if (isPolling && !isNavigatingRef.current) {
         fetchNotifications();
       }
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(interval);
-  }, [toast, isPolling, notifications.length]);
+  // Removed toast and notifications.length from deps — use refs instead to avoid recreating interval
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPolling]);
 
   // Pause polling when page is not visible
   useEffect(() => {
