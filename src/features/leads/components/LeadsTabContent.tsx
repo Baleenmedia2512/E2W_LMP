@@ -1576,6 +1576,9 @@ function LeadsTabContent({
             onSuccess={() => {
               // Optimistic update
               optimisticUpdateLead(selectedLead.id, { status: 'unreach' });
+              // Revalidate follow-ups (may have been cancelled server-side)
+              mutateFollowUps();
+              mutateLeads();
             }}
             onBack={() => {
               onUnreachableClose();
@@ -1593,6 +1596,9 @@ function LeadsTabContent({
             onSuccess={() => {
               // Optimistic update
               optimisticUpdateLead(selectedLead.id, { status: 'unqualified' });
+              // Revalidate follow-ups (may have been cancelled server-side)
+              mutateFollowUps();
+              mutateLeads();
             }}
             onBack={() => {
               onUnqualifiedClose();
@@ -1640,6 +1646,10 @@ function LeadsTabContent({
             optimisticUpdateLead(leadToCall.id, {
               callAttempts: (leads.find(l => l.id === leadToCall.id)?.callAttempts || 0) + 1
             });
+            // Call form may have changed status / created or cancelled follow-ups;
+            // revalidate so categorization reflects reality without manual refresh
+            mutateFollowUps();
+            mutateLeads();
           }}
           leadId={leadToCall.id}
           leadName={leadToCall.name}
@@ -1681,6 +1691,11 @@ function LeadsTabContent({
             if (newStatus && leadToChangeStatus) {
               optimisticUpdateLead(leadToChangeStatus.id, { status: newStatus });
             }
+            // Revalidate follow-ups so categorization buckets recompute correctly
+            // (e.g. when status -> 'followup' creates a new follow-up server-side)
+            mutateFollowUps();
+            // Background refresh leads to sync any server-derived fields
+            mutateLeads();
           }}
         />
       )}
