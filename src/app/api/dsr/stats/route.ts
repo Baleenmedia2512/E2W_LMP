@@ -231,7 +231,7 @@ export async function GET(request: NextRequest) {
               createdAt: dateFilter,
             },
             orderBy: {
-              createdAt: 'asc',
+              createdAt: 'desc',
             },
             take: 1,
           },
