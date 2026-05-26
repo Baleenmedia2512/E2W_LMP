@@ -1185,11 +1185,11 @@ export default function DSRPage() {
               },
             }}
           >
-            <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
+            <Table variant="simple" size={{ base: 'sm', md: 'md' }} minW={{ base: '900px', md: 'auto' }}>
               <Thead bg="gray.50" position="sticky" top={0} zIndex={1}>
                 <Tr>
                   {activeCard === 'totalCalls' && (
-                    <Th color={THEME_COLORS.dark}>Time</Th>
+                    <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Time</Th>
                   )}
                   <Th
                     color={THEME_COLORS.dark}
@@ -1198,25 +1198,29 @@ export default function DSRPage() {
                     zIndex={2}
                     bg="gray.50"
                     boxShadow="2px 0 4px rgba(0,0,0,0.08)"
+                    whiteSpace="nowrap"
+                    w={{ base: '120px', md: 'auto' }}
+                    minW={{ base: '120px', md: '160px' }}
+                    maxW={{ base: '120px', md: '220px' }}
                   >
                     Lead Name
                   </Th>
-                  <Th color={THEME_COLORS.dark}>Phone</Th>
-                  <Th color={THEME_COLORS.dark} display={{ base: 'none', md: 'table-cell' }}>Email</Th>
+                  <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Phone</Th>
+                  <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Email</Th>
                   {activeCard === 'totalCalls' ? (
                     <>
-                      <Th color={THEME_COLORS.dark}>Call Status</Th>
-                      <Th color={THEME_COLORS.dark} isNumeric>Attempt #</Th>
-                      <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Duration</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Call Status</Th>
+                      <Th color={THEME_COLORS.dark} isNumeric whiteSpace="nowrap">Attempt #</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Duration</Th>
                     </>
                   ) : (
                     <>
-                      <Th color={THEME_COLORS.dark}>Status</Th>
-                      <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Source</Th>
-                      <Th color={THEME_COLORS.dark} display={{ base: 'none', lg: 'table-cell' }}>Assigned To</Th>
-                      <Th color={THEME_COLORS.dark} display={{ base: 'none', sm: 'table-cell' }}>Created Date</Th>
-                      <Th color={THEME_COLORS.dark} display={{ base: 'none', xl: 'table-cell' }}>Campaign</Th>
-                      <Th color={THEME_COLORS.dark} display={{ base: 'none', xl: 'table-cell' }}>Remarks</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Status</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Source</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Assigned To</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Created Date</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Campaign</Th>
+                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap" minW="480px">Remarks</Th>
                     </>
                   )}
                 </Tr>
@@ -1242,7 +1246,6 @@ export default function DSRPage() {
                         fontWeight="medium"
                         color={lead.is_existing ? "green.600" : THEME_COLORS.primary}
                         fontSize={{ base: 'xs', md: 'sm' }}
-                        whiteSpace="nowrap"
                         cursor="pointer"
                         _hover={{ textDecoration: 'underline', opacity: 0.8 }}
                         onClick={() => handleLeadNameClick((lead as any).leadId || lead.id)}
@@ -1251,11 +1254,12 @@ export default function DSRPage() {
                         zIndex={1}
                         bg="white"
                         boxShadow="2px 0 4px rgba(0,0,0,0.06)"
+                        maxW={{ base: '120px', md: '220px' }}
                       >
-                        {lead.name}
+                        <Text whiteSpace="normal" wordBreak="break-word" title={lead.name}>{lead.name}</Text>
                       </Td>
                       <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">{formatPhoneForDisplay(lead.phone)}</Td>
-                      <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', md: 'table-cell' }}>{lead.email || '-'}</Td>
+                      <Td fontSize={{ base: 'xs', md: 'sm' }}>{lead.email || '-'}</Td>
                       {activeCard === 'totalCalls' ? (
                         <>
                           <Td>
@@ -1278,7 +1282,7 @@ export default function DSRPage() {
                               {lead.callAttempts}
                             </Badge>
                           </Td>
-                          <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }}>
                             {lead.duration ? `${lead.duration}s` : '-'}
                           </Td>
                         </>
@@ -1308,7 +1312,7 @@ export default function DSRPage() {
                               </Text>
                             )}
                           </Td>
-                          <Td display={{ base: 'none', lg: 'table-cell' }}>
+                          <Td>
                             <Badge 
                               bg={THEME_COLORS.accent}
                               color="white"
@@ -1318,18 +1322,17 @@ export default function DSRPage() {
                               {lead.source}
                             </Badge>
                           </Td>
-                          <Td color={THEME_COLORS.medium} fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', lg: 'table-cell' }}>
+                          <Td color={THEME_COLORS.medium} fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
                             {lead.assignedTo?.name || 'Unassigned'}
                           </Td>
-                          <Td whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', sm: 'table-cell' }}>
+                          <Td whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }}>
                             {formatDate(new Date(lead.createdAt))}
                           </Td>
-                          <Td fontSize={{ base: 'xs', md: 'sm' }} display={{ base: 'none', xl: 'table-cell' }}>
+                          <Td fontSize={{ base: 'xs', md: 'sm' }}>
                             {lead.campaign || '-'}
                           </Td>
                           <Td
                             fontSize={{ base: 'xs', md: 'sm' }}
-                            display={{ base: 'none', xl: 'table-cell' }}
                             cursor={(lead as any).callLogRemarks || (lead as any).remarks ? 'pointer' : 'default'}
                             _hover={(lead as any).callLogRemarks || (lead as any).remarks ? { bg: `${THEME_COLORS.light}30`, textDecoration: 'underline' } : {}}
                             onClick={() => {
@@ -1338,7 +1341,7 @@ export default function DSRPage() {
                             }}
                             title={(lead as any).callLogRemarks || (lead as any).remarks ? 'Click to view full remarks' : ''}
                           >
-                            <Text noOfLines={2} maxW="160px" fontSize={{ base: 'xs', md: 'sm' }}>
+                            <Text noOfLines={2} maxW="480px" fontSize={{ base: 'xs', md: 'sm' }}>
                               {(lead as any).callLogRemarks || (lead as any).remarks || '-'}
                             </Text>
                           </Td>
