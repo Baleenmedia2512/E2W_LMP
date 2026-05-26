@@ -209,7 +209,9 @@ export default function DSRPage() {
   // Lead Details Modal state
   const { isOpen: isLeadModalOpen, onOpen: onLeadModalOpen, onClose: onLeadModalClose } = useDisclosure();
   const { isOpen: isRemarkModalOpen, onOpen: onRemarkModalOpen, onClose: onRemarkModalClose } = useDisclosure();
-  const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
+  const [selectedLeadAllRemarks, setSelectedLeadAllRemarks] = useState<Array<{id: string; remarks: string | null; createdAt: string; attemptNumber: number; callStatus: string | null}> | null>(null);
+  const [selectedLeadNameForRemarks, setSelectedLeadNameForRemarks] = useState<string>('');
+  const [isRemarksLoading, setIsRemarksLoading] = useState(false);
   const [selectedLeadDetails, setSelectedLeadDetails] = useState<any | null>(null);
   const [isLeadDetailsLoading, setIsLeadDetailsLoading] = useState(false);
 
@@ -393,10 +395,32 @@ export default function DSRPage() {
     setCurrentPage(1);
   };
 
-  // Open small remarks modal
-  const handleRemarkClick = (text: string) => {
-    setSelectedRemark(text);
+  // Open remarks modal — fetches all call log remarks for the lead
+  const handleRemarkClick = async (leadId: string, leadName: string) => {
+    setSelectedLeadAllRemarks(null);
+    setSelectedLeadNameForRemarks(leadName);
+    setIsRemarksLoading(true);
     onRemarkModalOpen();
+    try {
+      const res = await fetch(`/api/leads/${leadId}`);
+      const json = await res.json();
+      if (json.success) {
+        const remarks = (json.data.CallLog || []).map((call: any) => ({
+          id: call.id,
+          remarks: call.remarks || null,
+          createdAt: call.createdAt,
+          attemptNumber: call.attemptNumber,
+          callStatus: call.callStatus || null,
+        }));
+        setSelectedLeadAllRemarks(remarks);
+      } else {
+        setSelectedLeadAllRemarks([]);
+      }
+    } catch {
+      setSelectedLeadAllRemarks([]);
+    } finally {
+      setIsRemarksLoading(false);
+    }
   };
 
   // Open lead details modal — works for both regular leads and call-log rows
@@ -1337,7 +1361,7 @@ export default function DSRPage() {
                             _hover={(lead as any).callLogRemarks || (lead as any).remarks ? { bg: `${THEME_COLORS.light}30`, textDecoration: 'underline' } : {}}
                             onClick={() => {
                               const text = (lead as any).callLogRemarks || (lead as any).remarks;
-                              if (text) handleRemarkClick(text);
+                              if (text) handleRemarkClick((lead as any).leadId || lead.id, lead.name);
                             }}
                             title={(lead as any).callLogRemarks || (lead as any).remarks ? 'Click to view full remarks' : ''}
                           >
@@ -1904,19 +1928,78 @@ export default function DSRPage() {
         </ModalContent>
       </Modal>
 
-      {/* Remarks Modal */}
-      <Modal isOpen={isRemarkModalOpen} onClose={onRemarkModalClose} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader fontSize="md">Remarks</ModalHeader>
+      {/* All Remarks Modal */}
+      <Modal isOpen={isRemarkModalOpen} onClose={onRemarkModalClose} size="xl" scrollBehavior="inside">
+        <ModalOverlay bg="blackAlpha.600" />
+        <ModalContent maxH="80vh">
+          <ModalHeader borderBottom="1px" borderColor="gray.100" pb={3}>
+            <Text fontSize="md" fontWeight="bold" color={THEME_COLORS.dark}>
+              All Remarks — {selectedLeadNameForRemarks}
+            </Text>
+          </ModalHeader>
           <ModalCloseButton />
-          <ModalBody pb={6}>
-            <Box bg="gray.50" p={4} borderRadius="md" border="1px solid" borderColor="gray.200">
-              <Text whiteSpace="pre-wrap" fontSize="md">
-                {selectedRemark || 'No remarks provided'}
-              </Text>
-            </Box>
+          <ModalBody p={4}>
+            {isRemarksLoading ? (
+              <Center py={10}>
+                <Spinner size="lg" color={THEME_COLORS.primary} mr={3} />
+                <Text color={THEME_COLORS.medium}>Loading remarks...</Text>
+              </Center>
+            ) : selectedLeadAllRemarks && selectedLeadAllRemarks.length > 0 ? (
+              <VStack spacing={3} align="stretch">
+                {selectedLeadAllRemarks.map((entry, idx) => (
+                  <Box
+                    key={entry.id}
+                    p={3}
+                    border="1px"
+                    borderColor="gray.200"
+                    borderRadius="md"
+                    bg={idx === 0 ? `${THEME_COLORS.light}15` : 'white'}
+                  >
+                    <Flex justify="space-between" align="flex-start" mb={2} flexWrap="wrap" gap={2}>
+                      <HStack spacing={2} flexWrap="wrap">
+                        <Badge
+                          bg={
+                            entry.callStatus === 'completed' || entry.callStatus === 'answer' ? 'green.500' :
+                            entry.callStatus === 'no_answer' ? 'orange.500' :
+                            entry.callStatus === 'busy' ? 'yellow.600' :
+                            entry.callStatus === 'unreachable' ? 'red.500' :
+                            'gray.400'
+                          }
+                          color="white"
+                          fontSize="xs"
+                        >
+                          {entry.callStatus || 'N/A'}
+                        </Badge>
+                        <Badge bg={THEME_COLORS.medium} color="white" fontSize="xs">
+                          Attempt #{entry.attemptNumber}
+                        </Badge>
+                      </HStack>
+                      <Text fontSize="xs" color="gray.500" whiteSpace="nowrap">
+                        {entry.createdAt ? new Date(entry.createdAt).toLocaleString('en-IN', {
+                          day: '2-digit', month: 'short', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit', hour12: true,
+                        }) : '—'}
+                      </Text>
+                    </Flex>
+                    {entry.remarks ? (
+                      <Box bg="gray.50" p={2} borderRadius="sm" borderLeft="3px solid" borderColor={THEME_COLORS.light}>
+                        <Text fontSize="sm" whiteSpace="pre-wrap" color={THEME_COLORS.dark}>{entry.remarks}</Text>
+                      </Box>
+                    ) : (
+                      <Text fontSize="sm" color="gray.400" fontStyle="italic">No remarks recorded</Text>
+                    )}
+                  </Box>
+                ))}
+              </VStack>
+            ) : (
+              <Center py={8}>
+                <Text color="gray.400">No remarks found for this lead</Text>
+              </Center>
+            )}
           </ModalBody>
+          <ModalFooter borderTop="1px" borderColor="gray.100" py={3}>
+            <Button onClick={onRemarkModalClose} size="sm" colorScheme="gray">Close</Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Box>
