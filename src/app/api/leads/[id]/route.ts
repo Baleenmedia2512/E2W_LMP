@@ -135,6 +135,24 @@ export async function PUT(
       updateData.is_existing = true;
     }
 
+    // Cancel all pending/overdue follow-ups when status changes away from followup
+    // (e.g. followup → new, followup → qualified). Without this the lead stays stuck
+    // in the "Scheduled Follow-ups" section even after the status is reverted.
+    const statusChangingAwayFromFollowup =
+      body.status &&
+      oldLead?.status === 'followup' &&
+      body.status !== 'followup';
+
+    if (statusChangingAwayFromFollowup) {
+      await prisma.followUp.updateMany({
+        where: {
+          leadId: params.id,
+          status: { in: ['pending', 'overdue'] },
+        },
+        data: { status: 'cancelled' },
+      });
+    }
+
     const lead = await prisma.lead.update({
       where: { id: params.id },
       data: updateData,
