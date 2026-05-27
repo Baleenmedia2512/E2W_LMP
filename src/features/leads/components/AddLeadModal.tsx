@@ -68,7 +68,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     date: currentDate,
     time: currentTime,
     source: '',
-    lead_category: 'OUTBOUND' as 'INBOUND' | 'OUTBOUND',
+    lead_category: '' as '' | 'INBOUND' | 'OUTBOUND',
     name: '',
     campaign: '',
     phone: '',
@@ -235,6 +235,11 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
 
     if (!formData.source) {
       setError('source', 'Client Platform is required');
+      hasErrors = true;
+    }
+
+    if (!formData.lead_category) {
+      setError('lead_category', 'Lead Category is required');
       hasErrors = true;
     }
 
@@ -433,7 +438,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       date: currentDate,
       time: currentTime,
       source: '',
-      lead_category: 'OUTBOUND',
+      lead_category: '',
       name: '',
       campaign: '',
       phone: '',
@@ -566,20 +571,17 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   {errors.source && <FormErrorMessage>{errors.source}</FormErrorMessage>}
                 </FormControl>
 
-                {/* Lead Category — auto-derived from source, can be overridden */}
-                <FormControl>
+                {/* Lead Category — required, user must select */}
+                <FormControl isRequired isInvalid={!!errors.lead_category}>
                   <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
                     Lead Category
-                    <Text as="span" fontSize="2xs" color="gray.500" fontWeight="normal" ml={2}>
-                      (auto-set from source)
-                    </Text>
                   </FormLabel>
                   <HStack spacing={2}>
                     <Button
                       size="sm"
                       variant={formData.lead_category === 'INBOUND' ? 'solid' : 'outline'}
                       colorScheme={formData.lead_category === 'INBOUND' ? 'green' : 'gray'}
-                      onClick={() => setFormData(prev => ({ ...prev, lead_category: 'INBOUND' }))}
+                      onClick={() => { setFormData(prev => ({ ...prev, lead_category: 'INBOUND' })); clearError('lead_category'); }}
                       flex={1}
                     >
                       INBOUND
@@ -588,17 +590,22 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                       size="sm"
                       variant={formData.lead_category === 'OUTBOUND' ? 'solid' : 'outline'}
                       colorScheme={formData.lead_category === 'OUTBOUND' ? 'blue' : 'gray'}
-                      onClick={() => setFormData(prev => ({ ...prev, lead_category: 'OUTBOUND' }))}
+                      onClick={() => { setFormData(prev => ({ ...prev, lead_category: 'OUTBOUND' })); clearError('lead_category'); }}
                       flex={1}
                     >
                       OUTBOUND
                     </Button>
                   </HStack>
-                  <Text fontSize="2xs" color={formData.lead_category === 'INBOUND' ? 'green.600' : 'blue.600'} mt={1}>
-                    {formData.lead_category === 'INBOUND'
-                      ? '⚡ High priority — must be processed within 1 hour'
-                      : 'Normal priority — no automatic SLA timer'}
-                  </Text>
+                  {errors.lead_category
+                    ? <FormErrorMessage>{errors.lead_category}</FormErrorMessage>
+                    : formData.lead_category && (
+                        <Text fontSize="2xs" color={formData.lead_category === 'INBOUND' ? 'green.600' : 'blue.600'} mt={1}>
+                          {formData.lead_category === 'INBOUND'
+                            ? '⚡ High priority — must be processed within 1 hour'
+                            : 'Normal priority — no automatic SLA timer'}
+                        </Text>
+                      )
+                  }
                 </FormControl>
 
                 {/* 4. Assigned To (name only) */}
