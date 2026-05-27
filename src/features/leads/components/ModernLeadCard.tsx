@@ -149,6 +149,24 @@ const ModernLeadCard = memo(({
                 </Badge>
               </Tooltip>
             )}
+            {/* INBOUND / OUTBOUND category badge — null treated as OUTBOUND */}
+            {(() => {
+              const cat = lead.lead_category === 'INBOUND' ? 'INBOUND' : 'OUTBOUND';
+              return (
+                <Tooltip label={cat === 'INBOUND' ? 'Inbound lead — 1 hour SLA' : 'Outbound lead — no SLA timer'}>
+                  <Badge
+                    colorScheme={cat === 'INBOUND' ? 'green' : 'purple'}
+                    fontSize="2xs"
+                    px={1.5}
+                    py={0.5}
+                    borderRadius="sm"
+                    variant="subtle"
+                  >
+                    {cat === 'INBOUND' ? '⚡ IN' : '↗ OUT'}
+                  </Badge>
+                </Tooltip>
+              );
+            })()}
           </HStack>
 
           {/* Action Buttons */}

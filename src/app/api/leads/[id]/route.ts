@@ -121,6 +121,7 @@ export async function PUT(
       status: body.status || undefined,
       notes: body.notes !== undefined ? body.notes : undefined,
       assignedToId: body.assignedToId !== undefined ? body.assignedToId : undefined,
+      lead_category: body.lead_category !== undefined ? body.lead_category : undefined,
       updatedAt: new Date(), // Always update the updatedAt timestamp
     };
 

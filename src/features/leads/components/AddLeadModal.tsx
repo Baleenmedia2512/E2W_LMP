@@ -68,6 +68,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     date: currentDate,
     time: currentTime,
     source: '',
+    lead_category: 'OUTBOUND' as 'INBOUND' | 'OUTBOUND',
     name: '',
     campaign: '',
     phone: '',
@@ -299,6 +300,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
           customerRequirement: formData.customerRequirement || null,
           assignedToId: formData.assignedToId || user?.id || null,
           createdById: user?.id || null,
+          lead_category: formData.lead_category,
           notes: null,
         }),
       });
@@ -356,10 +358,21 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
         [name]: numbersOnly,
       });
     } else {
-      setFormData({
-        ...formData,
-        [name]: value,
-      });
+      // Auto-derive lead_category when source changes
+      if (name === 'source') {
+        const inboundSources = ['meta', 'website', 'whatsapp', 'online', 'indiamart', 'sulekha', 'just dial', 'web app db'];
+        const autoCategory = inboundSources.includes(value.toLowerCase()) ? 'INBOUND' : 'OUTBOUND';
+        setFormData({
+          ...formData,
+          [name]: value,
+          lead_category: autoCategory,
+        });
+      } else {
+        setFormData({
+          ...formData,
+          [name]: value,
+        });
+      }
     }
   };
 
@@ -420,6 +433,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       date: currentDate,
       time: currentTime,
       source: '',
+      lead_category: 'OUTBOUND',
       name: '',
       campaign: '',
       phone: '',
@@ -550,6 +564,41 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                     </MenuList>
                   </Menu>
                   {errors.source && <FormErrorMessage>{errors.source}</FormErrorMessage>}
+                </FormControl>
+
+                {/* Lead Category — auto-derived from source, can be overridden */}
+                <FormControl>
+                  <FormLabel fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600">
+                    Lead Category
+                    <Text as="span" fontSize="2xs" color="gray.500" fontWeight="normal" ml={2}>
+                      (auto-set from source)
+                    </Text>
+                  </FormLabel>
+                  <HStack spacing={2}>
+                    <Button
+                      size="sm"
+                      variant={formData.lead_category === 'INBOUND' ? 'solid' : 'outline'}
+                      colorScheme={formData.lead_category === 'INBOUND' ? 'green' : 'gray'}
+                      onClick={() => setFormData(prev => ({ ...prev, lead_category: 'INBOUND' }))}
+                      flex={1}
+                    >
+                      INBOUND
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={formData.lead_category === 'OUTBOUND' ? 'solid' : 'outline'}
+                      colorScheme={formData.lead_category === 'OUTBOUND' ? 'blue' : 'gray'}
+                      onClick={() => setFormData(prev => ({ ...prev, lead_category: 'OUTBOUND' }))}
+                      flex={1}
+                    >
+                      OUTBOUND
+                    </Button>
+                  </HStack>
+                  <Text fontSize="2xs" color={formData.lead_category === 'INBOUND' ? 'green.600' : 'blue.600'} mt={1}>
+                    {formData.lead_category === 'INBOUND'
+                      ? '⚡ High priority — must be processed within 1 hour'
+                      : 'Normal priority — no automatic SLA timer'}
+                  </Text>
                 </FormControl>
 
                 {/* 4. Assigned To (name only) */}

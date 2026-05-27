@@ -32,6 +32,10 @@
     {
       "path": "/api/cron/check-upcoming-followups",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/check-inbound-sla",
+      "schedule": "*/10 * * * *"
     }
   ],
   "headers": [

@@ -5,6 +5,16 @@ import { normalizePhoneForStorage, isValidPhone, getPhoneValidationError } from 
 import { randomUUID } from 'crypto';
 import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-utils';
 
+// Sources that are always INBOUND (customer reached out to you)
+const INBOUND_SOURCES = ['meta', 'website', 'whatsapp', 'online', 'indiamart', 'sulekha', 'just dial', 'web app db'];
+
+function deriveLeadCategory(source: string, explicitCategory?: string): string {
+  if (explicitCategory === 'INBOUND' || explicitCategory === 'OUTBOUND') {
+    return explicitCategory;
+  }
+  return INBOUND_SOURCES.includes(source?.toLowerCase()) ? 'INBOUND' : 'OUTBOUND';
+}
+
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
   try {
@@ -291,6 +301,7 @@ export async function POST(request: NextRequest) {
             ? `${existingLead.notes}\n\n[${new Date().toISOString()}] ${body.notes}`
             : body.notes || existingLead.notes,
           assignedToId: body.assignedToId || existingLead.assignedToId,
+          lead_category: deriveLeadCategory(body.source || existingLead.source, body.lead_category),
           createdAt: new Date(), // Reset lead age for new enquiry
           updatedAt: new Date(),
         },
@@ -327,6 +338,7 @@ export async function POST(request: NextRequest) {
           notes: body.notes || null,
           assignedToId: assignedToId,
           createdById: body.createdById || null,
+          lead_category: deriveLeadCategory(body.source, body.lead_category),
           updatedAt: new Date(),
         },
         include: {

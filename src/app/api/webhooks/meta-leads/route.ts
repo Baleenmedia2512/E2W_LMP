@@ -389,6 +389,7 @@ async function processLead(leadgenData: any): Promise<void> {
             : 'Lead updated via Meta webhook (real-time)',
           metadata: JSON.stringify(metadata),
           assignedToId: assignedTo || existingLead.assignedToId,
+          lead_category: 'INBOUND', // Meta leads are always inbound
           createdAt: new Date(), // Reset lead age for new enquiry
           updatedAt: new Date(),
         },
@@ -418,6 +419,7 @@ async function processLead(leadgenData: any): Promise<void> {
           notes: 'Lead received via Meta webhook (real-time)',
           metadata: JSON.stringify(metadata),
           assignedToId: assignedTo,
+          lead_category: 'INBOUND', // Meta leads are always inbound
           updatedAt: new Date(),
         },
       });

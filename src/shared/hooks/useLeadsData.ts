@@ -79,7 +79,7 @@ export function useLeadsData(options: UseLeadsDataOptions = {}) {
     ([url, token]) => authFetcher(url, token),
     {
       refreshInterval,
-      revalidateOnFocus: false,
+      revalidateOnFocus: true,   // Refresh when agent switches back to tab — picks up SLA auto-moves
       revalidateOnReconnect: true,
       dedupingInterval: 30000, // Increased from 5s → 30s: prevents burst re-fetches on rapid filter changes
       keepPreviousData: true,

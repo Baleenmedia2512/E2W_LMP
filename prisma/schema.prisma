@@ -117,6 +117,7 @@ model Lead {
   updatedAt                    DateTime
   callAttempts                 Int               @default(0)
   is_existing                  Boolean           @default(false)
+  lead_category                String?           @default("OUTBOUND")
   ActivityHistory              ActivityHistory[]
   CallLog                      CallLog[]
   FollowUp                     FollowUp[]
@@ -133,6 +134,7 @@ model Lead {
   @@index([assignedToId, status, createdAt])      // Agent view: filter by owner + status + sort by date
   @@index([status, assignedToId])                 // Count queries: status + owner lookup
   @@index([updatedAt])                            // Outcomes tab sorts by updatedAt
+  @@index([lead_category, status, createdAt])     // SLA cron: INBOUND + new + createdAt lookup
 }
 
 model Notification {

@@ -41,6 +41,7 @@ export interface Lead {
   notes: string | null;
   metadata: Record<string, unknown> | null;
   is_existing: boolean | null;
+  lead_category: 'INBOUND' | 'OUTBOUND' | null;
   createdAt: Date;
   updatedAt: Date;
   assignedTo?: User;
