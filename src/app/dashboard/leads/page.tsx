@@ -40,8 +40,6 @@ export default function UnifiedLeadsPage() {
   const [globalSourceFilter, setGlobalSourceFilter] = useState<string>('all');
   const [globalAttemptsFilter, setGlobalAttemptsFilter] = useState<string>('all');
   const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>('all');
-  const [globalDateRangeFilter, setGlobalDateRangeFilter] = useState<string>('all');
-  
   // Fetch users directly so the Owner filter is populated immediately on mount
   const { data: usersData } = useSWR('/api/users', fetcher, {
     revalidateOnFocus: false,
@@ -93,7 +91,6 @@ export default function UnifiedLeadsPage() {
   useEffect(() => {
     if (user?.id && user?.role === 'Sales Agent') {
       setGlobalOwnerFilter(user.id);
-      setGlobalDateRangeFilter('all');
     }
   }, [user?.id, user?.role]);
 
@@ -112,7 +109,6 @@ export default function UnifiedLeadsPage() {
     setGlobalSourceFilter('all');
     setGlobalAttemptsFilter('all');
     setGlobalOwnerFilter('all');
-    setGlobalDateRangeFilter('all');
   };
   
   // Check if any global filter is active
@@ -121,8 +117,7 @@ export default function UnifiedLeadsPage() {
     globalClientTypeFilter !== 'all' ||
     globalSourceFilter !== 'all' ||
     globalAttemptsFilter !== 'all' ||
-    globalOwnerFilter !== 'all' ||
-    globalDateRangeFilter !== 'all';
+    globalOwnerFilter !== 'all';
 
   return (
     <Box>
@@ -224,20 +219,6 @@ export default function UnifiedLeadsPage() {
               ))}
             </Select>
 
-            <Select
-              value={globalDateRangeFilter}
-              onChange={(e) => setGlobalDateRangeFilter(e.target.value)}
-              size="sm"
-              flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
-              maxW={{ sm: '150px' }}
-              minW={{ base: '0', sm: '110px' }}
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-            </Select>
-
             {/* Reset Filters Button */}
             {hasActiveGlobalFilters && (
               <Button
@@ -329,7 +310,6 @@ export default function UnifiedLeadsPage() {
               globalSourceFilter={globalSourceFilter}
               globalAttemptsFilter={globalAttemptsFilter}
               globalOwnerFilter={globalOwnerFilter}
-              globalDateRangeFilter={globalDateRangeFilter}
             />
           </TabPanel>
 
@@ -342,7 +322,6 @@ export default function UnifiedLeadsPage() {
                 globalClientTypeFilter={globalClientTypeFilter}
                 globalSourceFilter={globalSourceFilter}
                 globalOwnerFilter={globalOwnerFilter}
-                globalDateRangeFilter={globalDateRangeFilter}
                 onOwnersLoad={(owners) => {
                   setAvailableOwners(owners);
                 }}
