@@ -107,7 +107,7 @@ export function useFollowUpsData(options: { refreshInterval?: number } = {}) {
     (url) => authFetcher(url, null),
     {
       refreshInterval,
-      revalidateOnFocus: false,
+      revalidateOnFocus: true,  // Must match leads hook — both caches refresh together on tab focus
       revalidateOnReconnect: true,
       dedupingInterval: 30000, // 30s dedup
       keepPreviousData: true,

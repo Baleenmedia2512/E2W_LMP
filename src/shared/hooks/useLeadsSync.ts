@@ -152,3 +152,69 @@ export function useLeadsSync(
     };
   }, [handleLeadChange, handleFollowUpChange]);
 }
+
+/**
+ * SWR-native realtime sync hook
+ * Wires Supabase realtime events directly to SWR mutate functions.
+ * Use this instead of useLeadsSync when state lives in SWR (not useState).
+ *
+ * On Lead UPDATE  → optimistically merges changed fields into leads cache (no re-fetch)
+ * On Lead INSERT/DELETE → full leads revalidation
+ * On FollowUp ANY change → full followUps revalidation (ensures categorization buckets are correct)
+ */
+export function useLeadsSWRSync(
+  mutateLeads: (updater?: any, opts?: any) => void,
+  mutateFollowUps: () => void
+) {
+  useEffect(() => {
+    if (!supabase) {
+      console.warn('⚠️ Supabase not configured. Realtime sync (SWR) disabled.');
+      return;
+    }
+
+    const channel = supabase
+      .channel('leads-swr-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'Lead' },
+        (payload: any) => {
+          if (payload.eventType === 'UPDATE') {
+            // Optimistic merge — update only the changed lead in cache without a network round-trip
+            mutateLeads(
+              (current: any[]) =>
+                current?.map((l: any) =>
+                  l.id === payload.new.id ? { ...l, ...payload.new } : l
+                ) ?? current,
+              { revalidate: false }
+            );
+            console.log('✏️ [SWR Realtime] Lead updated:', payload.new.id, '→ status:', payload.new.status);
+          } else {
+            // INSERT or DELETE — full revalidation to stay consistent
+            mutateLeads();
+            console.log('🔄 [SWR Realtime] Leads revalidated (INSERT/DELETE)');
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'FollowUp' },
+        (payload: any) => {
+          // Any FollowUp change (INSERT by cron, UPDATE, DELETE) must revalidate followUps
+          // so categorizeAndSortLeads() re-buckets leads correctly
+          mutateFollowUps();
+          console.log('📋 [SWR Realtime] FollowUps revalidated (', payload.eventType, ')');
+        }
+      )
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [SWR Realtime] Connected to Lead + FollowUp channels');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          console.warn('⚠️ [SWR Realtime] Disconnected:', status);
+        }
+      });
+
+    return () => {
+      supabase!.removeChannel(channel);
+    };
+  }, [mutateLeads, mutateFollowUps]);
+}

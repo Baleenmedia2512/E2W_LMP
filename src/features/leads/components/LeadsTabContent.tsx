@@ -32,6 +32,7 @@ import {
   Checkbox,
 } from '@chakra-ui/react';
 import { useLeadsAndFollowUps } from '@/shared/hooks/useLeadsData';
+import { useLeadsSWRSync } from '@/shared/hooks/useLeadsSync';
 import { LeadCardGridSkeleton, SectionHeaderSkeleton } from '@/shared/components/SkeletonLoaders';
 import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
 import {
@@ -417,8 +418,12 @@ function LeadsTabContent({
     // dashboardMode=false (Show All): fetches full dataset (2000 rows, only on demand)
     dashboardMode: showOnlyToday,
     limit: showOnlyToday ? 500 : 2000,
-    refreshInterval: 0, // Manual refresh only
+    refreshInterval: 60000, // 60s polling — safety net if realtime misses an event
   });
+
+  // Realtime sync: Supabase pushes Lead/FollowUp DB changes directly into SWR caches
+  // Ensures cron-based status changes (e.g. new → followup) instantly regroup lead cards
+  useLeadsSWRSync(mutateLeads, mutateFollowUps);
 
   // Optimistic update helper for lead status changes
   const optimisticUpdateLead = (leadId: string, updates: Partial<Lead>) => {
@@ -486,9 +491,6 @@ function LeadsTabContent({
       refreshAll();
     }
   }, [searchParams, refreshAll]);
-  
-  // Note: Removed useLeadsSync - SWR handles data synchronization automatically
-  // with optimistic updates for instant UI feedback
   
   // Handler to refresh data after status changes
   const handleRefreshLeads = () => {
