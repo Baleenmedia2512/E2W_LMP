@@ -22,7 +22,7 @@ import Header from '@/shared/components/layout/Header';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const isMobile = useBreakpointValue({ base: true, lg: false });
+  const isMobile = useBreakpointValue({ base: true, lg: false }, { fallback: 'base' });
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -53,7 +53,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       
       {/* Mobile Drawer */}
       <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
-        <DrawerOverlay />
+        <DrawerOverlay style={{ pointerEvents: isOpen ? 'auto' : 'none' }} />
         <DrawerContent maxW={{ base: '280px', sm: '320px' }}>
           <DrawerCloseButton />
           <DrawerBody p={0}>

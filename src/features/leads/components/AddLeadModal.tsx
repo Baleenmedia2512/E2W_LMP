@@ -23,8 +23,12 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  ModalFooter,
+  AlertTitle,
+  AlertDescription,
 } from '@chakra-ui/react';
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useFormValidation } from '@/shared/hooks/useFormValidation';
 import { useUnsavedChanges } from '@/shared/hooks/useUnsavedChanges';
@@ -53,11 +57,14 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
   const [agents, setAgents] = useState<User[]>([]);
   const { errors, validateField, clearError, setError, clearAllErrors } = useFormValidation();
   const confirmDialog = useConfirmDialog();
+  const router = useRouter();
   
   // Phone prefill feature states
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
   const [existingLead, setExistingLead] = useState<any>(null);
   const [showPrefillPrompt, setShowPrefillPrompt] = useState(false);
+  const [showDuplicateAlert, setShowDuplicateAlert] = useState(false);
+  const [prefilledSnapshot, setPrefilledSnapshot] = useState<Record<string, string> | null>(null);
 
   // Get current date and time
   const now = new Date();
@@ -151,6 +158,19 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
         setShowPrefillPrompt(true);
         
         // Automatically prefill the form with existing lead data
+        setPrefilledSnapshot({
+          name: data.lead.name || '',
+          email: data.lead.email || '',
+          alternatePhone: data.lead.alternatePhone || '',
+          address: data.lead.address || '',
+          city: data.lead.city || '',
+          state: data.lead.state || '',
+          pincode: data.lead.pincode || '',
+          source: data.lead.source || '',
+          campaign: data.lead.campaign || '',
+          customerRequirement: data.lead.customerRequirement || '',
+          lead_category: (data.lead.lead_category as string) || '',
+        });
         setFormData(prev => ({
           ...prev,
           name: data.lead.name || prev.name,
@@ -163,6 +183,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
           source: data.lead.source || prev.source,
           campaign: data.lead.campaign || prev.campaign,
           customerRequirement: data.lead.customerRequirement || prev.customerRequirement,
+          lead_category: (data.lead.lead_category as '' | 'INBOUND' | 'OUTBOUND') || prev.lead_category,
         }));
         
         toast({
@@ -197,6 +218,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
         source: existingLead.source || formData.source,
         campaign: existingLead.campaign || formData.campaign,
         customerRequirement: existingLead.customerRequirement || formData.customerRequirement,
+        lead_category: (existingLead.lead_category as '' | 'INBOUND' | 'OUTBOUND') || formData.lead_category,
       });
       
       setShowPrefillPrompt(false);
@@ -280,6 +302,16 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       return;
     }
 
+    // Block submit if existing lead detected but no changes made
+    if (existingLead && prefilledSnapshot) {
+      const fields = ['name', 'email', 'alternatePhone', 'address', 'city', 'state', 'pincode', 'source', 'campaign', 'customerRequirement', 'lead_category'] as const;
+      const noChanges = fields.every(f => (formData[f] || '') === (prefilledSnapshot[f] || ''));
+      if (noChanges) {
+        setShowDuplicateAlert(true);
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -312,21 +344,26 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
 
       if (response.ok) {
         const result = await response.json();
+        const isUpdate = !!existingLead;
         toast({
-          title: 'Lead created successfully',
-          description: `${result.data.name} has been added to the system`,
+          title: isUpdate ? 'Lead updated successfully' : 'Lead created successfully',
+          description: isUpdate
+            ? `${result.data.name} has been updated`
+            : `${result.data.name} has been added to the system`,
           status: 'success',
           duration: 3000,
         });
         resetAndClose();
         if (onSuccess) onSuccess();
       } else {
-        throw new Error('Failed to create lead');
+        throw new Error(existingLead ? 'Failed to update lead' : 'Failed to create lead');
       }
     } catch (error) {
       toast({
-        title: 'Error creating lead',
-        description: 'An error occurred while creating the lead',
+        title: existingLead ? 'Error updating lead' : 'Error creating lead',
+        description: existingLead
+          ? 'An error occurred while updating the lead'
+          : 'An error occurred while creating the lead',
         status: 'error',
         duration: 3000,
       });
@@ -455,6 +492,8 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     setExistingLead(null);
     setShowPrefillPrompt(false);
     setIsCheckingPhone(false);
+    setShowDuplicateAlert(false);
+    setPrefilledSnapshot(null);
     confirmDialog.onClose();
     onClose();
   };
@@ -765,6 +804,60 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
           </ModalBody>
         </ModalContent>
       </Modal>
+
+      {/* Duplicate Lead Alert */}
+      {showDuplicateAlert && existingLead && (
+        <Modal isOpen={showDuplicateAlert} onClose={() => setShowDuplicateAlert(false)} isCentered size="md">
+          <ModalOverlay />
+          <ModalContent mx={4}>
+            <ModalHeader fontSize="lg" pb={2}>
+              ⚠️ Lead Already Exists
+            </ModalHeader>
+            <ModalCloseButton />
+            <ModalBody pb={2}>
+              <VStack align="start" spacing={3}>
+                <Text fontSize="sm" color="gray.700">
+                  <Text as="span" fontWeight="bold">{existingLead.name}</Text> is already recorded in the system with this phone number.
+                </Text>
+                <Box p={3} bg="orange.50" borderRadius="md" borderWidth="1px" borderColor="orange.200" w="full">
+                  <Text fontSize="xs" color="orange.800" fontWeight="medium">
+                    No changes were detected. Please update at least one field before submitting, or go directly to the existing lead.
+                  </Text>
+                </Box>
+              </VStack>
+            </ModalBody>
+            <ModalFooter gap={2} flexWrap="wrap" justifyContent="flex-start" pt={3}>
+              <Button
+                colorScheme="blue"
+                size="sm"
+                onClick={() => {
+                  setShowDuplicateAlert(false);
+                  resetAndClose();
+                  router.push(`/dashboard/leads/${existingLead.id}`);
+                }}
+              >
+                Go to Lead
+              </Button>
+              <Button
+                variant="outline"
+                colorScheme="blue"
+                size="sm"
+                onClick={() => setShowDuplicateAlert(false)}
+              >
+                Edit &amp; Continue
+              </Button>
+              <Button
+                variant="ghost"
+                colorScheme="red"
+                size="sm"
+                onClick={resetAndClose}
+              >
+                Cancel
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}

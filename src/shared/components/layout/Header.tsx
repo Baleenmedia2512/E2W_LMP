@@ -31,7 +31,7 @@ interface HeaderProps {
 export default function Header({ onMenuClick }: HeaderProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const isMobile = useBreakpointValue({ base: true, lg: false });
+  const isMobile = useBreakpointValue({ base: true, lg: false }, { fallback: 'base' });
   const { user, logout } = useAuth();
   const router = useRouter();
 
@@ -52,19 +52,21 @@ export default function Header({ onMenuClick }: HeaderProps) {
       px={{ base: 3, sm: 4, md: 6 }} 
       py={{ base: 2, sm: 3, md: 4 }}
       flexShrink={0}
-      zIndex={10}
+      position="relative"
+      zIndex={100}
     >
       <Flex justify="space-between" align="center">
         <HStack spacing={3}>
-          {isMobile && (
-            <IconButton
-              icon={<FiMenu />}
-              variant="ghost"
-              onClick={onMenuClick}
-              aria-label="Open menu"
-              size="md"
-            />
-          )}
+          <IconButton
+            icon={<FiMenu />}
+            variant="ghost"
+            onClick={onMenuClick}
+            aria-label="Open menu"
+            size="md"
+            display={{ base: 'flex', lg: 'none' }}
+            position="relative"
+            zIndex={1}
+          />
           <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="600" display={{ base: 'none', sm: 'block' }}>
             Welcome back!
           </Text>

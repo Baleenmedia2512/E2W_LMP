@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
         source: true,
         campaign: true,
         customerRequirement: true,
+        lead_category: true,
         createdAt: true
       }
     });
