@@ -6,10 +6,10 @@ const isProduction = () => getNodeEnv() === 'production';
 const isDevelopment = () => getNodeEnv() === 'development';
 
 /**
- * Builds the DATABASE_URL with pgbouncer=true and connection_limit=1 enforced.
+ * Builds the DATABASE_URL with pgbouncer=true and connection_limit=2 enforced.
  * - pgbouncer=true: tells Prisma not to use prepared statements (required for PgBouncer)
- * - connection_limit=1: each serverless function holds at most 1 DB connection,
- *   preventing pool exhaustion across concurrent Vercel function invocations.
+ * - connection_limit=2: allows 2 concurrent DB connections per function instance,
+ *   enabling true Promise.all() parallelism while keeping pool pressure low.
  */
 const getPooledConnectionUrl = (): string | undefined => {
   const url = process.env.DATABASE_URL;
@@ -22,7 +22,7 @@ const getPooledConnectionUrl = (): string | undefined => {
     pooledUrl += `${separator}pgbouncer=true`;
   }
   if (!url.includes('connection_limit=')) {
-    pooledUrl += `&connection_limit=1`;
+    pooledUrl += `&connection_limit=2`;
   }
 
   return pooledUrl;

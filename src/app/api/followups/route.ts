@@ -166,27 +166,23 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Send notification for follow-up reschedule
-      const leadData = await prisma.lead.findUnique({
+      // Fire reschedule notification in background — user does NOT wait for this
+      prisma.lead.findUnique({
         where: { id: body.leadId },
         select: { assignedToId: true, name: true },
-      });
-
-      const notificationRecipient = leadData?.assignedToId || createdById;
-      if (notificationRecipient) {
-        try {
-          await notifyFollowUpRescheduled(
+      }).then((leadData) => {
+        const notificationRecipient = leadData?.assignedToId || createdById;
+        if (notificationRecipient) {
+          notifyFollowUpRescheduled(
             body.leadId,
             leadData?.name || 'Lead',
             notificationRecipient,
             scheduledDateTime
-          );
-          console.log('Follow-up reschedule notification sent successfully to:', notificationRecipient);
-        } catch (error) {
-          console.error('Failed to send follow-up reschedule notification:', error);
+          ).catch((err: unknown) => console.error('Failed to send follow-up reschedule notification:', err));
         }
-      }
+      }).catch((err: unknown) => console.error('Failed to fetch lead for reschedule notification:', err));
 
+      // Return response immediately
       return NextResponse.json(
         { success: true, data: updatedFollowUp },
         { status: 200 }
@@ -247,102 +243,82 @@ export async function POST(request: NextRequest) {
           ? `${existingNotes}\n${wonRescheduleNote}` 
           : wonRescheduleNote;
       }
-      
-      await prisma.lead.update({
+
+      // Parallelize lead update + activity log creation
+      const leadUpdateOp = prisma.lead.update({
         where: { id: body.leadId },
         data: updateData,
       });
 
-      // Send notification if status changed and lead is assigned
-      if (oldStatus !== 'followup' && currentLead.assignedToId) {
-        try {
-          await notifyLeadFollowUpStageChange(
-            body.leadId,
-            currentLead.name,
-            currentLead.assignedToId,
-            oldStatus,
-            'followup'
-          );
-        } catch (notificationError) {
-          console.error('Failed to send lead follow-up stage change notification:', notificationError);
-        }
-      }
-    }
-
-    // Log activity
-    await prisma.activityHistory.create({
-      data: {
-        id: randomUUID(),
-        leadId: body.leadId,
-        userId: createdById,
-        action: 'followup_scheduled',
-        description: `Follow-up scheduled for ${new Date(scheduledDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}`,
-      },
-    });
-
-    // Get lead data for notifications
-    const leadData = await prisma.lead.findUnique({
-      where: { id: body.leadId },
-      select: { assignedToId: true, name: true },
-    });
-
-    const notificationRecipient = leadData?.assignedToId || createdById;
-
-    // Send notification for follow-up added
-    if (notificationRecipient) {
-      try {
-        await notifyFollowUpAdded(
-          body.leadId,
-          leadData?.name || 'Lead',
-          notificationRecipient,
-          scheduledDateTime
-        );
-        console.log('Follow-up added notification sent successfully to:', notificationRecipient);
-      } catch (error) {
-        console.error('Failed to send follow-up added notification:', error);
-      }
-    }
-
-    // Send notification if follow-up is due within 24 hours OR scheduled for tomorrow
-    const hoursUntilDue = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-    const isTomorrow = scheduledDateTime.toDateString() === new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString();
-    
-    if ((hoursUntilDue <= 24 || isTomorrow) && followUp.Lead) {
-      console.log('Follow-up notification check:', {
-        leadId: body.leadId,
-        leadName: leadData?.name,
-        assignedToId: leadData?.assignedToId,
-        createdById,
-        notificationRecipient,
-        hoursUntilDue,
-        isTomorrow,
-        willSendNotification: !!notificationRecipient
+      const activityOp = prisma.activityHistory.create({
+        data: {
+          id: randomUUID(),
+          leadId: body.leadId,
+          userId: createdById,
+          action: 'followup_scheduled',
+          description: `Follow-up scheduled for ${new Date(scheduledDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}`,
+        },
       });
+
+      await Promise.all([leadUpdateOp, activityOp]);
+
+      // Fire notifications in background — reuse currentLead, user does NOT wait
+      const notificationRecipient = currentLead.assignedToId || createdById;
+
+      if (oldStatus !== 'followup' && currentLead.assignedToId) {
+        notifyLeadFollowUpStageChange(
+          body.leadId,
+          currentLead.name,
+          currentLead.assignedToId,
+          oldStatus,
+          'followup'
+        ).catch((err: unknown) => console.error('Failed to send lead follow-up stage change notification:', err));
+      }
 
       if (notificationRecipient) {
-        try {
-          await notifyFollowUpDue(
+        notifyFollowUpAdded(
+          body.leadId,
+          currentLead.name || 'Lead',
+          notificationRecipient,
+          scheduledDateTime
+        ).catch((err: unknown) => console.error('Failed to send follow-up added notification:', err));
+
+        const hoursUntilDue = (scheduledDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+        const isTomorrow = scheduledDateTime.toDateString() === new Date(now.getTime() + 24 * 60 * 60 * 1000).toDateString();
+        if (hoursUntilDue <= 24 || isTomorrow) {
+          notifyFollowUpDue(
             body.leadId,
-            leadData?.name || 'Lead',
+            currentLead.name || 'Lead',
             notificationRecipient,
             scheduledDateTime
-          );
-          console.log('Follow-up due notification sent successfully to:', notificationRecipient);
-        } catch (error) {
-          console.error('Failed to send follow-up due notification:', error);
+          ).catch((err: unknown) => console.error('Failed to send follow-up due notification:', err));
         }
-      } else {
-        console.warn('No recipient found for follow-up notification - lead not assigned and no creator ID');
       }
     } else {
-      console.log('Follow-up due notification skipped:', {
-        hoursUntilDue,
-        isTomorrow,
-        hasLead: !!followUp.Lead,
-        reason: hoursUntilDue > 24 && !isTomorrow ? 'Too far in future' : 'Missing lead data'
+      // Just create activity log if status update skipped
+      await prisma.activityHistory.create({
+        data: {
+          id: randomUUID(),
+          leadId: body.leadId,
+          userId: createdById,
+          action: 'followup_scheduled',
+          description: `Follow-up scheduled for ${new Date(scheduledDateTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}`,
+        },
       });
+
+      // Fire notification in background
+      const notificationRecipient = currentLead?.assignedToId || createdById;
+      if (notificationRecipient) {
+        notifyFollowUpAdded(
+          body.leadId,
+          currentLead?.name || 'Lead',
+          notificationRecipient,
+          scheduledDateTime
+        ).catch((err: unknown) => console.error('Failed to send follow-up added notification:', err));
+      }
     }
 
+    // Return response immediately — all notifications already fired in background
     return NextResponse.json(
       { success: true, data: followUp },
       { status: 201 }

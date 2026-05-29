@@ -102,64 +102,65 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    let callLog;
     let isNewCall = true; // Track if this is a new call
-    
+
+    // Build callLog operation (create or update) WITHOUT awaiting yet
+    // so it can run in parallel with lead.findUnique below
+    let callLogOp: Promise<any>;
+
     if (existingCallLog && (!existingCallLog.remarks || existingCallLog.remarks === 'Auto-synced from Call Monitor app')) {
       // Found incomplete call log (from webhook) - UPDATE it with manual details
       console.log('[Call Log API] ✅ Found incomplete call log - UPDATING with manual details');
       console.log(`  Existing Call ID: ${existingCallLog.id}`);
       console.log(`  Existing has recording: ${existingCallLog.recordingUrl ? 'YES' : 'NO'}`);
       console.log(`  Time difference: ${Math.abs(existingCallLog.startedAt.getTime() - callStartTime.getTime()) / 1000}s`);
-      
+
       isNewCall = false; // This is an update, not a new call
-      
+
       // Determine if we need to auto-update status from BUSY to ANSWER
-      const shouldAutoUpdate = 
-        (body.callStatus === 'busy' || existingCallLog.callStatus === 'busy') && 
+      const shouldAutoUpdate =
+        (body.callStatus === 'busy' || existingCallLog.callStatus === 'busy') &&
         existingCallLog.recordingUrl;
-      
-      const finalCallStatus = shouldAutoUpdate 
-        ? 'answer' 
+
+      const finalCallStatus = shouldAutoUpdate
+        ? 'answer'
         : (body.callStatus || existingCallLog.callStatus);
-      
+
       const finalRemarks = shouldAutoUpdate
-        ? (body.remarks || existingCallLog.remarks 
+        ? (body.remarks || existingCallLog.remarks
             ? `${body.remarks || existingCallLog.remarks}\n[Auto-updated from "Busy" to "Answered" - Recording indicates call was answered]`
             : '[Auto-updated from "Busy" to "Answered" - Recording indicates call was answered]')
         : (body.remarks || existingCallLog.remarks);
-      
+
       if (shouldAutoUpdate) {
         console.log('[Call Log API] 🔄 Auto-updating status: "Busy" → "Answered" (recording exists)');
       }
-      
-      // Update existing call log with LMS details (preserve recording if exists)
-      callLog = await prisma.callLog.update({
+
+      // Build update promise (not awaited yet)
+      callLogOp = prisma.callLog.update({
         where: { id: existingCallLog.id },
         data: {
-          callerId: body.callerId, // Update with actual caller
+          callerId: body.callerId,
           endedAt: body.endedAt ? new Date(body.endedAt) : existingCallLog.endedAt,
           duration: body.duration || existingCallLog.duration,
-          remarks: finalRemarks, // Use LMS remarks if provided, with auto-update note if needed
-          callStatus: finalCallStatus, // Auto-update to 'answer' if busy with recording
+          remarks: finalRemarks,
+          callStatus: finalCallStatus,
           customerRequirement: body.customerRequirement || existingCallLog.customerRequirement,
           phoneDialed: body.phoneDialed || existingCallLog.phoneDialed,
           recordingStatus: existingCallLog.recordingUrl ? 'available' : (body.recordingStatus || 'pending'),
           recordingAppCallId: body.recordingAppCallId || existingCallLog.recordingAppCallId,
-          // Keep existing recordingUrl if it exists (from webhook)
         },
         include: {
           Lead: { select: { id: true, name: true, status: true } },
           User: { select: { id: true, name: true, email: true } },
         },
       });
-      
-      console.log('[Call Log API] ✅ Updated incomplete call log - no duplicate created!');
     } else {
       // No existing call log found - create new one (normal flow)
       console.log('[Call Log API] 📝 No existing call found - creating new call log');
-      
-      callLog = await prisma.callLog.create({
+
+      // Build create promise (not awaited yet)
+      callLogOp = prisma.callLog.create({
         data: {
           id: randomUUID(),
           leadId: body.leadId,
@@ -182,11 +183,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Get current lead to check status
-    const currentLead = await prisma.lead.findUnique({
-      where: { id: body.leadId },
-      select: { status: true },
-    });
+    // Run callLog save AND lead.findUnique truly in parallel (both start at same time)
+    const [callLog, currentLead] = await Promise.all([
+      callLogOp,
+      prisma.lead.findUnique({
+        where: { id: body.leadId },
+        select: { status: true, assignedToId: true, name: true },
+      }),
+    ]);
+
+    if (!isNewCall) {
+      console.log('[Call Log API] ✅ Updated incomplete call log - no duplicate created!');
+    }
     
     // Update lead: increment call attempts only for new calls, always update timestamp
     const updateData: any = {
@@ -208,87 +216,67 @@ export async function POST(request: NextRequest) {
       updateData.customerRequirement = body.customerRequirement;
     }
 
-    await prisma.lead.update({
+    // Parallelize lead update + activity log creation (both independent after callLog is saved)
+    const leadUpdateOp = prisma.lead.update({
       where: { id: body.leadId },
       data: updateData,
     });
 
-    // Log activity only for new calls (avoid duplicate activity logs)
-    if (isNewCall) {
-      await prisma.activityHistory.create({
-        data: {
-          id: randomUUID(),
-          leadId: body.leadId,
-          userId: body.callerId,
-          action: 'call_logged',
-          description: `Call logged - Status: ${body.callStatus || 'answer'}`,
-        },
-      });
-    } else {
-      console.log('[Call Log API] ⏭️  Skipping activity log (updated existing call)');
-    }
-
-    // Send notification to assigned user (if different from caller)
-    const lead = await prisma.lead.findUnique({
-      where: { id: body.leadId },
-      select: { assignedToId: true, name: true },
-    });
-
-    if (lead?.assignedToId) {
-      try {
-        // Send call log submitted notification
-        await notifyCallLogSubmitted(
-          body.leadId,
-          lead.name,
-          lead.assignedToId,
-          body.callStatus || 'answer',
-          body.remarks
-        );
-
-        // Send call completed notification if call was answered
-        if (body.callStatus === 'answer' && body.duration) {
-          await notifyCallCompleted(
-            body.leadId,
-            lead.name,
-            lead.assignedToId,
-            body.duration,
-            body.remarks
-          );
-        }
-
-        // Send general call logged notification if different user
-        if (lead.assignedToId !== body.callerId) {
-          await notifyCallLogged(
-            body.leadId,
-            lead.name,
-            lead.assignedToId,
-            body.callStatus || 'answer',
-            body.duration
-          );
-        }
-      } catch (error) {
-        console.error('Failed to send call notification:', error);
-      }
-    }
-
-    // Auto-update call status if "Busy" but has recording (run synchronously before response)
-    try {
-      const autoUpdateResult = await autoUpdateCurrentCallStatus(prisma, callLog.id);
-      if (autoUpdateResult.currentCallUpdated) {
-        console.log('[Call Log API] 🔄 Auto-update:', autoUpdateResult.message);
-        // Reload the call log to get updated status
-        callLog = await prisma.callLog.findUnique({
-          where: { id: callLog.id },
-          include: {
-            Lead: { select: { id: true, name: true, status: true } },
-            User: { select: { id: true, name: true, email: true } },
+    const activityOp = isNewCall
+      ? prisma.activityHistory.create({
+          data: {
+            id: randomUUID(),
+            leadId: body.leadId,
+            userId: body.callerId,
+            action: 'call_logged',
+            description: `Call logged - Status: ${body.callStatus || 'answer'}`,
           },
-        }) || callLog;
+        })
+      : (console.log('[Call Log API] ⏭️  Skipping activity log (updated existing call)'), Promise.resolve(null));
+
+    await Promise.all([leadUpdateOp, activityOp]);
+
+    // Fire notifications in background — user does NOT wait for these
+    if (currentLead?.assignedToId) {
+      notifyCallLogSubmitted(
+        body.leadId,
+        currentLead.name,
+        currentLead.assignedToId,
+        body.callStatus || 'answer',
+        body.remarks
+      ).catch((err: unknown) => console.error('Failed to send call log submitted notification:', err));
+
+      if (body.callStatus === 'answer' && body.duration) {
+        notifyCallCompleted(
+          body.leadId,
+          currentLead.name,
+          currentLead.assignedToId,
+          body.duration,
+          body.remarks
+        ).catch((err: unknown) => console.error('Failed to send call completed notification:', err));
       }
-    } catch (err) {
-      console.error('[Call Log API] ⚠️ Auto-update error (non-critical):', err);
+
+      if (currentLead.assignedToId !== body.callerId) {
+        notifyCallLogged(
+          body.leadId,
+          currentLead.name,
+          currentLead.assignedToId,
+          body.callStatus || 'answer',
+          body.duration
+        ).catch((err: unknown) => console.error('Failed to send call logged notification:', err));
+      }
     }
 
+    // Auto-update call status in background — user does NOT wait for this
+    autoUpdateCurrentCallStatus(prisma, callLog.id)
+      .then((autoUpdateResult) => {
+        if (autoUpdateResult.currentCallUpdated) {
+          console.log('[Call Log API] 🔄 Auto-update (background):', autoUpdateResult.message);
+        }
+      })
+      .catch((err: unknown) => console.error('[Call Log API] ⚠️ Auto-update error (non-critical):', err));
+
+    // Return response immediately — notifications and auto-update run in background
     return NextResponse.json(
       { success: true, data: callLog },
       { status: 201 }
