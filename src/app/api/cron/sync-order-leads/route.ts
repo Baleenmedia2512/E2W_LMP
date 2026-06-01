@@ -165,20 +165,25 @@ export async function GET(request: NextRequest) {
       `[sync-order-leads] ${existingPhoneSet.size} already exist (${unassignedExisting.length} unassigned), ${newClients.length} are new`
     );
 
-    // Step 6: Get agents for round-robin assignment
+    // Step 6: Get agents for round-robin assignment (fixed order by name for consistency)
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
         Role: { name: { in: ['Sales Agent'] } },
       },
-      select: { id: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
     });
 
-    // Determine round-robin starting index from the last assigned lead
+    // Determine round-robin starting index from the last assigned is_existing lead
+    // (isolated from Meta/manual leads so order-sync rotation is independent)
     let startIndex = 0;
     if (agents.length > 0) {
       const lastLead = await prisma.lead.findFirst({
-        where: { assignedToId: { not: null } },
+        where: {
+          assignedToId: { not: null },
+          is_existing: true,
+        },
         orderBy: { createdAt: 'desc' },
         select: { assignedToId: true },
       });
