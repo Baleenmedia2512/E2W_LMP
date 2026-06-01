@@ -140,21 +140,24 @@ export default function FilterBar({
             bg={sourceFilter ? 'blue.50' : 'white'}
           >
             <option value="">All Sources</option>
-            <option value="Website">Website</option>
-            <option value="Meta">Meta</option>
-            <option value="Referral">Referral</option>
-            <option value="Direct">Direct</option>
-            <option value="WhatsApp">WhatsApp</option>
+            <option value="ChatGPT">ChatGPT</option>
             <option value="Cold Call">Cold Call</option>
-            <option value="Just Dial">Just Dial</option>
-            <option value="Indiamart">Indiamart</option>
-            <option value="Sulekha">Sulekha</option>
-            <option value="LG">LG</option>
             <option value="Consultant">Consultant</option>
-            <option value="Own">Own</option>
-            <option value="Web App DB">Web App DB</option>
-            <option value="Online">Online</option>
+            <option value="Direct">Direct</option>
+            <option value="Google Maps">Google Maps</option>
+            <option value="Indiamart">Indiamart</option>
+            <option value="Just Dial">Just Dial</option>
+            <option value="LG">LG</option>
             <option value="Manual">Manual</option>
+            <option value="Meta">Meta</option>
+            <option value="Newspaper">Newspaper</option>
+            <option value="Online">Online</option>
+            <option value="Own">Own</option>
+            <option value="Referral">Referral</option>
+            <option value="Sulekha">Sulekha</option>
+            <option value="Web App DB">Web App DB</option>
+            <option value="Website">Website</option>
+            <option value="WhatsApp">WhatsApp</option>
           </Select>
 
           <Select

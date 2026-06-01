@@ -595,7 +595,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                       {formData.source || 'Select a Source'}
                     </MenuButton>
                     <MenuList maxH="220px" overflowY="auto" zIndex={2000} fontSize={{ base: 'sm', md: 'md' }}>
-                      {['Website','Meta','Referral','Cold Call','WhatsApp','Direct','Just Dial','Indiamart','Sulekha','LG','Consultant','Own','Web App DB','Online','Newspaper'].map(opt => (
+                      {['ChatGPT','Cold Call','Consultant','Direct','Google Maps','Indiamart','Just Dial','LG','Meta','Newspaper','Online','Own','Referral','Sulekha','Web App DB','Website','WhatsApp'].map(opt => (
                         <MenuItem
                           key={opt}
                           onClick={() => handleMenuSelect('source', opt)}
