@@ -123,35 +123,30 @@ export async function GET(request: NextRequest) {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
-    const [leads, total] = await Promise.all([
-      prisma.lead.findMany({
-        where,
-        include: {
-          User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
-          User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
-          CallLog: { 
-            orderBy: { createdAt: 'desc' }, 
-            take: 3, // Only need last 3 for list view (was 10 = 20,000 extra rows for 2000 leads)
-            select: {
-              id: true,
-              remarks: true,
-              callStatus: true,
-              createdAt: true,
-              startedAt: true,
-              endedAt: true,
-              duration: true,
-              attemptNumber: true,
-            }
-          },
-          // FollowUp removed from list API — already fetched separately via /api/followups
-          // Removing this saves 5 rows × N leads = thousands of DB rows per request
+    const leads = await prisma.lead.findMany({
+      where,
+      include: {
+        User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+        User_Lead_createdByIdToUser: { select: { id: true, name: true, email: true } },
+        CallLog: { 
+          orderBy: { createdAt: 'desc' }, 
+          take: 3,
+          select: {
+            id: true,
+            remarks: true,
+            callStatus: true,
+            createdAt: true,
+            startedAt: true,
+            endedAt: true,
+            duration: true,
+            attemptNumber: true,
+          }
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.lead.count({ where }),
-    ]);
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    });
 
     // Transform the response to match frontend expectations
     const transformedLeads = leads.map((lead: any) => ({
@@ -165,10 +160,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: transformedLeads,
-      total,
+      total: leads.length,
       page,
       pageSize: limit,
-      hasMore: skip + limit < total,
+      hasMore: leads.length === limit,
     });
   } catch (error) {
     console.error('Error fetching leads:', error);

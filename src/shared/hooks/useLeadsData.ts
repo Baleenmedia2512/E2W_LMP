@@ -79,9 +79,9 @@ export function useLeadsData(options: UseLeadsDataOptions = {}) {
     ([url, token]) => authFetcher(url, token),
     {
       refreshInterval,
-      revalidateOnFocus: true,   // Refresh when agent switches back to tab — picks up SLA auto-moves
+      revalidateOnFocus: false,
       revalidateOnReconnect: true,
-      dedupingInterval: 30000, // Increased from 5s → 30s: prevents burst re-fetches on rapid filter changes
+      dedupingInterval: 30000,
       keepPreviousData: true,
     }
   );
@@ -107,9 +107,9 @@ export function useFollowUpsData(options: { refreshInterval?: number } = {}) {
     (url) => authFetcher(url, null),
     {
       refreshInterval,
-      revalidateOnFocus: true,  // Must match leads hook — both caches refresh together on tab focus
+      revalidateOnFocus: false,
       revalidateOnReconnect: true,
-      dedupingInterval: 30000, // 30s dedup
+      dedupingInterval: 30000,
       keepPreviousData: true,
     }
   );

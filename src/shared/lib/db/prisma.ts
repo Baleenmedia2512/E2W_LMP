@@ -22,7 +22,7 @@ const getPooledConnectionUrl = (): string | undefined => {
     pooledUrl += `${separator}pgbouncer=true`;
   }
   if (!url.includes('connection_limit=')) {
-    pooledUrl += `&connection_limit=2`;
+    pooledUrl += `&connection_limit=5`;
   }
 
   return pooledUrl;
@@ -43,7 +43,7 @@ const prismaClientSingleton = () => {
   }
 
   return new PrismaClient({
-    log: isDevelopment() ? ['query', 'error', 'warn'] : ['error'],
+    log: ['error'],
     datasources: {
       db: {
         url: getPooledConnectionUrl(),

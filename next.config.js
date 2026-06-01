@@ -10,6 +10,9 @@ const nextConfig = {
     // Remove this once type errors are fixed
     ignoreBuildErrors: true,
   },
+  experimental: {
+    optimizePackageImports: ['@chakra-ui/react', '@chakra-ui/icons', 'react-icons', 'framer-motion'],
+  },
 };
 
 module.exports = nextConfig;
