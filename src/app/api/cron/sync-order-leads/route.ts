@@ -26,7 +26,7 @@ function mapSource(rawSource: string): string {
   if (s.includes('sulekha')) return 'Sulekha';
   if (s.includes('indiamart')) return 'Indiamart';
   if (s.includes('consultant')) return 'Consultant';
-  if (s.includes('website') || s.includes('web app')) return 'Website';
+  if (s.includes('website') || s.includes('web app') || s.includes('webapp') || s.includes('online')) return 'Website';
   if (s.includes('meta') || s.includes('facebook')) return 'Meta';
   if (s.includes('whatsapp')) return 'WhatsApp';
   if (s.includes('referral')) return 'Referral';
