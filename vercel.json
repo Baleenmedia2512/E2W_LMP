@@ -22,6 +22,9 @@
     },
     "app/api/webhooks/**/*.ts": {
       "maxDuration": 30
+    },
+    "app/api/cron/sync-order-leads/**/*.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -36,6 +39,10 @@
     {
       "path": "/api/cron/check-inbound-sla",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/sync-order-leads",
+      "schedule": "0 2 * * *"
     }
   ],
   "headers": [

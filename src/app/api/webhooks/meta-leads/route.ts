@@ -178,32 +178,58 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
 }
 
 /**
- * Get Gomathi's user ID for Meta lead assignment (US-5)
+ * Round-robin assignment between Gomathi and Operations for Meta leads
  */
-async function getGomathiUserId(): Promise<string | null> {
+async function getNextAgentForRoundRobin(): Promise<string | null> {
+  const META_AGENT_EMAILS = [
+    'gomathi@baleenmedia.com',
+    'operations@baleenmedia.com',
+  ];
+
   try {
-    const gomathi = await prisma.user.findUnique({
-      where: { email: 'gomathi@baleenmedia.com' },
-      select: { id: true, isActive: true },
-    });
-
-    if (gomathi && gomathi.isActive) {
-      return gomathi.id;
-    }
-
-    // Fallback: if Gomathi is not found or inactive, get first active agent
-    logWebhookEvent('warn', 'Gomathi not found or inactive, using fallback agent');
-    const fallbackAgent = await prisma.user.findFirst({
+    // Get only the two designated Meta agents (in fixed order)
+    const agents = await prisma.user.findMany({
       where: {
         isActive: true,
-        Role: { name: { in: ['Agent', 'SuperAgent'] } },
+        email: { in: META_AGENT_EMAILS },
       },
-      select: { id: true },
+      select: { id: true, email: true },
+      orderBy: { email: 'asc' }, // consistent order: gomathi → operations
     });
 
-    return fallbackAgent?.id || null;
+    if (agents.length === 0) {
+      logWebhookEvent('warn', 'No Meta agents available for assignment');
+      return null;
+    }
+
+    if (agents.length === 1) {
+      // Only one agent active — assign all to them
+      return agents[0].id;
+    }
+
+    // Find the last Meta lead that was assigned to one of these two agents
+    const lastLead = await prisma.lead.findFirst({
+      where: {
+        source: { in: ['meta', 'Meta', 'META'] },
+        assignedToId: { in: agents.map(a => a.id) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { assignedToId: true },
+    });
+
+    if (!lastLead || !lastLead.assignedToId) {
+      // No previous Meta lead — start with first agent (gomathi)
+      return agents[0].id;
+    }
+
+    const currentIndex = agents.findIndex(a => a.id === lastLead.assignedToId);
+    const nextIndex = currentIndex === -1 || currentIndex === agents.length - 1
+      ? 0
+      : currentIndex + 1;
+
+    return agents[nextIndex].id;
   } catch (error) {
-    logWebhookEvent('error', 'Error getting Gomathi user ID', error);
+    logWebhookEvent('error', 'Error in round-robin assignment', error);
     return null;
   }
 }
@@ -338,8 +364,8 @@ async function processLead(leadgenData: any): Promise<void> {
       dataFetchedAt: new Date().toISOString(),
     };
 
-    // STEP 6: Get agent assignment (Gomathi for Meta leads)
-    const assignedTo = await getGomathiUserId();
+    // STEP 6: Get agent assignment via round-robin (Gomathi ↔ Operations)
+    const assignedTo = await getNextAgentForRoundRobin();
     
     if (!assignedTo) {
       logWebhookEvent('warn', 'No agent available for assignment');

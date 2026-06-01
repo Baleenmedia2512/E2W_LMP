@@ -183,7 +183,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
         isActive: true,
         Role: {
           name: {
-            in: ['sales_agent', 'team_lead'],
+            in: ['Sales Agent'],
           },
         },
       },
