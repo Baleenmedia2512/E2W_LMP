@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
       `[sync-order-leads] ${existingPhoneSet.size} already exist (${unassignedExisting.length} unassigned), ${newClients.length} are new`
     );
 
-    // Step 6: Get agents for round-robin assignment (fixed order by name for consistency)
+    // Step 6: Get agents for least-loaded assignment (fixed order by name for tiebreak)
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
@@ -175,34 +175,49 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     });
 
-    // Determine round-robin starting index from the last assigned is_existing lead
-    // (isolated from Meta/manual leads so order-sync rotation is independent)
-    let startIndex = 0;
-    if (agents.length > 0) {
-      const lastLead = await prisma.lead.findFirst({
-        where: {
-          assignedToId: { not: null },
-          is_existing: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { assignedToId: true },
-      });
-      if (lastLead?.assignedToId) {
-        const idx = agents.findIndex((a) => a.id === lastLead.assignedToId);
-        startIndex = idx === -1 ? 0 : (idx + 1) % agents.length;
+    // Count current is_existing leads per agent for least-loaded logic
+    const leadCounts = await prisma.lead.groupBy({
+      by: ['assignedToId'],
+      where: {
+        assignedToId: { in: agents.map((a) => a.id) },
+        is_existing: true,
+      },
+      _count: { id: true },
+    });
+
+    // Build a mutable count map: agentId → count
+    const countMap = new Map<string, number>(agents.map((a) => [a.id, 0]));
+    for (const row of leadCounts) {
+      if (row.assignedToId) countMap.set(row.assignedToId, row._count.id);
+    }
+
+    // Pick next agent using least-loaded: agent with fewest leads (ties broken by name A-Z)
+    function getNextAgent(): string | null {
+      if (agents.length === 0) return null;
+      let chosen = agents[0];
+      let minCount = countMap.get(chosen.id) ?? 0;
+      for (const agent of agents) {
+        const c = countMap.get(agent.id) ?? 0;
+        if (c < minCount) {
+          minCount = c;
+          chosen = agent;
+        }
       }
+      // Increment count so next call picks a different agent if tied
+      countMap.set(chosen.id, minCount + 1);
+      return chosen.id;
     }
 
     const now = new Date();
 
-    // Step 6b: Heal unassigned existing leads via round-robin
+    // Step 6b: Heal unassigned existing leads via least-loaded
     let healedCount = 0;
     if (unassignedExisting.length > 0 && agents.length > 0) {
-      const healUpdates = unassignedExisting.map((lead, i) =>
+      const healUpdates = unassignedExisting.map((lead) =>
         prisma.lead.update({
           where: { id: lead.id },
           data: {
-            assignedToId: agents[(startIndex + i) % agents.length].id,
+            assignedToId: getNextAgent(),
             updatedAt: now,
           },
         })
@@ -212,8 +227,6 @@ export async function GET(request: NextRequest) {
         await Promise.all(healUpdates.slice(i, i + 50));
       }
       healedCount = unassignedExisting.length;
-      // Advance startIndex for new leads creation below
-      startIndex = (startIndex + healedCount) % (agents.length || 1);
       console.log(`[sync-order-leads] Healed ${healedCount} unassigned leads`);
     }
 
@@ -231,7 +244,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 7: Build and create new leads in bulk
-    const leadsToCreate = newClients.map((client, i) => ({
+    const leadsToCreate = newClients.map((client) => ({
       id: randomUUID(),
       name: client.name,
       phone: client.phone,
@@ -249,8 +262,7 @@ export async function GET(request: NextRequest) {
       notes: client.orderDate
         ? `Re-engagement: last order on ${client.orderDate}`
         : 'Re-engagement: imported from order history',
-      assignedToId:
-        agents.length > 0 ? agents[(startIndex + i) % agents.length].id : null,
+      assignedToId: getNextAgent(),
       createdAt: now,
       updatedAt: now,
     }));

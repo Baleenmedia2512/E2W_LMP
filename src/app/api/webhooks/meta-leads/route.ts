@@ -181,55 +181,57 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
  * Round-robin assignment between Gomathi and Operations for Meta leads
  */
 async function getNextAgentForRoundRobin(): Promise<string | null> {
-  const META_AGENT_EMAILS = [
-    'gomathi@baleenmedia.com',
-    'operations@baleenmedia.com',
-  ];
-
   try {
-    // Get only the two designated Meta agents (in fixed order)
+    // Get all active Sales Agents (role-based — auto-includes new agents)
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
-        email: { in: META_AGENT_EMAILS },
+        Role: { name: { in: ['Sales Agent'] } },
       },
-      select: { id: true, email: true },
-      orderBy: { email: 'asc' }, // consistent order: gomathi → operations
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }, // alphabetical tiebreak
     });
 
     if (agents.length === 0) {
-      logWebhookEvent('warn', 'No Meta agents available for assignment');
+      logWebhookEvent('warn', 'No Sales Agents available for Meta lead assignment');
       return null;
     }
 
     if (agents.length === 1) {
-      // Only one agent active — assign all to them
       return agents[0].id;
     }
 
-    // Find the last Meta lead that was assigned to one of these two agents
-    const lastLead = await prisma.lead.findFirst({
+    // Count current Meta leads per agent (least-loaded logic)
+    const leadCounts = await prisma.lead.groupBy({
+      by: ['assignedToId'],
       where: {
         source: { in: ['meta', 'Meta', 'META'] },
-        assignedToId: { in: agents.map(a => a.id) },
+        assignedToId: { in: agents.map((a) => a.id) },
       },
-      orderBy: { createdAt: 'desc' },
-      select: { assignedToId: true },
+      _count: { id: true },
     });
 
-    if (!lastLead || !lastLead.assignedToId) {
-      // No previous Meta lead — start with first agent (gomathi)
-      return agents[0].id;
+    // Build count map, default 0 for agents with no Meta leads yet
+    const countMap = new Map<string, number>(agents.map((a) => [a.id, 0]));
+    for (const row of leadCounts) {
+      if (row.assignedToId) countMap.set(row.assignedToId, row._count.id);
     }
 
-    const currentIndex = agents.findIndex(a => a.id === lastLead.assignedToId);
-    const nextIndex = currentIndex === -1 || currentIndex === agents.length - 1
-      ? 0
-      : currentIndex + 1;
+    // Pick agent with fewest Meta leads (tie → alphabetical first)
+    let chosen = agents[0];
+    let minCount = countMap.get(chosen.id) ?? 0;
+    for (const agent of agents) {
+      const c = countMap.get(agent.id) ?? 0;
+      if (c < minCount) {
+        minCount = c;
+        chosen = agent;
+      }
+    }
 
-    return agents[nextIndex].id;
+    logWebhookEvent('info', `Least-loaded agent: ${chosen.name} (${minCount} Meta leads)`);
+    return chosen.id;
   } catch (error) {
-    logWebhookEvent('error', 'Error in round-robin assignment', error);
+    logWebhookEvent('error', 'Error in least-loaded assignment', error);
     return null;
   }
 }
