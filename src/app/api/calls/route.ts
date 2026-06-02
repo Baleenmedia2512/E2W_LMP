@@ -104,9 +104,22 @@ export async function POST(request: NextRequest) {
 
     let isNewCall = true; // Track if this is a new call
 
-    // Build callLog operation (create or update) WITHOUT awaiting yet
-    // so it can run in parallel with lead.findUnique below
-    let callLogOp: Promise<any>;
+    // 🔧 FIX: Fetch lead FIRST to get correct callAttempts count for attemptNumber
+    // This ensures CallLog.attemptNumber matches the actual attempt sequence
+    const currentLead = await prisma.lead.findUnique({
+      where: { id: body.leadId },
+      select: { status: true, assignedToId: true, name: true, callAttempts: true },
+    });
+
+    if (!currentLead) {
+      return NextResponse.json(
+        { success: false, error: 'Lead not found' },
+        { status: 404 }
+      );
+    }
+
+    // Build callLog operation (create or update)
+    let callLog: any;
 
     if (existingCallLog && (!existingCallLog.remarks || existingCallLog.remarks === 'Auto-synced from Call Monitor app')) {
       // Found incomplete call log (from webhook) - UPDATE it with manual details
@@ -136,8 +149,8 @@ export async function POST(request: NextRequest) {
         console.log('[Call Log API] 🔄 Auto-updating status: "Busy" → "Answered" (recording exists)');
       }
 
-      // Build update promise (not awaited yet)
-      callLogOp = prisma.callLog.update({
+      // Update existing call log
+      callLog = await prisma.callLog.update({
         where: { id: existingCallLog.id },
         data: {
           callerId: body.callerId,
@@ -159,8 +172,13 @@ export async function POST(request: NextRequest) {
       // No existing call log found - create new one (normal flow)
       console.log('[Call Log API] 📝 No existing call found - creating new call log');
 
-      // Build create promise (not awaited yet)
-      callLogOp = prisma.callLog.create({
+      // 🔧 FIX: Use lead's current callAttempts + 1 as the attemptNumber
+      // This ensures CallLog.attemptNumber correctly reflects the sequence (1, 2, 3, etc.)
+      const correctAttemptNumber = (currentLead.callAttempts || 0) + 1;
+      console.log(`[Call Log API] 📊 Setting attemptNumber to ${correctAttemptNumber} (current callAttempts: ${currentLead.callAttempts || 0})`);
+
+      // Create new call log with correct attempt number
+      callLog = await prisma.callLog.create({
         data: {
           id: randomUUID(),
           leadId: body.leadId,
@@ -170,7 +188,7 @@ export async function POST(request: NextRequest) {
           duration: body.duration || null,
           remarks: body.remarks || null,
           callStatus: body.callStatus || 'answer',
-          attemptNumber: body.attemptNumber || 1,
+          attemptNumber: correctAttemptNumber, // ✅ FIXED: Use correct attempt number
           customerRequirement: body.customerRequirement || null,
           phoneDialed: body.phoneDialed || null,
           recordingStatus: body.recordingStatus || 'pending',
@@ -182,15 +200,6 @@ export async function POST(request: NextRequest) {
         },
       });
     }
-
-    // Run callLog save AND lead.findUnique truly in parallel (both start at same time)
-    const [callLog, currentLead] = await Promise.all([
-      callLogOp,
-      prisma.lead.findUnique({
-        where: { id: body.leadId },
-        select: { status: true, assignedToId: true, name: true },
-      }),
-    ]);
 
     if (!isNewCall) {
       console.log('[Call Log API] ✅ Updated incomplete call log - no duplicate created!');

@@ -367,14 +367,26 @@ export function useCallLogs(statusFilter: string = 'all') {
 /**
  * Hook for fetching DSR (Daily Sales Report) data
  * Provides automatic caching for instant navigation
+ * Supports both single date and date range queries
  */
-export function useDSRData(selectedDate: string, selectedAgentId: string = 'all') {
+export function useDSRData(
+  selectedDate: string, 
+  selectedAgentId: string = 'all',
+  startDate?: string,
+  endDate?: string
+) {
   const params = new URLSearchParams();
-  // Send the selected date as both start and end to get data for that specific day
-  if (selectedDate) {
+  
+  // If startDate and endDate are provided separately, use them (date range mode)
+  // Otherwise, use selectedDate for both (single date mode - backward compatible)
+  if (startDate && endDate) {
+    params.append('startDate', startDate);
+    params.append('endDate', endDate);
+  } else if (selectedDate) {
     params.append('startDate', selectedDate);
     params.append('endDate', selectedDate);
   }
+  
   if (selectedAgentId !== 'all') {
     params.append('agentId', selectedAgentId);
   }
@@ -422,10 +434,26 @@ export function useDSRData(selectedDate: string, selectedAgentId: string = 'all'
 
 /**
  * Hook for fetching DSR call logs (conditionally)
+ * Supports both single date and date range queries
  */
-export function useDSRCallLogs(selectedDate: string, selectedAgentId: string = 'all', enabled: boolean = false) {
+export function useDSRCallLogs(
+  selectedDate: string, 
+  selectedAgentId: string = 'all', 
+  enabled: boolean = false,
+  startDate?: string,
+  endDate?: string
+) {
   const params = new URLSearchParams();
-  if (selectedDate) params.append('date', selectedDate);
+  
+  // If startDate and endDate are provided separately, use them (date range mode)
+  // Otherwise, use selectedDate (single date mode - backward compatible)
+  if (startDate && endDate) {
+    params.append('startDate', startDate);
+    params.append('endDate', endDate);
+  } else if (selectedDate) {
+    params.append('date', selectedDate);
+  }
+  
   params.append('limit', '1000');
   if (selectedAgentId && selectedAgentId !== 'all') {
     params.append('agentId', selectedAgentId);

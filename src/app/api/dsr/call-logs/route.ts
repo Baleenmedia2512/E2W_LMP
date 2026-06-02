@@ -7,10 +7,13 @@ export const revalidate = 0;
 
 /**
  * GET /api/dsr/call-logs
- * Fetch call logs for a specific date with optional agent filter
+ * Fetch unique call logs (deduplicated by leadId) for a specific date or date range
+ * Shows only the most recent call per lead to match Total Calls KPI
  * 
  * Query Parameters:
- * - date: ISO date string (required)
+ * - date: ISO date string (optional, for backward compatibility)
+ * - startDate: ISO date string (optional)
+ * - endDate: ISO date string (optional)
  * - agentId: Filter by caller/agent (optional)
  * - page: Page number for pagination (optional, default: 1)
  * - limit: Items per page (optional, default: 50)
@@ -19,27 +22,43 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const dateParam = searchParams.get('date');
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
     const agentId = searchParams.get('agentId');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    if (!dateParam) {
-      return NextResponse.json(
-        { success: false, error: 'Date parameter is required' },
-        { status: 400 }
-      );
-    }
-
-    // Build date filter for the specific date
+    // Build date filter for the specific date or date range
     const dateFilter: any = {};
     try {
-      const startDate = new Date(dateParam);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(dateParam);
-      endDate.setHours(23, 59, 59, 999);
-      
-      dateFilter.gte = startDate;
-      dateFilter.lte = endDate;
+      // If startDate and endDate are provided, use them (date range mode)
+      if (startDateParam || endDateParam) {
+        if (startDateParam) {
+          const startDate = new Date(startDateParam);
+          startDate.setHours(0, 0, 0, 0);
+          dateFilter.gte = startDate;
+        }
+        if (endDateParam) {
+          const endDate = new Date(endDateParam);
+          endDate.setHours(23, 59, 59, 999);
+          dateFilter.lte = endDate;
+        }
+      } 
+      // Otherwise, use date parameter for single day (backward compatible)
+      else if (dateParam) {
+        const startDate = new Date(dateParam);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(dateParam);
+        endDate.setHours(23, 59, 59, 999);
+        
+        dateFilter.gte = startDate;
+        dateFilter.lte = endDate;
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Date parameter is required (date, startDate, or endDate)' },
+          { status: 400 }
+        );
+      }
     } catch (e) {
       return NextResponse.json(
         { success: false, error: 'Invalid date format' },
@@ -56,13 +75,8 @@ export async function GET(request: NextRequest) {
       whereClause.callerId = agentId;
     }
 
-    // Get total count for pagination
-    const totalCount = await prisma.callLog.count({
-      where: whereClause,
-    });
-
-    // Fetch call logs with pagination
-    const callLogs = await prisma.callLog.findMany({
+    // Fetch ALL call logs for the date (to deduplicate by leadId)
+    const allCallLogs = await prisma.callLog.findMany({
       where: whereClause,
       include: {
         Lead: {
@@ -88,9 +102,20 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
-      skip: (page - 1) * limit,
-      take: limit,
     });
+
+    // Deduplicate by leadId - keep only the most recent call per lead
+    const uniqueLeadCalls = new Map<string, any>();
+    allCallLogs.forEach(call => {
+      if (!uniqueLeadCalls.has(call.leadId)) {
+        uniqueLeadCalls.set(call.leadId, call);
+      }
+    });
+
+    // Convert to array and apply pagination
+    const uniqueCallsArray = Array.from(uniqueLeadCalls.values());
+    const totalCount = uniqueCallsArray.length;
+    const callLogs = uniqueCallsArray.slice((page - 1) * limit, page * limit);
 
     return NextResponse.json({
       success: true,

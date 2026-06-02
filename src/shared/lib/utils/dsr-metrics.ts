@@ -451,11 +451,11 @@ function getNewLeadsToday(
  * All metrics are calculated based on CALLS PAGE and LEADS OUTCOME PAGE:
  * 
  * CALLS PAGE (CallLog filtered by createdAt = selected_date):
- * - New Calls: attemptNumber = 1 on selected date
- * - Follow-up Calls: attemptNumber > 1 on selected date AND NOT overdue
- * - Overdue Calls Handled: Calls made on selected date where previous_followup_date < selected_date
- * - Total Calls: All calls made on selected date
- * NOTE: Follow-up and Overdue calls are mutually exclusive
+ * - New Calls: Unique leads with callAttempts = 1 on selected date
+ * - Follow-up Calls: Unique leads with callAttempts > 1 on selected date AND NOT overdue
+ * - Overdue Calls Handled: Unique leads called on selected date where previous_followup_date < selected_date
+ * - Total Calls: Unique leads called on selected date (New + Follow-up + Overdue = Total)
+ * NOTE: Follow-up and Overdue calls are mutually exclusive, and all three sum to Total
  * 
  * LEADS OUTCOME PAGE (Lead filtered by updatedAt = selected_date):
  * - Unqualified: status = 'unqualified' updated on selected date
@@ -517,6 +517,7 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   
   // Get unique lead IDs that had calls today
   const leadsWithCallsToday = new Set(callsOnDate.map((c: any) => c.leadId));
+  console.log('[DSR Metrics] Unique leads called today:', leadsWithCallsToday.size);
   
   // New Calls: Leads that had calls today AND have callAttempts = 1
   const newCallsCount = leads.filter((lead: any) => 
@@ -580,8 +581,8 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     leadsWithCallsToday.has(lead.id) && (lead.callAttempts || 0) > 1 && !leadsWithOverdueCalls.has(lead.id)
   ).length;
   
-  // Total Calls: All calls on selected date
-  const totalCalls = callsOnDate.length;
+  // Total Calls: Unique leads called on selected date (ensures New + Follow-up + Overdue = Total)
+  const totalCalls = leadsWithCallsToday.size;
   
   // LEADS OUTCOME PAGE METRICS - All filtered by lead updatedAt on selected date
   // Unqualified: Leads with status='unqualified' updated on selected date

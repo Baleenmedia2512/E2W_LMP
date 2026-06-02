@@ -162,19 +162,38 @@ export default function DSRPage() {
   const today = new Date();
   const todayString = today.toISOString().split('T')[0];
   
+  // View mode state - 'single' for single date (default), 'range' for date range
+  const [viewMode, setViewMode] = useState<'single' | 'range'>('single');
+  
   // Filter state - DEFAULT TO TODAY (single date selection)
   const [selectedDate, setSelectedDate] = useState(todayString);
+  
+  // Date range state (used only when viewMode === 'range')
+  const [startDate, setStartDate] = useState(todayString);
+  const [endDate, setEndDate] = useState(todayString);
+  
   const [selectedAgentId, setSelectedAgentId] = useState('all');
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Fetch DSR data using SWR hooks
+  // Fetch DSR data using SWR hooks - pass appropriate dates based on view mode
   const { stats, filteredLeads: apiLeads, agentPerformanceData, agents, 
-          isLoading, isValidating, error: fetchError, refresh } = useDSRData(selectedDate, selectedAgentId);
+          isLoading, isValidating, error: fetchError, refresh } = useDSRData(
+    selectedDate, 
+    selectedAgentId,
+    viewMode === 'range' ? startDate : undefined,
+    viewMode === 'range' ? endDate : undefined
+  );
   
-  // Conditionally fetch call logs when Total Calls card is active
+  // Conditionally fetch call logs when Total Calls Handled card is active
   const { callLogs, isLoading: callLogsLoading } = 
-    useDSRCallLogs(selectedDate, selectedAgentId, activeCard === 'totalCalls');
+    useDSRCallLogs(
+      selectedDate, 
+      selectedAgentId, 
+      activeCard === 'totalCalls',
+      viewMode === 'range' ? startDate : undefined,
+      viewMode === 'range' ? endDate : undefined
+    );
   
   // ── Bug 5 fix: Track when filters change so we show skeletons instead of stale KPIs ──
   const [isLoadingNewFilters, setIsLoadingNewFilters] = useState(false);
@@ -243,14 +262,14 @@ export default function DSRPage() {
     setCurrentPage(1);
     
     const cardLabels: Record<string, string> = {
-      newLeads: 'New Calls',
-      followUps: 'Follow-up Calls',
-      totalCalls: 'Total Calls',
-      overdue: 'Overdue Calls Handled',
+      newLeads: 'New Leads Handled',
+      followUps: 'Follow-ups Handled',
+      totalCalls: 'Total Calls Handled',
+      overdue: 'Overdue Leads Handled',
       unqualified: 'Unqualified',
       unreachable: 'Unreachable',
-      won: 'Won Deals',
-      lost: 'Lost Deals',
+      won: 'Won',
+      lost: 'Lost',
     };
     
     const label = cardLabels[type] || type;
@@ -307,8 +326,14 @@ export default function DSRPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
+    
+    // Create filename with date or date range
+    const dateString = viewMode === 'single' 
+      ? selectedDate 
+      : `${startDate}_to_${endDate}`;
+    
     link.setAttribute('href', url);
-    link.setAttribute('download', `${filename}_${selectedDate}.csv`);
+    link.setAttribute('download', `${filename}_${dateString}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -328,14 +353,14 @@ export default function DSRPage() {
     const exportData = agentPerformanceData.map(agent => ({
       Date: formatDate(new Date(agent.date)),
       Agent: agent.agentName,
-      'New Leads': agent.newLeads,
-      'Follow-ups': agent.followUps,
-      'Total Calls': agent.totalCalls,
+      'New Leads Handled': agent.newLeads,
+      'Follow-ups Handled': agent.followUps,
+      'Total Calls Handled': agent.totalCalls,
       Won: agent.won,
       Lost: agent.lost,
       Unreachable: agent.unreachable,
       Unqualified: agent.unqualified || 0,
-      Overdue: agent.overdue,
+      'Overdue Handled': agent.overdue,
     }));
     exportToCSV(exportData, 'agent_performance');
   };
@@ -446,8 +471,12 @@ export default function DSRPage() {
 
   // Reset all filters to default state
   const handleResetFilters = () => {
+    // Reset view mode to single date
+    setViewMode('single');
     // Reset to today's date
     setSelectedDate(todayString);
+    setStartDate(todayString);
+    setEndDate(todayString);
     // Reset agent filter to all
     setSelectedAgentId('all');
     // Clear active card filter
@@ -469,11 +498,11 @@ export default function DSRPage() {
 
   // Filter leads for the table based on active card and search
   // This MUST match the exact KPI logic to ensure card count = table row count
-  // SPECIAL CASE: For Total Calls, we show call logs instead of leads
+  // SPECIAL CASE: For Total Calls Handled, we show call logs instead of leads
   const filteredLeads = useMemo(() => {
     if (!apiLeads) return [];
     
-    // Special handling for Total Calls - show call logs, not leads
+    // Special handling for Total Calls Handled - show call logs, not leads
     // Bug 1 fix: when callLogs are still loading, return empty array (show spinner)
     // instead of falling back to the wrong leads-filtered-by-hadCallToday data
     if (activeCard === 'totalCalls') {
@@ -510,7 +539,7 @@ export default function DSRPage() {
         );
       }
       
-      console.log(`[DSR Filter] Total Calls: Showing ${transformedCallLogs.length} call logs`);
+      console.log(`[DSR Filter] Total Calls Handled: Showing ${transformedCallLogs.length} call logs`);
       return transformedCallLogs;
     }
     
@@ -518,33 +547,33 @@ export default function DSRPage() {
 
     // Apply card-based filters - EXACT match to KPI logic
     if (activeCard === 'newLeads') {
-      // New Calls: CallLog.createdAt = selected_date AND Lead.callAttempts = 1
+      // New Leads Handled: CallLog.createdAt = selected_date AND Lead.callAttempts = 1
       // Show ONLY leads where first call (attemptNumber=1) was made on selected date
       filtered = filtered.filter(lead => 
         lead.activityFlags?.isNewLead === true
       );
-      console.log(`[DSR Filter] New Calls: ${filtered.length} leads`);
+      console.log(`[DSR Filter] New Leads Handled: ${filtered.length} leads`);
       
     } else if (activeCard === 'followUps') {
-      // Follow-Up Calls: CallLog.createdAt = selected_date AND Lead.callAttempts > 1
+      // Follow-ups Handled: CallLog.createdAt = selected_date AND Lead.callAttempts > 1
       // Show ONLY leads that had follow-up calls (attemptNumber > 1) on selected date
       filtered = filtered.filter(lead => 
         lead.activityFlags?.isFollowup === true
       );
-      console.log(`[DSR Filter] Follow-Up Calls: ${filtered.length} leads`);
+      console.log(`[DSR Filter] Follow-ups Handled: ${filtered.length} leads`);
       
     } else if (activeCard === 'totalCalls') {
       // This branch is now unreachable (handled above) — kept as safety fallback
       filtered = [];
-      console.log(`[DSR Filter] Total Calls: waiting for call logs`);
+      console.log(`[DSR Filter] Total Calls Handled: waiting for call logs`);
       
     } else if (activeCard === 'overdue') {
-      // Overdue Calls Handled: CallLog.createdAt = selected_date AND FollowUp.scheduledAt < selected_date
+      // Overdue Leads Handled: CallLog.createdAt = selected_date AND FollowUp.scheduledAt < selected_date
       // Show ONLY leads with overdue calls handled on selected date
       filtered = filtered.filter(lead => 
         lead.activityFlags?.isOverdue === true
       );
-      console.log(`[DSR Filter] Overdue Calls: ${filtered.length} leads`);
+      console.log(`[DSR Filter] Overdue Leads Handled: ${filtered.length} leads`);
       
     } else if (activeCard === 'unqualified') {
       // Unqualified: Lead.status = 'unqualified' AND Lead.updatedAt = selected_date
@@ -729,65 +758,188 @@ export default function DSRPage() {
       <Card mb={{ base: 4, md: 6 }} boxShadow={{ base: 'md', md: 'lg' }} borderTop="4px" borderColor={THEME_COLORS.primary} bg="white">
         <CardBody p={{ base: 3, md: 6 }}>
           <VStack spacing={4} align="stretch">
-            {/* Date Presets */}
+            {/* View Mode Toggle */}
             <Box>
               <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
-                Quick Date Selection
+                Report View Mode
               </Text>
-              <ButtonGroup size={{ base: 'xs', md: 'sm' }} isAttached variant="outline" flexWrap="wrap">
+              <ButtonGroup size={{ base: 'sm', md: 'md' }} isAttached variant="outline">
                 <Button
-                  onClick={() => setDatePreset('today')}
-                  colorScheme={selectedDate === todayString ? 'blue' : 'gray'}
-                  bg={selectedDate === todayString ? THEME_COLORS.primary : 'white'}
-                  color={selectedDate === todayString ? 'white' : THEME_COLORS.dark}
-                  _hover={{ bg: selectedDate === todayString ? THEME_COLORS.medium : 'gray.100' }}
+                  onClick={() => {
+                    setViewMode('single');
+                    setCurrentPage(1);
+                    setActiveCard(null);
+                  }}
+                  bg={viewMode === 'single' ? THEME_COLORS.primary : 'white'}
+                  color={viewMode === 'single' ? 'white' : THEME_COLORS.dark}
+                  _hover={{ bg: viewMode === 'single' ? THEME_COLORS.medium : 'gray.100' }}
+                  fontWeight={viewMode === 'single' ? 'bold' : 'normal'}
                 >
-                  Today
+                  📅 Single Date
                 </Button>
                 <Button
-                  onClick={() => setDatePreset('yesterday')}
-                  colorScheme="gray"
+                  onClick={() => {
+                    setViewMode('range');
+                    setCurrentPage(1);
+                    setActiveCard(null);
+                  }}
+                  bg={viewMode === 'range' ? THEME_COLORS.primary : 'white'}
+                  color={viewMode === 'range' ? 'white' : THEME_COLORS.dark}
+                  _hover={{ bg: viewMode === 'range' ? THEME_COLORS.medium : 'gray.100' }}
+                  fontWeight={viewMode === 'range' ? 'bold' : 'normal'}
                 >
-                  Yesterday
-                </Button>
-                <Button
-                  onClick={() => setDatePreset('last7days')}
-                  colorScheme="gray"
-                >
-                  Last 7 Days
-                </Button>
-                <Button
-                  onClick={() => setDatePreset('last30days')}
-                  colorScheme="gray"
-                >
-                  Last 30 Days
+                  📊 Date Range
                 </Button>
               </ButtonGroup>
+              <Text fontSize="xs" color="gray.600" mt={1}>
+                {viewMode === 'single' 
+                  ? 'View metrics for a specific single date' 
+                  : 'View consolidated metrics across multiple dates'}
+              </Text>
             </Box>
             
             <Divider borderColor={THEME_COLORS.light} />
             
+            {/* Conditional: Quick Date Selection (only in single date mode) */}
+            {viewMode === 'single' && (
+              <>
+                <Box>
+                  <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                    Quick Date Selection
+                  </Text>
+                  <ButtonGroup size={{ base: 'xs', md: 'sm' }} isAttached variant="outline" flexWrap="wrap">
+                    <Button
+                      onClick={() => setDatePreset('today')}
+                      colorScheme={selectedDate === todayString ? 'blue' : 'gray'}
+                      bg={selectedDate === todayString ? THEME_COLORS.primary : 'white'}
+                      color={selectedDate === todayString ? 'white' : THEME_COLORS.dark}
+                      _hover={{ bg: selectedDate === todayString ? THEME_COLORS.medium : 'gray.100' }}
+                    >
+                      Today
+                    </Button>
+                    <Button
+                      onClick={() => setDatePreset('yesterday')}
+                      colorScheme="gray"
+                    >
+                      Yesterday
+                    </Button>
+                  </ButtonGroup>
+                </Box>
+                <Divider borderColor={THEME_COLORS.light} />
+              </>
+            )}
+            
             <Flex gap={3} flexWrap="wrap" align="stretch" direction={{ base: 'column', md: 'row' }}>
-              {/* Date Picker */}
-              <Box flex={{ base: '1', md: '0 0 200px' }}>
-                <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
-                  Select Date
-                </Text>
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => {
-                    setSelectedDate(e.target.value);
-                    setCurrentPage(1);   // Bug 6 fix: reset pagination
-                    setActiveCard(null); // Bug 7 fix: clear card filter
-                  }}
-                  max={todayString}
-                  borderColor={THEME_COLORS.light}
-                  _hover={{ borderColor: THEME_COLORS.primary }}
-                  _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
-                  size={{ base: 'md', md: 'md' }}
-                />
-              </Box>
+              {/* Conditional Date Inputs based on view mode */}
+              {viewMode === 'single' ? (
+                // Single Date Picker
+                <Box flex={{ base: '1', md: '0 0 200px' }}>
+                  <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                    Select Date
+                  </Text>
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      setCurrentPage(1);
+                      setActiveCard(null);
+                    }}
+                    max={todayString}
+                    borderColor={THEME_COLORS.light}
+                    _hover={{ borderColor: THEME_COLORS.primary }}
+                    _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                    size={{ base: 'md', md: 'md' }}
+                  />
+                </Box>
+              ) : (
+                // Date Range Pickers
+                <>
+                  <Box flex={{ base: '1', md: '0 0 200px' }}>
+                    <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                      Start Date
+                    </Text>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setCurrentPage(1);
+                        setActiveCard(null);
+                      }}
+                      max={endDate || todayString}
+                      borderColor={THEME_COLORS.light}
+                      _hover={{ borderColor: THEME_COLORS.primary }}
+                      _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                      size={{ base: 'md', md: 'md' }}
+                    />
+                  </Box>
+                  <Box flex={{ base: '1', md: '0 0 200px' }}>
+                    <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                      End Date
+                    </Text>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setCurrentPage(1);
+                        setActiveCard(null);
+                      }}
+                      min={startDate}
+                      max={todayString}
+                      borderColor={THEME_COLORS.light}
+                      _hover={{ borderColor: THEME_COLORS.primary }}
+                      _focus={{ borderColor: THEME_COLORS.primary, boxShadow: `0 0 0 1px ${THEME_COLORS.primary}` }}
+                      size={{ base: 'md', md: 'md' }}
+                    />
+                  </Box>
+                  {/* Quick Range Presets */}
+                  <Box flex={{ base: '1', md: 'auto' }}>
+                    <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
+                      Quick Ranges
+                    </Text>
+                    <HStack spacing={3}>
+                      <Button
+                        onClick={() => {
+                          const end = new Date();
+                          const start = new Date(end);
+                          start.setDate(end.getDate() - 6);
+                          setStartDate(start.toISOString().split('T')[0]);
+                          setEndDate(end.toISOString().split('T')[0]);
+                          setCurrentPage(1);
+                          setActiveCard(null);
+                        }}
+                        colorScheme="gray"
+                        variant="outline"
+                        size="sm"
+                        borderColor={THEME_COLORS.light}
+                        _hover={{ borderColor: THEME_COLORS.primary, bg: `${THEME_COLORS.primary}10` }}
+                      >
+                        Last 7 Days
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          const end = new Date();
+                          const start = new Date(end);
+                          start.setDate(end.getDate() - 29);
+                          setStartDate(start.toISOString().split('T')[0]);
+                          setEndDate(end.toISOString().split('T')[0]);
+                          setCurrentPage(1);
+                          setActiveCard(null);
+                        }}
+                        colorScheme="gray"
+                        variant="outline"
+                        size="sm"
+                        borderColor={THEME_COLORS.light}
+                        _hover={{ borderColor: THEME_COLORS.primary, bg: `${THEME_COLORS.primary}10` }}
+                      >
+                        Last 30 Days
+                      </Button>
+                    </HStack>
+                  </Box>
+                </>
+              )}
 
               {/* Agent Selector */}
               <Box flex={{ base: '1', md: '0 0 200px' }}>
@@ -798,8 +950,8 @@ export default function DSRPage() {
                   value={selectedAgentId}
                   onChange={(e) => {
                     setSelectedAgentId(e.target.value);
-                    setCurrentPage(1);   // Bug 6 fix: reset pagination
-                    setActiveCard(null); // Bug 7 fix: clear card filter
+                    setCurrentPage(1);
+                    setActiveCard(null);
                   }}
                   borderColor={THEME_COLORS.light}
                   _hover={{ borderColor: THEME_COLORS.primary }}
@@ -836,7 +988,15 @@ export default function DSRPage() {
             <Box>
               <Divider my={2} borderColor={THEME_COLORS.light} />
               <Text fontSize={{ base: 'xs', md: 'sm' }} color={THEME_COLORS.medium}>
-                Showing results for <strong>{selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}</strong>
+                {viewMode === 'single' ? (
+                  <>
+                    Showing results for <strong>{selectedDate ? formatDate(new Date(selectedDate)) : 'Today'}</strong>
+                  </>
+                ) : (
+                  <>
+                    Showing consolidated results from <strong>{formatDate(new Date(startDate))}</strong> to <strong>{formatDate(new Date(endDate))}</strong>
+                  </>
+                )}
                 {selectedAgentId !== 'all' && agents.find(a => a.id === selectedAgentId) && (
                   <> • Agent: <strong>{agents.find(a => a.id === selectedAgentId)?.name}</strong></>
                 )}
@@ -877,279 +1037,290 @@ export default function DSRPage() {
           ))}
         </SimpleGrid>
       ) : stats && (
-        <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
-          {/* New Calls Card */}
-          <Tooltip label={`${stats.newCallsCount} new calls (attemptNumber = 1) made on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('newLeads')}
-                boxShadow={activeCard === 'newLeads' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor={THEME_COLORS.primary}
-                bg={activeCard === 'newLeads' ? `${THEME_COLORS.primary}10` : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiUserAdd} boxSize={6} color={THEME_COLORS.primary} />
-                    <Badge colorScheme={activeCard === 'newLeads' ? 'green' : 'gray'} fontSize="xs">
-                      {activeCard === 'newLeads' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    New Calls
-                  </Text>
-                  <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.newCallsCount}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    First calls (Calls Page)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
+        <>
+          {/* Helper: Date description for tooltips */}
+          {(() => {
+            const dateDescription = viewMode === 'single' 
+              ? `on ${formatDate(new Date(selectedDate))}`
+              : `from ${formatDate(new Date(startDate))} to ${formatDate(new Date(endDate))}`;
+            
+            return (
+              <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
+                {/* New Leads Handled Card */}
+                <Tooltip label={`${stats.newCallsCount} new leads handled (first contact) ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('newLeads')}
+                      boxShadow={activeCard === 'newLeads' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor={THEME_COLORS.primary}
+                      bg={activeCard === 'newLeads' ? `${THEME_COLORS.primary}10` : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiUserAdd} boxSize={6} color={THEME_COLORS.primary} />
+                          <Badge colorScheme={activeCard === 'newLeads' ? 'green' : 'gray'} fontSize="xs">
+                            {activeCard === 'newLeads' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          New Leads Handled
+                        </Text>
+                        <Heading size="lg" color={THEME_COLORS.dark}>
+                          {stats.newCallsCount}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'First contact made' : 'Total first contacts'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
 
-          {/* Follow-up Calls Card */}
-          <Tooltip label={`${stats.followupCallsCount} follow-up calls (attemptNumber > 1 AND NOT overdue) made on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('followUps')}
-                boxShadow={activeCard === 'followUps' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor={THEME_COLORS.medium}
-                bg={activeCard === 'followUps' ? `${THEME_COLORS.medium}10` : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiClipboardList} boxSize={6} color={THEME_COLORS.medium} />
-                    <Badge colorScheme={activeCard === 'followUps' ? 'blue' : 'gray'} fontSize="xs">
-                      {activeCard === 'followUps' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Follow-up Calls
-                  </Text>
-                  <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.followupCallsCount}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    Follow-up calls (Calls Page)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
+                {/* Follow-ups Handled Card */}
+                <Tooltip label={`${stats.followupCallsCount} follow-up leads handled (not overdue) ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('followUps')}
+                      boxShadow={activeCard === 'followUps' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor={THEME_COLORS.medium}
+                      bg={activeCard === 'followUps' ? `${THEME_COLORS.medium}10` : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiClipboardList} boxSize={6} color={THEME_COLORS.medium} />
+                          <Badge colorScheme={activeCard === 'followUps' ? 'blue' : 'gray'} fontSize="xs">
+                            {activeCard === 'followUps' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Follow-ups Handled
+                        </Text>
+                        <Heading size="lg" color={THEME_COLORS.dark}>
+                          {stats.followupCallsCount}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'Follow-up contacts made' : 'Total follow-up contacts'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
 
-          {/* Total Calls Card */}
-          <Tooltip label={`${stats.totalCalls} total calls made on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('totalCalls')}
-                boxShadow={activeCard === 'totalCalls' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor={THEME_COLORS.accent}
-                bg={activeCard === 'totalCalls' ? `${THEME_COLORS.accent}10` : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiPhone} boxSize={6} color={THEME_COLORS.accent} />
-                    <Badge colorScheme={activeCard === 'totalCalls' ? 'teal' : 'gray'} fontSize="xs">
-                      {activeCard === 'totalCalls' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Total Calls
-                  </Text>
-                  <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.totalCalls}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    All calls (Calls Page)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
+                {/* Total Calls Handled Card */}
+                <Tooltip label={`${stats.totalCalls} total unique leads handled ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('totalCalls')}
+                      boxShadow={activeCard === 'totalCalls' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor={THEME_COLORS.accent}
+                      bg={activeCard === 'totalCalls' ? `${THEME_COLORS.accent}10` : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiPhone} boxSize={6} color={THEME_COLORS.accent} />
+                          <Badge colorScheme={activeCard === 'totalCalls' ? 'teal' : 'gray'} fontSize="xs">
+                            {activeCard === 'totalCalls' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Total Calls Handled
+                        </Text>
+                        <Heading size="lg" color={THEME_COLORS.dark}>
+                          {stats.totalCalls}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'All unique contacts' : 'Total unique contacts'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
 
-          {/* Overdue Calls Handled Card */}
-          <Tooltip label={`${stats.overdueCallsHandled} overdue calls handled on ${selectedDate ? formatDate(new Date(selectedDate || new Date().toISOString())) : 'Today'}`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('overdue')}
-                boxShadow={activeCard === 'overdue' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor="red.500"
-                bg={activeCard === 'overdue' ? 'red.50' : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiClock} boxSize={6} color="red.500" />
-                    <Badge colorScheme="red" fontSize="xs">
-                      {activeCard === 'overdue' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Overdue Calls Handled
-                  </Text>
-                  <Heading size="lg" color="red.600">
-                    {stats.overdueCallsHandled}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    Overdue handled (Calls Page)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
+                {/* Overdue Leads Handled Card */}
+                <Tooltip label={`${stats.overdueCallsHandled} overdue leads handled ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('overdue')}
+                      boxShadow={activeCard === 'overdue' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor="red.500"
+                      bg={activeCard === 'overdue' ? 'red.50' : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiClock} boxSize={6} color="red.500" />
+                          <Badge colorScheme="red" fontSize="xs">
+                            {activeCard === 'overdue' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Overdue Leads Handled
+                        </Text>
+                        <Heading size="lg" color="red.600">
+                          {stats.overdueCallsHandled}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'Overdue handled (Calls Page)' : 'Total overdue handled'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
 
-          {/* Unqualified Card */}
-          <Tooltip label={`${stats.unqualified} leads marked unqualified`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('unqualified')}
-                boxShadow={activeCard === 'unqualified' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor="orange.500"
-                bg={activeCard === 'unqualified' ? 'orange.50' : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiBan} boxSize={6} color="orange.500" />
-                    <Badge colorScheme="orange" fontSize="xs">
-                      {activeCard === 'unqualified' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Unqualified
-                  </Text>
-                  <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.unqualified}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    Marked (Leads Outcome)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
+                {/* Unqualified Card */}
+                <Tooltip label={`${stats.unqualified} leads marked unqualified ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('unqualified')}
+                      boxShadow={activeCard === 'unqualified' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor="orange.500"
+                      bg={activeCard === 'unqualified' ? 'orange.50' : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiBan} boxSize={6} color="orange.500" />
+                          <Badge colorScheme="orange" fontSize="xs">
+                            {activeCard === 'unqualified' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Unqualified
+                        </Text>
+                        <Heading size="lg" color={THEME_COLORS.dark}>
+                          {stats.unqualified}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'Marked (Leads Outcome)' : 'Total marked'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
 
-          {/* Unreachable Card */}
-          <Tooltip label={`${stats.unreachable} leads marked unreachable`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('unreachable')}
-                boxShadow={activeCard === 'unreachable' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor="gray.500"
-                bg={activeCard === 'unreachable' ? 'gray.50' : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiExclamation} boxSize={6} color="gray.500" />
-                    <Badge colorScheme="gray" fontSize="xs">
-                      {activeCard === 'unreachable' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Unreachable
-                  </Text>
-                  <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.unreachable}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    Marked (Leads Outcome)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
+                {/* Unreachable Card */}
+                <Tooltip label={`${stats.unreachable} leads marked unreachable ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('unreachable')}
+                      boxShadow={activeCard === 'unreachable' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor="gray.500"
+                      bg={activeCard === 'unreachable' ? 'gray.50' : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiExclamation} boxSize={6} color="gray.500" />
+                          <Badge colorScheme="gray" fontSize="xs">
+                            {activeCard === 'unreachable' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Unreachable
+                        </Text>
+                        <Heading size="lg" color={THEME_COLORS.dark}>
+                          {stats.unreachable}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'Marked (Leads Outcome)' : 'Total marked'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
 
-          {/* Won Card */}
-          <Tooltip label={`${stats.won} leads marked won`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('won')}
-                boxShadow={activeCard === 'won' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor="green.500"
-                bg={activeCard === 'won' ? 'green.50' : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiCheckCircle} boxSize={6} color="green.500" />
-                    <Badge colorScheme="green" fontSize="xs">
-                      {activeCard === 'won' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Won
-                  </Text>
-                  <Heading size="lg" color="green.600">
-                    {stats.won}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    Closed (Leads Outcome)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
+                {/* Won Card */}
+                <Tooltip label={`${stats.won} leads marked won ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('won')}
+                      boxShadow={activeCard === 'won' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor="green.500"
+                      bg={activeCard === 'won' ? 'green.50' : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiCheckCircle} boxSize={6} color="green.500" />
+                          <Badge colorScheme="green" fontSize="xs">
+                            {activeCard === 'won' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Won
+                        </Text>
+                        <Heading size="lg" color="green.600">
+                          {stats.won}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'Closed (Leads Outcome)' : 'Total closed won'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
 
-          {/* Lost Card */}
-          <Tooltip label={`${stats.lost} leads marked lost`} placement="top">
-            <Box>
-              <Card
-                cursor="pointer"
-                onClick={() => handleCardClick('lost')}
-                boxShadow={activeCard === 'lost' ? 'xl' : 'md'}
-                _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
-                transition="all 0.2s"
-                borderTop="4px"
-                borderColor="red.500"
-                bg={activeCard === 'lost' ? 'red.50' : 'white'}
-              >
-                <CardBody>
-                  <HStack justify="space-between" mb={2}>
-                    <Icon as={HiXCircle} boxSize={6} color="red.500" />
-                    <Badge colorScheme="red" fontSize="xs">
-                      {activeCard === 'lost' ? 'Active' : 'Click to filter'}
-                    </Badge>
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                    Lost
-                  </Text>
-                  <Heading size="lg" color={THEME_COLORS.dark}>
-                    {stats.lost}
-                  </Heading>
-                  <Text fontSize="xs" color="gray.600" mt={2}>
-                    Lost (Leads Outcome)
-                  </Text>
-                </CardBody>
-              </Card>
-            </Box>
-          </Tooltip>
-        </SimpleGrid>
+                {/* Lost Card */}
+                <Tooltip label={`${stats.lost} leads marked lost ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('lost')}
+                      boxShadow={activeCard === 'lost' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor="red.500"
+                      bg={activeCard === 'lost' ? 'red.50' : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiXCircle} boxSize={6} color="red.500" />
+                          <Badge colorScheme="red" fontSize="xs">
+                            {activeCard === 'lost' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Lost
+                        </Text>
+                        <Heading size="lg" color={THEME_COLORS.dark}>
+                          {stats.lost}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'Lost (Leads Outcome)' : 'Total lost'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
+              </SimpleGrid>
+            );
+          })()}
+        </>
       )}
 
       {/* Filtered Leads Table */}
@@ -1159,10 +1330,10 @@ export default function DSRPage() {
             <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap={2}>
               <Heading size={{ base: 'sm', md: 'md' }} color="white" textAlign={{ base: 'center', sm: 'left' }}>
                 {activeCard ? (
-                  activeCard === 'newLeads' ? 'New Calls' :
-                  activeCard === 'followUps' ? 'Follow-up Calls' :
-                  activeCard === 'totalCalls' ? 'Total Calls' :
-                  activeCard === 'overdue' ? 'Overdue Calls Handled' :
+                  activeCard === 'newLeads' ? 'New Leads Handled' :
+                  activeCard === 'followUps' ? 'Follow-ups Handled' :
+                  activeCard === 'totalCalls' ? 'Total Calls Handled' :
+                  activeCard === 'overdue' ? 'Overdue Leads Handled' :
                   activeCard === 'unqualified' ? 'Unqualified Leads' :
                   activeCard === 'unreachable' ? 'Unreachable Leads' :
                   activeCard === 'won' ? 'Won Deals' :
@@ -1524,7 +1695,7 @@ export default function DSRPage() {
                     _hover={{ bg: 'gray.100' }}
                   >
                     <Flex align="center" gap={1} justify="flex-end">
-                      Total Calls
+                      Total Leads
                       {sortColumn === 'totalCalls' && (
                         <Icon as={sortDirection === 'asc' ? HiChevronUp : HiChevronDown} />
                       )}

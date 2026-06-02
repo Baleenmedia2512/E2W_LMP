@@ -14,11 +14,11 @@ export const revalidate = 0;
  * 
  * DATA SOURCES:
  * - CALLS PAGE: CallLog filtered by createdAt = selected_date
- *   • New Calls: attemptNumber = 1
- *   • Follow-up Calls: attemptNumber > 1 AND NOT overdue
- *   • Overdue Calls Handled: previous_followup_date < selected_date
- *   • Total Calls: All calls
- *   NOTE: Follow-up and Overdue calls are mutually exclusive
+ *   • New Calls: Unique leads with callAttempts = 1
+ *   • Follow-up Calls: Unique leads with callAttempts > 1 AND NOT overdue
+ *   • Overdue Calls Handled: Unique leads with previous_followup_date < selected_date
+ *   • Total Calls: Unique leads called (New + Follow-up + Overdue = Total)
+ *   NOTE: All metrics count unique leads; Follow-up and Overdue are mutually exclusive
  * 
  * - LEADS OUTCOME PAGE: Lead filtered by updatedAt = selected_date
  *   • Unqualified, Unreachable, Won, Lost: status changes on selected date
@@ -367,16 +367,17 @@ export async function GET(request: NextRequest) {
       data: {
         stats: {
           // CALLS PAGE METRICS (filtered by CallLog.createdAt = selected_date)
-          // New Calls - attemptNumber = 1 on selected date
+          // All metrics count UNIQUE LEADS (not call records)
+          // New Calls - unique leads with callAttempts = 1
           newCallsCount: metrics.newLeads.handled,
           
-          // Follow-up Calls - attemptNumber > 1 on selected date
+          // Follow-up Calls - unique leads with callAttempts > 1 (not overdue)
           followupCallsCount: metrics.followups.handled,
           
-          // Overdue Calls Handled - calls on selected date where previous_followup_date < selected_date
+          // Overdue Calls Handled - unique leads with previous_followup_date < selected_date
           overdueCallsHandled: metrics.overdueFollowups.total,
           
-          // Total Calls - all calls made on selected date
+          // Total Calls - unique leads called (New + Follow-up + Overdue = Total)
           totalCalls: metrics.calls.total,
           
           // LEADS OUTCOME PAGE METRICS (filtered by Lead.updatedAt = selected_date)

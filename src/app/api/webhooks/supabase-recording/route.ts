@@ -136,6 +136,7 @@ export async function POST(request: Request) {
         name: true,
         phone: true,
         assignedToId: true,
+        callAttempts: true, // 🔧 FIX: Include callAttempts for correct attemptNumber
       }
     });
 
@@ -321,6 +322,10 @@ export async function POST(request: Request) {
     console.log(`    2. OR time window doesn't overlap`);
     console.log(`    3. OR this is a standalone recording (not from LMS call)`);
     
+    // 🔧 FIX: Get current callAttempts to set correct attemptNumber
+    const currentCallAttempts = lead.callAttempts || 0;
+    const correctAttemptNumber = currentCallAttempts + 1;
+    console.log(`[Recording Sync Webhook] 📊 Setting attemptNumber to ${correctAttemptNumber} (current callAttempts: ${currentCallAttempts})`);
     
     const newCallLog = await prisma.callLog.create({
       data: {
@@ -333,7 +338,7 @@ export async function POST(request: Request) {
         recordingUrl,
         recordingStatus: 'available',
         duration,
-        attemptNumber: 1,
+        attemptNumber: correctAttemptNumber, // ✅ FIXED: Use correct attempt number
         remarks: 'Auto-synced from Call Monitor app'
       }
     });
