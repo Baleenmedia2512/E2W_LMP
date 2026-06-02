@@ -89,9 +89,37 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     assignedToId: user?.id || '',
   });
 
-  const [initialFormData] = useState(formData);
+  const [initialFormData, setInitialFormData] = useState(formData);
   const hasChanges = JSON.stringify(formData) !== JSON.stringify(initialFormData);
   useUnsavedChanges(hasChanges);
+
+  // Reset form data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const now = new Date();
+      const newDate = now.toISOString().split('T')[0];
+      const newTime = now.toTimeString().slice(0, 5);
+      const freshData = {
+        date: newDate,
+        time: newTime,
+        source: '',
+        lead_category: '' as '' | 'INBOUND' | 'OUTBOUND',
+        name: '',
+        campaign: '',
+        phone: '',
+        alternatePhone: '',
+        email: '',
+        address: '',
+        city: '',
+        state: '',
+        pincode: '',
+        customerRequirement: '',
+        assignedToId: user?.id || '',
+      };
+      setFormData(freshData);
+      setInitialFormData(freshData);
+    }
+  }, [isOpen, user?.id]);
 
   // Fetch agents from API
   useEffect(() => {
@@ -171,20 +199,25 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
           customerRequirement: data.lead.customerRequirement || '',
           lead_category: (data.lead.lead_category as string) || '',
         });
-        setFormData(prev => ({
-          ...prev,
-          name: data.lead.name || prev.name,
-          email: data.lead.email || prev.email,
-          alternatePhone: data.lead.alternatePhone || prev.alternatePhone,
-          address: data.lead.address || prev.address,
-          city: data.lead.city || prev.city,
-          state: data.lead.state || prev.state,
-          pincode: data.lead.pincode || prev.pincode,
-          source: data.lead.source || prev.source,
-          campaign: data.lead.campaign || prev.campaign,
-          customerRequirement: data.lead.customerRequirement || prev.customerRequirement,
-          lead_category: (data.lead.lead_category as '' | 'INBOUND' | 'OUTBOUND') || prev.lead_category,
-        }));
+        setFormData(prev => {
+          const prefilledData = {
+            ...prev,
+            name: data.lead.name || prev.name,
+            email: data.lead.email || prev.email,
+            alternatePhone: data.lead.alternatePhone || prev.alternatePhone,
+            address: data.lead.address || prev.address,
+            city: data.lead.city || prev.city,
+            state: data.lead.state || prev.state,
+            pincode: data.lead.pincode || prev.pincode,
+            source: data.lead.source || prev.source,
+            campaign: data.lead.campaign || prev.campaign,
+            customerRequirement: data.lead.customerRequirement || prev.customerRequirement,
+            lead_category: (data.lead.lead_category as '' | 'INBOUND' | 'OUTBOUND') || prev.lead_category,
+          };
+          // Update initialFormData to match prefilled data so auto-prefill doesn't count as "changes"
+          setInitialFormData(prefilledData);
+          return prefilledData;
+        });
         
         toast({
           title: 'Lead Information Loaded',
@@ -471,11 +504,11 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
   };
 
   const resetAndClose = () => {
-    setFormData({
+    const resetData = {
       date: currentDate,
       time: currentTime,
       source: '',
-      lead_category: '',
+      lead_category: '' as '' | 'INBOUND' | 'OUTBOUND',
       name: '',
       campaign: '',
       phone: '',
@@ -487,7 +520,9 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       pincode: '',
       customerRequirement: '',
       assignedToId: user?.id || '',
-    });
+    };
+    setFormData(resetData);
+    setInitialFormData(resetData);
     clearAllErrors();
     setExistingLead(null);
     setShowPrefillPrompt(false);
@@ -543,10 +578,10 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                     <HStack justify="space-between" align="start" spacing={2}>
                       <VStack align="start" spacing={1} flex="1">
                         <Text fontSize="sm" fontWeight="semibold" color="blue.700">
-                          ℹ️ Existing customer record found
+                          ℹ️ Existing record found
                         </Text>
                         <Text fontSize="xs" color="gray.600">
-                          Please update the lead if any changes or additional information are required.
+                          Please update the record if any changes or additional information are required.
                         </Text>
                         <HStack spacing={3} pt={0.5} flexWrap="wrap">
                           <Text fontSize="xs" fontWeight="medium" color="gray.800">👤 {existingLead.name}</Text>
@@ -816,41 +851,19 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
             <ModalCloseButton />
             <ModalBody pb={2}>
               <VStack align="start" spacing={3}>
-                <Text fontSize="sm" color="gray.700">
-                  <Text as="span" fontWeight="bold">{existingLead.name}</Text> is already recorded in the system with this phone number.
-                </Text>
                 <Box p={3} bg="orange.50" borderRadius="md" borderWidth="1px" borderColor="orange.200" w="full">
                   <Text fontSize="xs" color="orange.800" fontWeight="medium">
-                    No changes were detected. Please update at least one field before submitting, or go directly to the existing lead.
+                    No changes made. Please update something before submitting.
                   </Text>
                 </Box>
               </VStack>
             </ModalBody>
             <ModalFooter gap={2} flexWrap="wrap" justifyContent="flex-start" pt={3}>
               <Button
-                colorScheme="blue"
-                size="sm"
-                onClick={() => {
-                  setShowDuplicateAlert(false);
-                  resetAndClose();
-                  router.push(`/dashboard/leads/${existingLead.id}`);
-                }}
-              >
-                Go to Lead
-              </Button>
-              <Button
-                variant="outline"
-                colorScheme="blue"
-                size="sm"
-                onClick={() => setShowDuplicateAlert(false)}
-              >
-                Edit &amp; Continue
-              </Button>
-              <Button
                 variant="ghost"
                 colorScheme="red"
                 size="sm"
-                onClick={resetAndClose}
+                onClick={() => setShowDuplicateAlert(false)}
               >
                 Cancel
               </Button>
