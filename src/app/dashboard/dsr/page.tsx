@@ -262,10 +262,10 @@ export default function DSRPage() {
     setCurrentPage(1);
     
     const cardLabels: Record<string, string> = {
-      newLeads: 'New Leads Handled',
-      followUps: 'Follow-ups Handled',
-      totalCalls: 'Total Calls Handled',
-      overdue: 'Overdue Leads Handled',
+      newLeads: 'New Leads/Client Handled',
+      followUps: 'Follow-ups Leads/Client Handled',
+      totalCalls: 'Total Leads/Client Handled',
+      overdue: 'Overdue Leads/Client Handled',
       unqualified: 'Unqualified',
       unreachable: 'Unreachable',
       won: 'Won',
@@ -353,14 +353,14 @@ export default function DSRPage() {
     const exportData = agentPerformanceData.map(agent => ({
       Date: formatDate(new Date(agent.date)),
       Agent: agent.agentName,
-      'New Leads Handled': agent.newLeads,
-      'Follow-ups Handled': agent.followUps,
-      'Total Calls Handled': agent.totalCalls,
+      'New Leads/Client Handled': agent.newLeads,
+      'Follow-ups Leads/Client Handled': agent.followUps,
+      'Total Leads/Client Handled': agent.totalCalls,
       Won: agent.won,
       Lost: agent.lost,
       Unreachable: agent.unreachable,
       Unqualified: agent.unqualified || 0,
-      'Overdue Handled': agent.overdue,
+      'Overdue Leads/Client Handled': agent.overdue,
     }));
     exportToCSV(exportData, 'agent_performance');
   };
@@ -555,8 +555,9 @@ export default function DSRPage() {
       console.log(`[DSR Filter] New Leads Handled: ${filtered.length} leads`);
       
     } else if (activeCard === 'followUps') {
-      // Follow-ups Handled: CallLog.createdAt = selected_date AND Lead.callAttempts > 1
-      // Show ONLY leads that had follow-up calls (attemptNumber > 1) on selected date
+      // Follow-ups Handled: CallLog.createdAt = selected_date AND NOT new AND NOT overdue (catchall)
+      // Show ALL leads that had calls but are NOT first-time calls AND NOT overdue
+      // This ensures New + Follow-ups + Overdue = Total Calls
       filtered = filtered.filter(lead => 
         lead.activityFlags?.isFollowup === true
       );
@@ -1067,7 +1068,7 @@ export default function DSRPage() {
                           </Badge>
                         </HStack>
                         <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                          New Leads Handled
+                          New Leads/Client Handled
                         </Text>
                         <Heading size="lg" color={THEME_COLORS.dark}>
                           {stats.newCallsCount}
@@ -1081,7 +1082,7 @@ export default function DSRPage() {
                 </Tooltip>
 
                 {/* Follow-ups Handled Card */}
-                <Tooltip label={`${stats.followupCallsCount} follow-up leads handled (not overdue) ${dateDescription}`} placement="top">
+                <Tooltip label={`${stats.followupCallsCount} repeat calls handled (not first-time, not overdue) ${dateDescription}`} placement="top">
                   <Box>
                     <Card
                       cursor="pointer"
@@ -1101,7 +1102,7 @@ export default function DSRPage() {
                           </Badge>
                         </HStack>
                         <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                          Follow-ups Handled
+                          Follow-ups Leads/Client Handled
                         </Text>
                         <Heading size="lg" color={THEME_COLORS.dark}>
                           {stats.followupCallsCount}
@@ -1135,7 +1136,7 @@ export default function DSRPage() {
                           </Badge>
                         </HStack>
                         <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                          Total Calls Handled
+                          Total Leads/Client Handled
                         </Text>
                         <Heading size="lg" color={THEME_COLORS.dark}>
                           {stats.totalCalls}
@@ -1169,7 +1170,7 @@ export default function DSRPage() {
                           </Badge>
                         </HStack>
                         <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                          Overdue Leads Handled
+                          Overdue Leads/Client Handled
                         </Text>
                         <Heading size="lg" color="red.600">
                           {stats.overdueCallsHandled}
@@ -1330,10 +1331,10 @@ export default function DSRPage() {
             <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap={2}>
               <Heading size={{ base: 'sm', md: 'md' }} color="white" textAlign={{ base: 'center', sm: 'left' }}>
                 {activeCard ? (
-                  activeCard === 'newLeads' ? 'New Leads Handled' :
-                  activeCard === 'followUps' ? 'Follow-ups Handled' :
-                  activeCard === 'totalCalls' ? 'Total Calls Handled' :
-                  activeCard === 'overdue' ? 'Overdue Leads Handled' :
+                  activeCard === 'newLeads' ? 'New Leads/Client Handled' :
+                  activeCard === 'followUps' ? 'Follow-ups Leads/Client Handled' :
+                  activeCard === 'totalCalls' ? 'Total Leads/Client Handled' :
+                  activeCard === 'overdue' ? 'Overdue Leads/Client Handled' :
                   activeCard === 'unqualified' ? 'Unqualified Leads' :
                   activeCard === 'unreachable' ? 'Unreachable Leads' :
                   activeCard === 'won' ? 'Won Deals' :

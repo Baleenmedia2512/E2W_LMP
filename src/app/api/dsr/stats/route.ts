@@ -218,10 +218,11 @@ export async function GET(request: NextRequest) {
       // Uses the overdueLeadIds set (built with .some() logic) to match calculateDSRMetrics exactly
       const hadOverdueCallToday = hadCallToday && overdueLeadIds.has(lead.id);
       
-      // 2️⃣ Follow-Up Calls: CallLog.createdAt = selected_date AND Lead.callAttempts > 1 AND NOT overdue
-      // A lead is "Follow-Up" if it had a call today AND its callAttempts field > 1 AND it's NOT an overdue call
-      // This ensures follow-up and overdue are mutually exclusive
-      const isFollowupCall = hadCallToday && (lead.callAttempts || 0) > 1 && !hadOverdueCallToday;
+      // 2️⃣ Follow-Up Calls: CallLog.createdAt = selected_date AND NOT new AND NOT overdue (catchall)
+      // Changed from: callAttempts > 1 AND NOT overdue
+      // To: callAttempts !== 1 AND NOT overdue (catches ALL non-new, non-overdue calls)
+      // This ensures New + Follow-up + Overdue = Total Calls (mutually exclusive categories)
+      const isFollowupCall = hadCallToday && (lead.callAttempts || 0) !== 1 && !hadOverdueCallToday;
       
       // 3️⃣ Total Calls: CallLog.createdAt = selected_date
       // Any lead that had a call today (already captured in hadCallToday)

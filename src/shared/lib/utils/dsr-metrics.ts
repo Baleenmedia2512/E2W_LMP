@@ -575,14 +575,27 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
     }
   });
   
-  // Follow-up Calls: Leads that had calls today AND have callAttempts > 1 (not 1) AND NOT overdue
-  // This ensures follow-up and overdue are mutually exclusive
+  // Follow-up Calls: Leads that had calls today AND NOT new AND NOT overdue (catchall)
+  // Changed from: callAttempts > 1 AND NOT overdue
+  // To: callAttempts !== 1 AND NOT overdue (catches ALL non-new, non-overdue calls)
+  // This ensures New + Follow-up + Overdue = Total Calls (mutually exclusive categories)
   const followupCallsCount = leads.filter((lead: any) => 
-    leadsWithCallsToday.has(lead.id) && (lead.callAttempts || 0) > 1 && !leadsWithOverdueCalls.has(lead.id)
+    leadsWithCallsToday.has(lead.id) && 
+    (lead.callAttempts || 0) !== 1 &&  // NOT new (excludes first calls)
+    !leadsWithOverdueCalls.has(lead.id)  // NOT overdue (excludes overdue calls)
   ).length;
   
   // Total Calls: Unique leads called on selected date (ensures New + Follow-up + Overdue = Total)
   const totalCalls = leadsWithCallsToday.size;
+  
+  // Debug: Verify categorization adds up
+  console.log('[DSR Metrics] Category breakdown:');
+  console.log('  New Calls:', newCallsCount);
+  console.log('  Follow-up Calls:', followupCallsCount);
+  console.log('  Overdue Calls:', overdueCallsHandled);
+  console.log('  Total Calls:', totalCalls);
+  console.log('  Sum (New+Follow+Overdue):', newCallsCount + followupCallsCount + overdueCallsHandled);
+  console.log('  Match:', (newCallsCount + followupCallsCount + overdueCallsHandled) === totalCalls ? '✅' : '❌');
   
   // LEADS OUTCOME PAGE METRICS - All filtered by lead updatedAt on selected date
   // Unqualified: Leads with status='unqualified' updated on selected date
