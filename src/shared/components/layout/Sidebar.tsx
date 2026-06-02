@@ -31,7 +31,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: FiHome, permission: 'canViewOwnDashboard' },
   { name: 'Leads', href: '/dashboard/leads', icon: FiUsers, permission: 'canViewLeads' },
-  { name: 'Quotations', href: '/dashboard/quotations', icon: FiFile, permission: 'canViewLeads' },
+  // { name: 'Quotations', href: '/dashboard/quotations', icon: FiFile, permission: 'canViewLeads' },
   // { name: 'Lead Outcomes', href: '/dashboard/leads/outcomes', icon: FiTarget, permission: 'canViewLeads' },
   { name: 'Calls', href: '/dashboard/calls', icon: FiPhone, permission: 'canLogCall' },
   { name: 'DSR', href: '/dashboard/dsr', icon: FiBarChart2, permission: 'canViewDSR' },
