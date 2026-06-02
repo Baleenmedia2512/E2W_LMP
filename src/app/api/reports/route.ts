@@ -13,11 +13,13 @@ export const revalidate = 0;
  * - startDate: ISO date string (optional, defaults to 7 days ago)
  * - endDate: ISO date string (optional, defaults to today)
  * - dateFilterType: 'created' | 'updated' (optional, defaults to 'created')
+ * - agentId: User ID to filter by specific agent (optional, defaults to all agents)
  */
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const dateFilterType = searchParams.get('dateFilterType') || 'created';
+    const agentId = searchParams.get('agentId') || null;
     
     // Default to last 7 days if no dates provided
     const defaultEndDate = new Date();
@@ -47,9 +49,15 @@ export async function GET(request: NextRequest) {
       ? { createdAt: { gte: startDate, lte: endDate } }
       : { updatedAt: { gte: startDate, lte: endDate } };
 
+    // Build complete filter with optional agent filter
+    const whereClause: any = { ...dateFilter };
+    if (agentId) {
+      whereClause.assignedToId = agentId;
+    }
+
     // Fetch leads with optimized query
     const leads = await prisma.lead.findMany({
-      where: dateFilter,
+      where: whereClause,
       select: {
         id: true,
         status: true,
@@ -81,9 +89,11 @@ export async function GET(request: NextRequest) {
     const newLeads = leads.filter((l: any) => l.status === 'new').length;
     const wonDeals = leads.filter((l: any) => l.status === 'won').length;
     const lostDeals = leads.filter((l: any) => l.status === 'lost').length;
+    const unqualifiedLeads = leads.filter((l: any) => l.status === 'unqualified').length;
+    const unreachableLeads = leads.filter((l: any) => l.status === 'unreach').length;
     
-    // Correct conversion rate: Won / Total leads
-    const conversionRate = totalLeads > 0 ? Math.round((wonDeals / totalLeads) * 100) : 0;
+    // Correct conversion rate: Won / Total leads (with 2 decimal precision)
+    const conversionRate = totalLeads > 0 ? Math.round((wonDeals / totalLeads) * 100 * 100) / 100 : 0;
     
     // Calculate average call duration
     const callsWithDuration = calls.filter((call: any) => call.duration && call.duration > 0);
@@ -137,11 +147,20 @@ export async function GET(request: NextRequest) {
     const totalCallAttempts = leads.reduce((sum: any, lead: any) => sum + (lead.callAttempts || 0), 0);
     const avgCallAttempts = totalLeads > 0 ? Math.round((totalCallAttempts / totalLeads) * 10) / 10 : 0;
 
+    // Fetch all users for the dropdown
+    const users = await prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+
     const reportsData = {
       totalLeads,
       newLeads,
       wonDeals,
       lostDeals,
+      unqualifiedLeads,
+      unreachableLeads,
       conversionRate,
       avgCallAttempts,
       totalCallAttempts,
@@ -151,6 +170,7 @@ export async function GET(request: NextRequest) {
       leadsByAgent,
       leadsByStatus,
       leadsByAttempts,
+      users,
     };
 
     return NextResponse.json({

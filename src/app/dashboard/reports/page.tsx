@@ -26,16 +26,20 @@ import {
   Button,
   useToast,
   Flex,
+  Select,
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/swr';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 
 interface ReportsData {
   totalLeads: number;
   newLeads: number;
   wonDeals: number;
   lostDeals: number;
+  unqualifiedLeads: number;
+  unreachableLeads: number;
   conversionRate: number;
   avgCallAttempts: number;
   totalCallAttempts: number;
@@ -45,9 +49,11 @@ interface ReportsData {
   leadsByAgent: Array<{ agent: string; count: number; percentage: number }>;
   leadsByStatus: Record<string, number>;
   leadsByAttempts: Record<string, number>;
+  users: Array<{ id: string; name: string }>;
 }
 
 export default function ReportsPage() {
+  const { user } = useAuth();
   const [startDate, setStartDate] = useState<string>(() => {
     const date = new Date();
     date.setDate(date.getDate() - 7); // 7 days ago
@@ -55,9 +61,18 @@ export default function ReportsPage() {
   });
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
   const [dateFilterType, setDateFilterType] = useState<'created' | 'updated'>('created');
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
+
+  // Auto-select current user's ID if they are an Agent (not SuperAgent/Finance/HR/Procurement)
+  useEffect(() => {
+    if (user && user.role === 'Agent') {
+      setSelectedAgentId(user.id);
+    }
+  }, [user]);
 
   // SWR — cached, re-fetches automatically when filters change
-  const reportsUrl = `/api/reports?startDate=${startDate}&endDate=${endDate}&dateFilterType=${dateFilterType}`;
+  const agentQuery = selectedAgentId !== 'all' ? `&agentId=${selectedAgentId}` : '';
+  const reportsUrl = `/api/reports?startDate=${startDate}&endDate=${endDate}&dateFilterType=${dateFilterType}${agentQuery}`;
   const { data: rawData, isLoading: loading, error: swrError } = useSWR(
     reportsUrl,
     fetcher,
@@ -166,10 +181,32 @@ export default function ReportsPage() {
                   </Button>
                 </Flex>
               </Box>
+              <Box flex={{ base: '1 1 100%', sm: '1 1 auto' }} minW={{ sm: '180px' }}>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>Agent Filter</Text>
+                <Select
+                  value={selectedAgentId}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  size={{ base: 'sm', md: 'md' }}
+                  bg="white"
+                  isDisabled={user?.role === 'Agent'}
+                >
+                  <option value="all">All Agents</option>
+                  {data?.users?.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
+                  ))}
+                </Select>
+              </Box>
             </Flex>
             <Box>
               <Text fontSize="sm" color="gray.600">
                 Showing leads {dateFilterType === 'created' ? 'created' : 'updated'} from {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\//g, '-')}
+                {selectedAgentId !== 'all' && data?.users && (
+                  <Badge ml={2} colorScheme="purple">
+                    {data.users.find(u => u.id === selectedAgentId)?.name || 'Selected Agent'}
+                  </Badge>
+                )}
               </Text>
             </Box>
           </VStack>
@@ -183,7 +220,9 @@ export default function ReportsPage() {
             <Stat>
               <StatLabel color="blue.800">Total Leads</StatLabel>
               <StatNumber color="blue.900">{data.totalLeads}</StatNumber>
-              <StatHelpText color="blue.700">In selected range</StatHelpText>
+              <StatHelpText color="blue.700">
+                {selectedAgentId === 'all' ? 'In selected range' : 'For selected agent'}
+              </StatHelpText>
             </Stat>
           </CardBody>
         </Card>
@@ -192,7 +231,7 @@ export default function ReportsPage() {
           <CardBody>
             <Stat>
               <StatLabel color={data.conversionRate >= 50 ? 'green.800' : 'red.800'}>Conversion Rate</StatLabel>
-              <StatNumber color={data.conversionRate >= 50 ? 'green.900' : 'red.900'}>{data.conversionRate}%</StatNumber>
+              <StatNumber color={data.conversionRate >= 50 ? 'green.900' : 'red.900'}>{data.conversionRate.toFixed(2)}%</StatNumber>
               <StatHelpText color={data.conversionRate >= 50 ? 'green.700' : 'red.700'}>
                 Won / Total leads
               </StatHelpText>
@@ -226,7 +265,7 @@ export default function ReportsPage() {
       </SimpleGrid>
 
       {/* Secondary Metrics */}
-      <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={4} mb={6}>
+      <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 5 }} spacing={4} mb={6}>
         <Card bg="blue.50" borderWidth="1px" borderColor="blue.100">
           <CardBody>
             <Stat>
@@ -250,6 +289,24 @@ export default function ReportsPage() {
             <Stat>
               <StatLabel fontSize="sm" color="red.700">Lost Deals</StatLabel>
               <StatNumber fontSize="2xl" color="red.700">{data.lostDeals}</StatNumber>
+            </Stat>
+          </CardBody>
+        </Card>
+
+        <Card bg="orange.50" borderWidth="1px" borderColor="orange.100">
+          <CardBody>
+            <Stat>
+              <StatLabel fontSize="sm" color="orange.700">Unqualified</StatLabel>
+              <StatNumber fontSize="2xl" color="orange.700">{data.unqualifiedLeads}</StatNumber>
+            </Stat>
+          </CardBody>
+        </Card>
+
+        <Card bg="gray.50" borderWidth="1px" borderColor="gray.100">
+          <CardBody>
+            <Stat>
+              <StatLabel fontSize="sm" color="gray.700">Unreachable</StatLabel>
+              <StatNumber fontSize="2xl" color="gray.700">{data.unreachableLeads}</StatNumber>
             </Stat>
           </CardBody>
         </Card>
