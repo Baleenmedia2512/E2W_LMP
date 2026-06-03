@@ -437,7 +437,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     } else {
       // Auto-derive lead_category when source changes
       if (name === 'source') {
-        const inboundSources = ['meta', 'website', 'whatsapp', 'online', 'indiamart', 'sulekha', 'just dial', 'web app db'];
+        const inboundSources = ['meta', 'website', 'whatsapp', 'online', 'referral', 'direct', 'consultant', 'indiamart', 'sulekha', 'just dial'];
         const autoCategory = inboundSources.includes(value.toLowerCase()) ? 'INBOUND' : 'OUTBOUND';
         setFormData({
           ...formData,

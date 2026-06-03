@@ -43,8 +43,8 @@ export default function UnifiedLeadsPage() {
   const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>('all');
   
   // Source categorization
-  const inboundSources = ['Website', 'Meta', 'Online', 'Referral', 'Direct', 'Web App DB', 'WhatsApp', 'ChatGPT'];
-  const outboundSources = ['Cold Call', 'Consultant', 'Google Maps', 'Indiamart', 'Just Dial', 'LG', 'Newspaper', 'Own', 'Sulekha'];
+  const inboundSources = ['Website', 'Meta', 'Online', 'Referral', 'Direct', 'WhatsApp', 'Consultant', 'Indiamart', 'Just Dial', 'Sulekha'];
+  const outboundSources = ['Cold Call', 'ChatGPT', 'Google Maps', 'Web App DB', 'LG', 'Newspaper', 'Own'];
   
   // Get available sources based on lead category filter
   const getAvailableSources = () => {

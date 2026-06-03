@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-utils';
 
 // Sources that are always INBOUND (customer reached out to you)
-const INBOUND_SOURCES = ['meta', 'website', 'whatsapp', 'online', 'indiamart', 'sulekha', 'just dial', 'web app db'];
+const INBOUND_SOURCES = ['meta', 'website', 'whatsapp', 'online', 'referral', 'direct', 'consultant', 'indiamart', 'sulekha', 'just dial'];
 
 function deriveLeadCategory(source: string, explicitCategory?: string): string {
   if (explicitCategory === 'INBOUND' || explicitCategory === 'OUTBOUND') {
