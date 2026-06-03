@@ -106,6 +106,10 @@ export function useRoleBasedAccess() {
 
     const userRole = user.role as UserRole;
     const permissions = rolePermissions[userRole];
+    
+    // If role doesn't have defined permissions, deny access
+    if (!permissions) return false;
+    
     return permissions[permission] || false;
   };
 

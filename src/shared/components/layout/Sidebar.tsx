@@ -43,14 +43,17 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const router = useRouter();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { hasPermission } = useRoleBasedAccess();
   
   const [isNavigating, setIsNavigating] = useState(false);
   const [targetHref, setTargetHref] = useState<string | null>(null);
   const navigationTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const filteredNavItems = navItems.filter((item) => hasPermission(item.permission as any));
+  // Wait for auth to load before filtering nav items
+  const filteredNavItems = isLoading || !user 
+    ? [] 
+    : navItems.filter((item) => hasPermission(item.permission as any));
 
   // Cleanup timeout on unmount
   useEffect(() => {
