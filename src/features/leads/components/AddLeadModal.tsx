@@ -414,17 +414,19 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       clearError(name);
     }
     
-    // For phone fields, only allow numbers
+    // For phone fields, only allow numbers and limit to last 10 digits
     if (name === 'phone' || name === 'alternatePhone') {
       const numbersOnly = value.replace(/\D/g, '');
+      // Take only last 10 digits to handle country code prefixes like +91 or 91
+      const last10Digits = numbersOnly.slice(-10);
       setFormData({
         ...formData,
-        [name]: numbersOnly,
+        [name]: last10Digits,
       });
       
       // Trigger phone lookup for the main phone field
       if (name === 'phone') {
-        checkPhoneAndFetchData(numbersOnly);
+        checkPhoneAndFetchData(last10Digits);
       }
     } else if (name === 'pincode') {
       const numbersOnly = value.replace(/\D/g, '').slice(0, 6);
@@ -464,15 +466,15 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
 
     if (name === 'phone' && value.trim()) {
       const phoneDigits = value.replace(/\D/g, '');
-      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-        setError('phone', 'Client Contact must be 10 digits or include valid country code');
+      if (phoneDigits.length !== 10) {
+        setError('phone', 'Client Contact must be exactly 10 digits');
       }
     }
 
     if (name === 'alternatePhone' && value.trim()) {
       const altPhoneDigits = value.replace(/\D/g, '');
-      if (altPhoneDigits.length < 10 || altPhoneDigits.length > 15) {
-        setError('alternatePhone', 'Alternate Phone must be 10 digits or include valid country code');
+      if (altPhoneDigits.length !== 10) {
+        setError('alternatePhone', 'Alternate Phone must be exactly 10 digits');
       }
     }
 
@@ -566,10 +568,9 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                   onBlur={handleBlur}
                   error={errors.phone}
                   isRequired={true}
-                  placeholder="Enter 10 digit phone number"
-                  maxLength={10}
+                  placeholder="Enter phone number (supports +91 prefix)"
                   size={{ base: 'sm', md: 'md' }}
-                  helperText={isCheckingPhone ? "Checking for existing lead..." : "10 digits required"}
+                  helperText={isCheckingPhone ? "Checking for existing lead..." : "10 digits required (country code will be removed)"}
                 />
 
                 {/* Prefill Prompt */}
@@ -780,10 +781,9 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                     onChange={handleChange}
                     onBlur={handleBlur}
                     error={errors.alternatePhone}
-                    placeholder="10 digit alternate number (optional)"
-                    maxLength={10}
+                    placeholder="Alternate number (supports +91 prefix, optional)"
                     size={{ base: 'sm', md: 'md' }}
-                    helperText="10 digits (optional)"
+                    helperText="10 digits optional (country code will be removed)"
                   />
                 </SimpleGrid>
 

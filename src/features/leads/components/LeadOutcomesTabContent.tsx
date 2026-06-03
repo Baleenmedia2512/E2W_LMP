@@ -78,6 +78,7 @@ interface LeadOutcomesTabContentProps {
   onCountChange?: (count: number) => void;
   // Global filters passed from parent
   globalSearchQuery?: string;
+  globalLeadCategoryFilter?: string;
   globalClientTypeFilter?: string;
   globalSourceFilter?: string;
   globalOwnerFilter?: string;
@@ -88,6 +89,7 @@ interface LeadOutcomesTabContentProps {
 export default function LeadOutcomesTabContent({ 
   onCountChange,
   globalSearchQuery = '',
+  globalLeadCategoryFilter = 'all',
   globalClientTypeFilter = 'all',
   globalSourceFilter = 'all',
   globalOwnerFilter = 'all',
@@ -105,6 +107,7 @@ export default function LeadOutcomesTabContent({
   
   // Use global filters instead of local ones
   const searchQuery = globalSearchQuery;
+  const leadCategoryFilter = globalLeadCategoryFilter;
   const ownerFilter = globalOwnerFilter;
   const sourceFilter = globalSourceFilter;
   const clientTypeFilter = globalClientTypeFilter;
@@ -424,6 +427,23 @@ export default function LeadOutcomesTabContent({
       filtered = filtered.filter(lead => !(lead as any).is_existing || (lead as any).is_existing === false);
     }
 
+    // Apply lead category filter - strict matching only (exclude null/undefined)
+    if (leadCategoryFilter === 'inbound') {
+      filtered = filtered.filter(lead => lead.lead_category?.toUpperCase() === 'INBOUND');
+    } else if (leadCategoryFilter === 'outbound') {
+      filtered = filtered.filter(lead => lead.lead_category?.toUpperCase() === 'OUTBOUND');
+    }
+
+    // Apply source filter
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter(lead => lead.source?.toLowerCase() === sourceFilter.toLowerCase());
+    }
+
+    // Apply owner filter
+    if (ownerFilter !== 'all') {
+      filtered = filtered.filter(lead => lead.assignedToId === ownerFilter);
+    }
+
     // Apply sorting
     const config = sortConfig[status];
     if (config) {
@@ -444,7 +464,7 @@ export default function LeadOutcomesTabContent({
     }
 
     return filtered;
-  }, [leads, searchQuery, clientTypeFilter, sortConfig]);
+  }, [leads, searchQuery, leadCategoryFilter, sourceFilter, ownerFilter, clientTypeFilter, sortConfig]);
 
   const handleSort = (status: string, field: string) => {
     setSortConfig(prev => ({
@@ -469,6 +489,30 @@ export default function LeadOutcomesTabContent({
         lead.phone.includes(searchLower) ||
         (lead.email && lead.email.toLowerCase().includes(searchLower))
       );
+    }
+    
+    // Apply client type filter to historical won leads
+    if (wonViewMode === 'historical' && clientTypeFilter === 'existing') {
+      wonLeads = wonLeads.filter(lead => (lead as any).is_existing === true);
+    } else if (wonViewMode === 'historical' && clientTypeFilter === 'non-existing') {
+      wonLeads = wonLeads.filter(lead => !(lead as any).is_existing || (lead as any).is_existing === false);
+    }
+    
+    // Apply lead category filter to historical won leads - strict matching (exclude null/undefined)
+    if (wonViewMode === 'historical' && leadCategoryFilter === 'inbound') {
+      wonLeads = wonLeads.filter(lead => lead.lead_category?.toUpperCase() === 'INBOUND');
+    } else if (wonViewMode === 'historical' && leadCategoryFilter === 'outbound') {
+      wonLeads = wonLeads.filter(lead => lead.lead_category?.toUpperCase() === 'OUTBOUND');
+    }
+    
+    // Apply source filter to historical won leads
+    if (wonViewMode === 'historical' && sourceFilter !== 'all') {
+      wonLeads = wonLeads.filter(lead => lead.source?.toLowerCase() === sourceFilter.toLowerCase());
+    }
+    
+    // Apply owner filter to historical won leads
+    if (wonViewMode === 'historical' && ownerFilter !== 'all') {
+      wonLeads = wonLeads.filter(lead => lead.assignedToId === ownerFilter);
     }
     
     const allSections = [
@@ -503,7 +547,7 @@ export default function LeadOutcomesTabContent({
       return allSections;
     }
     return allSections.filter(section => section.status === outcomeStatusFilter);
-  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus, clientTypeFilter, searchQuery]);
+  }, [leads, sortConfig, outcomeStatusFilter, wonViewMode, historicalWonLeads, filterLeadsByStatus, clientTypeFilter, leadCategoryFilter, sourceFilter, ownerFilter, searchQuery]);
 
   // Notify parent component of count changes (for tab badge)
   useEffect(() => {

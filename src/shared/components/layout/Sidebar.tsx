@@ -1,10 +1,10 @@
 ﻿'use client';
 
-import { Box, Flex, VStack, Text, Icon, useColorModeValue } from '@chakra-ui/react';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
+import { Box, Flex, VStack, Text, Icon, useColorModeValue, Spinner } from '@chakra-ui/react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useRoleBasedAccess } from '@/shared/hooks/useRoleBasedAccess';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { useState, useRef, useEffect } from 'react';
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -40,12 +40,56 @@ const navItems: NavItem[] = [
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const { user } = useAuth();
   const { hasPermission } = useRoleBasedAccess();
+  
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [targetHref, setTargetHref] = useState<string | null>(null);
+  const navigationTimeoutRef = useRef<NodeJS.Timeout>();
 
   const filteredNavItems = navItems.filter((item) => hasPermission(item.permission as any));
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Reset navigation state when pathname changes
+  useEffect(() => {
+    setIsNavigating(false);
+    setTargetHref(null);
+  }, [pathname]);
+
+  const handleNavClick = (href: string) => {
+    // If clicking the same page, do nothing
+    if (href === pathname) return;
+
+    // Cancel any pending navigation
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+
+    // Close drawer IMMEDIATELY (before navigation)
+    if (onNavigate) {
+      onNavigate();
+    }
+
+    // Set navigation state
+    setIsNavigating(true);
+    setTargetHref(href);
+
+    // Navigate after a brief delay to allow drawer to close
+    navigationTimeoutRef.current = setTimeout(() => {
+      router.push(href);
+    }, 100);
+  };
 
   return (
     <Box
@@ -74,26 +118,30 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         <VStack spacing={1} align="stretch" flex="1" p={4}>
           {filteredNavItems.map((item) => {
             const isActive = pathname === item.href;
+            const isLoadingThis = isNavigating && targetHref === item.href;
             return (
-              <Link key={item.href} href={item.href} onClick={onNavigate}>
-                <Flex
-                  align="center"
-                  px={4}
-                  py={3}
-                  borderRadius="md"
-                  cursor="pointer"
-                  bg={isActive ? 'brand.50' : 'transparent'}
-                  color={isActive ? 'brand.600' : 'gray.600'}
-                  fontWeight={isActive ? '600' : '400'}
-                  _hover={{
-                    bg: isActive ? 'brand.50' : 'gray.100',
-                  }}
-                  transition="all 0.2s"
-                >
-                  <Icon as={item.icon} boxSize={5} mr={3} />
-                  <Text>{item.name}</Text>
-                </Flex>
-              </Link>
+              <Flex
+                key={item.href}
+                align="center"
+                px={4}
+                py={3}
+                borderRadius="md"
+                cursor="pointer"
+                bg={isActive ? 'brand.50' : 'transparent'}
+                color={isActive ? 'brand.600' : 'gray.600'}
+                fontWeight={isActive ? '600' : '400'}
+                _hover={{
+                  bg: isActive ? 'brand.50' : 'gray.100',
+                }}
+                transition="all 0.2s"
+                onClick={() => handleNavClick(item.href)}
+              >
+                <Icon as={item.icon} boxSize={5} mr={3} />
+                <Text>{item.name}</Text>
+                {isLoadingThis && (
+                  <Spinner size="sm" ml="auto" color="brand.500" thickness="2px" />
+                )}
+              </Flex>
             );
           })}
         </VStack>

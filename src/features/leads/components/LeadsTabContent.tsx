@@ -327,6 +327,7 @@ interface LeadsTabContentProps {
   onCountChange?: (count: number) => void;
   // Global filters passed from parent
   globalSearchQuery?: string;
+  globalLeadCategoryFilter?: string;
   globalClientTypeFilter?: string;
   globalSourceFilter?: string;
   globalAttemptsFilter?: string;
@@ -337,6 +338,7 @@ interface LeadsTabContentProps {
 function LeadsTabContent({
   onCountChange,
   globalSearchQuery = '',
+  globalLeadCategoryFilter = 'all',
   globalClientTypeFilter = 'all',
   globalSourceFilter = 'all',
   globalAttemptsFilter = 'all',
@@ -353,6 +355,7 @@ function LeadsTabContent({
   
   // Use global filters instead of local ones
   const searchQuery = globalSearchQuery;
+  const leadCategoryFilter = globalLeadCategoryFilter;
   const clientTypeFilter = globalClientTypeFilter;
   const sourceFilter = globalSourceFilter;
   const attemptsFilter = globalAttemptsFilter;
@@ -439,11 +442,48 @@ function LeadsTabContent({
   // Scroll restoration state - hide content until scroll is restored
   const [scrollRestored, setScrollRestored] = useState(false);
   
-  // Section collapse state
-  const [isOverdueCollapsed, setIsOverdueCollapsed] = useState(false);
-  const [isScheduledCollapsed, setIsScheduledCollapsed] = useState(false);
-  const [isNewLeadsCollapsed, setIsNewLeadsCollapsed] = useState(false);
-  const [isStatusFilteredCollapsed, setIsStatusFilteredCollapsed] = useState(false);
+  // Section collapse state - Accordion behavior: all start collapsed, only one open at a time
+  const [isOverdueCollapsed, setIsOverdueCollapsed] = useState(true);
+  const [isScheduledCollapsed, setIsScheduledCollapsed] = useState(true);
+  const [isNewLeadsCollapsed, setIsNewLeadsCollapsed] = useState(true);
+  const [isStatusFilteredCollapsed, setIsStatusFilteredCollapsed] = useState(true);
+
+  // Accordion handler - opens one section and closes all others
+  const handleSectionToggle = (section: 'overdue' | 'scheduled' | 'newLeads' | 'statusFiltered') => {
+    if (section === 'overdue') {
+      const newState = !isOverdueCollapsed;
+      setIsOverdueCollapsed(newState);
+      if (!newState) {
+        setIsScheduledCollapsed(true);
+        setIsNewLeadsCollapsed(true);
+        setIsStatusFilteredCollapsed(true);
+      }
+    } else if (section === 'scheduled') {
+      const newState = !isScheduledCollapsed;
+      setIsScheduledCollapsed(newState);
+      if (!newState) {
+        setIsOverdueCollapsed(true);
+        setIsNewLeadsCollapsed(true);
+        setIsStatusFilteredCollapsed(true);
+      }
+    } else if (section === 'newLeads') {
+      const newState = !isNewLeadsCollapsed;
+      setIsNewLeadsCollapsed(newState);
+      if (!newState) {
+        setIsOverdueCollapsed(true);
+        setIsScheduledCollapsed(true);
+        setIsStatusFilteredCollapsed(true);
+      }
+    } else if (section === 'statusFiltered') {
+      const newState = !isStatusFilteredCollapsed;
+      setIsStatusFilteredCollapsed(newState);
+      if (!newState) {
+        setIsOverdueCollapsed(true);
+        setIsScheduledCollapsed(true);
+        setIsNewLeadsCollapsed(true);
+      }
+    }
+  };
 
   // Restore scroll position IMMEDIATELY when component mounts
   useEffect(() => {
@@ -668,6 +708,7 @@ function LeadsTabContent({
     // PERFORMANCE FIX: Early return if no filters applied
     const hasSearch = searchQuery.trim() !== '';
     const hasStatusFilter = statusFilter !== 'all' && statusFilter !== 'overdue' && statusFilter !== 'scheduled' && statusFilter !== 'today';
+    const hasLeadCategoryFilter = leadCategoryFilter !== 'all';
     const hasSourceFilter = sourceFilter !== 'all';
     const hasClientTypeFilter = clientTypeFilter !== 'all';
     const hasOwnerFilter = ownerFilter !== 'all';
@@ -677,7 +718,7 @@ function LeadsTabContent({
     // Always exclude outcome statuses from active leads UNLESS specifically filtering for them
     const shouldExcludeOutcomes = !hasStatusFilter || !outcomeStatuses.includes(statusFilter);
     
-    if (!hasSearch && !hasStatusFilter && !hasSourceFilter && !hasClientTypeFilter && !hasOwnerFilter && !hasDateFilter && !hasAttemptsFilter) {
+    if (!hasSearch && !hasStatusFilter && !hasLeadCategoryFilter && !hasSourceFilter && !hasClientTypeFilter && !hasOwnerFilter && !hasDateFilter && !hasAttemptsFilter) {
       // Even with no filters, exclude outcome statuses from active leads
       return leads.filter(lead => !outcomeStatuses.includes(lead.status));
     }
@@ -710,6 +751,19 @@ function LeadsTabContent({
 
       // Status filter
       if (hasStatusFilter && lead.status !== statusFilter) return false;
+      
+      // Lead Category filter - strict matching only
+      if (hasLeadCategoryFilter) {
+        const category = lead.lead_category?.toUpperCase();
+        if (leadCategoryFilter === 'inbound') {
+          // Only show leads explicitly marked as INBOUND (exclude null/undefined)
+          if (category !== 'INBOUND') return false;
+        }
+        if (leadCategoryFilter === 'outbound') {
+          // Only show leads explicitly marked as OUTBOUND (exclude null/undefined)
+          if (category !== 'OUTBOUND') return false;
+        }
+      }
       
       // Source filter (case-insensitive)
       if (hasSourceFilter && lead.source?.toLowerCase() !== sourceFilter.toLowerCase()) return false;
@@ -750,7 +804,7 @@ function LeadsTabContent({
       
       return true;
     });
-  }, [searchQuery, statusFilter, sourceFilter, ownerFilter, dateRangeFilter, attemptsFilter, leads, clientTypeFilter]);
+  }, [searchQuery, statusFilter, leadCategoryFilter, sourceFilter, ownerFilter, dateRangeFilter, attemptsFilter, leads, clientTypeFilter]);
 
   // Categorize and sort leads for categorized view
   const categorizedLeads = useMemo(() => {
@@ -920,7 +974,7 @@ function LeadsTabContent({
   // Reset new leads visible count when filters change so "Load More" resets
   useEffect(() => {
     setVisibleNewLeadsCount(15);
-  }, [searchQuery, statusFilter, sourceFilter, ownerFilter, dateRangeFilter, attemptsFilter, clientTypeFilter, showOnlyToday]);
+  }, [searchQuery, statusFilter, leadCategoryFilter, sourceFilter, ownerFilter, dateRangeFilter, attemptsFilter, clientTypeFilter, showOnlyToday]);
 
   // Load more handler specifically for New Leads section
   const handleLoadMoreNewLeads = () => {
@@ -1014,13 +1068,6 @@ function LeadsTabContent({
       {/* Search and Filters */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
-          {/* Info about global filters */}
-          <Text fontSize="sm" color="gray.600" fontWeight="medium">
-            ℹ️ Global filters (search, source, client type, attempts) are applied at the page level above
-          </Text>
-          
-          <Divider />
-
           {/* Tab-specific Filters Row */}
           <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch" flexWrap="wrap">
             <Select
@@ -1172,7 +1219,7 @@ function LeadsTabContent({
                 size="sm"
                 variant="ghost"
                 colorScheme="blue"
-                onClick={() => setIsNewLeadsCollapsed(!isNewLeadsCollapsed)}
+                onClick={() => handleSectionToggle('newLeads')}
               />
             </Flex>
             
@@ -1274,7 +1321,7 @@ function LeadsTabContent({
                 size="sm"
                 variant="ghost"
                 colorScheme="red"
-                onClick={() => setIsOverdueCollapsed(!isOverdueCollapsed)}
+                onClick={() => handleSectionToggle('overdue')}
               />
             </Flex>
             
@@ -1361,7 +1408,7 @@ function LeadsTabContent({
                 size="sm"
                 variant="ghost"
                 colorScheme="green"
-                onClick={() => setIsScheduledCollapsed(!isScheduledCollapsed)}
+                onClick={() => handleSectionToggle('scheduled')}
               />
             </Flex>
             
@@ -1497,7 +1544,7 @@ function LeadsTabContent({
                     statusFilter === 'unreach' ? 'pink' :
                     'gray'
                   }
-                  onClick={() => setIsStatusFilteredCollapsed(!isStatusFilteredCollapsed)}
+                  onClick={() => handleSectionToggle('statusFiltered')}
                 />
               </Flex>
               

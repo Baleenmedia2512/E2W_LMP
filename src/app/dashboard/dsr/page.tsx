@@ -198,6 +198,7 @@ export default function DSRPage() {
   // ── Bug 5 fix: Track when filters change so we show skeletons instead of stale KPIs ──
   const [isLoadingNewFilters, setIsLoadingNewFilters] = useState(false);
   const prevFiltersRef = useRef({ date: selectedDate, agent: selectedAgentId });
+  const resultsTableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const prev = prevFiltersRef.current;
@@ -261,38 +262,15 @@ export default function DSRPage() {
     // Reset to first page when filter changes
     setCurrentPage(1);
     
-    const cardLabels: Record<string, string> = {
-      newLeads: 'New Leads/Client Handled',
-      followUps: 'Follow-ups Leads/Client Handled',
-      totalCalls: 'Total Leads/Client Handled',
-      overdue: 'Overdue Leads/Client Handled',
-      unqualified: 'Unqualified',
-      unreachable: 'Unreachable',
-      won: 'Won',
-      lost: 'Lost',
-    };
-    
-    const label = cardLabels[type] || type;
-    
-    if (activeCard === type) {
-      toast({
-        title: 'Filter Cleared',
-        description: 'Showing all leads with activity on selected date',
-        status: 'info',
-        duration: 2000,
-        isClosable: true,
-        position: 'top-right',
-      });
-    } else {
-      toast({
-        title: `${label} Filter Applied`,
-        description: `Showing only ${label.toLowerCase()}`,
-        status: 'info',
-        duration: 2000,
-        isClosable: true,
-        position: 'top-right',
-      });
-    }
+    // Auto-scroll to results table
+    setTimeout(() => {
+      if (resultsTableRef.current) {
+        resultsTableRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }
+    }, 100);
   };
 
   // Export to CSV
@@ -1325,7 +1303,7 @@ export default function DSRPage() {
       )}
 
       {/* Filtered Leads Table */}
-      <Card boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.primary} mb={{ base: 4, md: 6 }}>
+      <Card ref={resultsTableRef} boxShadow="lg" borderTop="4px" borderColor={THEME_COLORS.primary} mb={{ base: 4, md: 6 }}>
         <CardBody p={0}>
           <Box p={{ base: 3, md: 4 }} bg={THEME_COLORS.light} bgGradient={`linear(to-r, ${THEME_COLORS.light}, ${THEME_COLORS.accent})`} borderTopRadius="lg">
             <Flex justify="space-between" align="center" direction={{ base: 'column', sm: 'row' }} gap={2}>

@@ -36,10 +36,24 @@ export default function UnifiedLeadsPage() {
   const [isPending, startTransition] = useTransition();
   
   // Global filter states - shared across both tabs
+  const [globalLeadCategoryFilter, setGlobalLeadCategoryFilter] = useState<string>('all');
   const [globalClientTypeFilter, setGlobalClientTypeFilter] = useState<string>('all');
   const [globalSourceFilter, setGlobalSourceFilter] = useState<string>('all');
   const [globalAttemptsFilter, setGlobalAttemptsFilter] = useState<string>('all');
   const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>('all');
+  
+  // Source categorization
+  const inboundSources = ['Website', 'Meta', 'Online', 'Referral', 'Direct', 'Web App DB', 'WhatsApp', 'ChatGPT'];
+  const outboundSources = ['Cold Call', 'Consultant', 'Google Maps', 'Indiamart', 'Just Dial', 'LG', 'Newspaper', 'Own', 'Sulekha'];
+  
+  // Get available sources based on lead category filter
+  const getAvailableSources = () => {
+    if (globalLeadCategoryFilter === 'inbound') return inboundSources;
+    if (globalLeadCategoryFilter === 'outbound') return outboundSources;
+    return [...inboundSources, ...outboundSources].sort();
+  };
+  
+  const availableSources = getAvailableSources();
   // Fetch users directly so the Owner filter is populated immediately on mount
   const { data: usersData } = useSWR('/api/users', fetcher, {
     revalidateOnFocus: false,
@@ -102,9 +116,15 @@ export default function UnifiedLeadsPage() {
     setLeadOutcomesCount(count);
   };
   
+  // Reset source filter when lead category changes
+  useEffect(() => {
+    setGlobalSourceFilter('all');
+  }, [globalLeadCategoryFilter]);
+  
   // Reset all global filters
   const handleResetGlobalFilters = () => {
     setGlobalSearchQuery('');
+    setGlobalLeadCategoryFilter('all');
     setGlobalClientTypeFilter('all');
     setGlobalSourceFilter('all');
     setGlobalAttemptsFilter('all');
@@ -114,6 +134,7 @@ export default function UnifiedLeadsPage() {
   // Check if any global filter is active
   const hasActiveGlobalFilters = 
     globalSearchQuery.trim() !== '' ||
+    globalLeadCategoryFilter !== 'all' ||
     globalClientTypeFilter !== 'all' ||
     globalSourceFilter !== 'all' ||
     globalAttemptsFilter !== 'all' ||
@@ -153,6 +174,19 @@ export default function UnifiedLeadsPage() {
           {/* Filter Row */}
           <Flex gap={2} flexWrap="wrap" align="center">
             <Select
+              value={globalLeadCategoryFilter}
+              onChange={(e) => setGlobalLeadCategoryFilter(e.target.value)}
+              size="sm"
+              flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
+              maxW={{ sm: '160px' }}
+              minW={{ base: '0', sm: '120px' }}
+            >
+              <option value="all">All Categories</option>
+              <option value="inbound">Inbound</option>
+              <option value="outbound">Outbound</option>
+            </Select>
+            
+            <Select
               value={globalClientTypeFilter}
               onChange={(e) => setGlobalClientTypeFilter(e.target.value)}
               size="sm"
@@ -174,23 +208,9 @@ export default function UnifiedLeadsPage() {
               minW={{ base: '0', sm: '120px' }}
             >
               <option value="all">All Sources</option>
-              <option value="ChatGPT">ChatGPT</option>
-              <option value="Cold Call">Cold Call</option>
-              <option value="Consultant">Consultant</option>
-              <option value="Direct">Direct</option>
-              <option value="Google Maps">Google Maps</option>
-              <option value="Indiamart">Indiamart</option>
-              <option value="Just Dial">Just Dial</option>
-              <option value="LG">LG</option>
-              <option value="Meta">Meta</option>
-              <option value="Newspaper">Newspaper</option>
-              <option value="Online">Online</option>
-              <option value="Own">Own</option>
-              <option value="Referral">Referral</option>
-              <option value="Sulekha">Sulekha</option>
-              <option value="Web App DB">Web App DB</option>
-              <option value="Website">Website</option>
-              <option value="WhatsApp">WhatsApp</option>
+              {availableSources.map(source => (
+                <option key={source} value={source}>{source}</option>
+              ))}
             </Select>
 
             <Select
@@ -309,6 +329,7 @@ export default function UnifiedLeadsPage() {
             <LeadsTabContent 
               onCountChange={handleLeadsCountChange}
               globalSearchQuery={globalSearchQuery}
+              globalLeadCategoryFilter={globalLeadCategoryFilter}
               globalClientTypeFilter={globalClientTypeFilter}
               globalSourceFilter={globalSourceFilter}
               globalAttemptsFilter={globalAttemptsFilter}
@@ -322,6 +343,7 @@ export default function UnifiedLeadsPage() {
               <LeadOutcomesTabContent 
                 onCountChange={handleLeadOutcomesCountChange}
                 globalSearchQuery={globalSearchQuery}
+                globalLeadCategoryFilter={globalLeadCategoryFilter}
                 globalClientTypeFilter={globalClientTypeFilter}
                 globalSourceFilter={globalSourceFilter}
                 globalOwnerFilter={globalOwnerFilter}
