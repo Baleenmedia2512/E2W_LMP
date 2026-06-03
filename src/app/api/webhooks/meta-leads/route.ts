@@ -178,7 +178,7 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
 }
 
 /**
- * Round-robin assignment between Gomathi and Operations for Meta leads
+ * True 50-50 alternating assignment for Meta leads (ignores historical counts)
  */
 async function getNextAgentForRoundRobin(): Promise<string | null> {
   try {
@@ -189,7 +189,7 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
         Role: { name: { in: ['Sales Agent'] } },
       },
       select: { id: true, name: true },
-      orderBy: { name: 'asc' }, // alphabetical tiebreak
+      orderBy: { name: 'asc' }, // alphabetical order for consistency
     });
 
     if (agents.length === 0) {
@@ -198,40 +198,40 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
     }
 
     if (agents.length === 1) {
-      return agents[0].id;
+      const agent = agents[0];
+      return agent ? agent.id : null;
     }
 
-    // Count current Meta leads per agent (least-loaded logic)
-    const leadCounts = await prisma.lead.groupBy({
-      by: ['assignedToId'],
+    // Get the last Meta lead assigned to find who got it
+    const lastMetaLead = await prisma.lead.findFirst({
       where: {
         source: { in: ['meta', 'Meta', 'META'] },
         assignedToId: { in: agents.map((a) => a.id) },
       },
-      _count: { id: true },
+      select: { assignedToId: true },
+      orderBy: { createdAt: 'desc' },
     });
 
-    // Build count map, default 0 for agents with no Meta leads yet
-    const countMap = new Map<string, number>(agents.map((a) => [a.id, 0]));
-    for (const row of leadCounts) {
-      if (row.assignedToId) countMap.set(row.assignedToId, row._count.id);
-    }
-
-    // Pick agent with fewest Meta leads (tie → alphabetical first)
-    let chosen = agents[0];
-    let minCount = countMap.get(chosen.id) ?? 0;
-    for (const agent of agents) {
-      const c = countMap.get(agent.id) ?? 0;
-      if (c < minCount) {
-        minCount = c;
-        chosen = agent;
+    // Find the index of the last assigned agent
+    let nextIndex = 0;
+    if (lastMetaLead && lastMetaLead.assignedToId) {
+      const lastIndex = agents.findIndex((a) => a.id === lastMetaLead.assignedToId);
+      if (lastIndex !== -1) {
+        // Move to next agent (wrap around if at end)
+        nextIndex = (lastIndex + 1) % agents.length;
       }
     }
 
-    logWebhookEvent('info', `Least-loaded agent: ${chosen.name} (${minCount} Meta leads)`);
+    const chosen = agents[nextIndex];
+    if (!chosen) {
+      logWebhookEvent('error', 'Failed to select agent from rotation');
+      return null;
+    }
+
+    logWebhookEvent('info', `True 50-50 rotation: ${chosen.name} (next in rotation)`);
     return chosen.id;
   } catch (error) {
-    logWebhookEvent('error', 'Error in least-loaded assignment', error);
+    logWebhookEvent('error', 'Error in round-robin assignment', error);
     return null;
   }
 }
