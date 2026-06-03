@@ -224,13 +224,13 @@ export default function LeadOutcomesTabContent({
   const [selectedWonDates, setSelectedWonDates] = useState<string[]>([]);
   const [selectedLeadName, setSelectedLeadName] = useState<string>('');
   
-  // Collapse state for each section
-  const [collapsedSections, setCollapsedSections] = useState<{[key: string]: boolean}>({
-    won: false,
-    lost: false,
-    unqualified: false,
-    unreach: false,
-  });
+  // Collapse state for each section - set to true (collapsed) by default
+  const [collapsedSections, setCollapsedSections] = useState<{[key: string]: boolean}>(() => ({
+    won: true,
+    lost: true,
+    unqualified: true,
+    unreach: true,
+  }));
   
   const { isOpen: isRescheduleOpen, onOpen: onRescheduleOpen, onClose: onRescheduleClose } = useDisclosure();
   const { isOpen: isWonDatesOpen, onOpen: onWonDatesOpen, onClose: onWonDatesClose } = useDisclosure();
@@ -743,83 +743,8 @@ export default function LeadOutcomesTabContent({
 
   return (
     <Box opacity={scrollRestored ? 1 : 0} transition="opacity 0.15s ease-in">
-      <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
-        <Heading size={{ base: 'md', md: 'lg' }}>Lead Outcomes</Heading>
-      </Flex>
-
       {/* Local and Global Filters Info */}
-      <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={6}>
-        <VStack spacing={3} align="stretch">
-          <Text fontSize="sm" color="gray.600" fontWeight="medium">
-            ℹ️ Global filters (search, client type, owner, source, date range) are applied at the page level above
-          </Text>
-          
-          <Divider />
-          
-          {/* Local Outcome Filter */}
-          <Heading size="xs" color="gray.700">Outcome Filter (Tab-Specific)</Heading>
-          <Select
-            value={outcomeStatusFilter}
-            onChange={(e) => setOutcomeStatusFilter(e.target.value)}
-            maxW={{ base: 'full', sm: '200px' }}
-            size={{ base: 'sm', md: 'md' }}
-          >
-            <option value="all">All Outcomes</option>
-            <option value="won">Won</option>
-            <option value="lost">Lost</option>
-            <option value="unqualified">Unqualified</option>
-            <option value="unreach">Unreachable</option>
-          </Select>
-          
-          {/* Custom Date Range - Only if needed */}
-          {dateRangeFilter === 'custom' && (
-            <>
-              <Divider />
-              <Heading size="xs" color="gray.700">Custom Date Range</Heading>
-              <Flex gap={3} flexWrap="wrap">
-                <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-                  <Text fontSize="sm" mb={1}>Last Updated Start Date</Text>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    size={{ base: 'sm', md: 'md' }}
-                    max={endDate || undefined}
-                  />
-                </Box>
-                <Box flex={{ base: '1 1 100%', sm: '0 1 auto' }}>
-                  <Text fontSize="sm" mb={1}>Last Updated End Date</Text>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    size={{ base: 'sm', md: 'md' }}
-                    min={startDate || undefined}
-                  />
-                </Box>
-              </Flex>
-              
-              {(startDate || endDate) && (
-                <Button size="sm" variant="ghost" onClick={() => { setStartDate(''); setEndDate(''); }} alignSelf="flex-start">
-                  Clear Custom Date Range
-                </Button>
-              )}
-            </>
-          )}
-          
-          {/* Clear Local Filters Button */}
-          {hasLocalFilters && (
-            <Button size="sm" variant="outline" colorScheme="red" onClick={clearLocalFilters} alignSelf="flex-start">
-              Clear Local Filters
-            </Button>
-          )}
-
-          {/* Results Count */}
-          <Text fontSize="sm" fontWeight="medium" color="gray.700">
-            Showing {sections.reduce((acc, section) => acc + section.leads.length, 0)} of {leads.length} leads
-          </Text>
-        </VStack>
-      </Box>
+      {/* Filters hidden per user request */}
 
       {/* Outcome Sections */}
       <VStack spacing={6} align="stretch">

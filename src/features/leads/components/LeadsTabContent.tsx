@@ -325,6 +325,7 @@ const CallRemarksDisplay = ({
 // Lead management page with multiple view modes and categorization
 interface LeadsTabContentProps {
   onCountChange?: (count: number) => void;
+  onAddLeadReady?: (callback: () => void) => void;
   // Global filters passed from parent
   globalSearchQuery?: string;
   globalLeadCategoryFilter?: string;
@@ -337,6 +338,7 @@ interface LeadsTabContentProps {
 
 function LeadsTabContent({
   onCountChange,
+  onAddLeadReady,
   globalSearchQuery = '',
   globalLeadCategoryFilter = 'all',
   globalClientTypeFilter = 'all',
@@ -555,6 +557,13 @@ function LeadsTabContent({
 
   // Modals
   const { isOpen: isAddLeadOpen, onOpen: onAddLeadOpen, onClose: onAddLeadClose } = useDisclosure();
+
+  // Expose Add Lead handler to parent
+  useEffect(() => {
+    if (onAddLeadReady) {
+      onAddLeadReady(onAddLeadOpen);
+    }
+  }, [onAddLeadReady, onAddLeadOpen]);
   const { isOpen: isUnreachableOpen, onOpen: onUnreachableOpen, onClose: onUnreachableClose } = useDisclosure();
   const { isOpen: isUnqualifiedOpen, onOpen: onUnqualifiedOpen, onClose: onUnqualifiedClose } = useDisclosure();
   const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
@@ -1004,25 +1013,6 @@ function LeadsTabContent({
 
   return (
     <Box opacity={scrollRestored ? 1 : 0} transition="opacity 0.15s ease-in">
-      <Flex
-        justify="space-between"
-        align={{ base: 'stretch', md: 'center' }}
-        mb={6}
-        direction={{ base: 'column', md: 'row' }}
-        gap={{ base: 3, md: 0 }}
-      >
-        <Heading size={{ base: 'md', md: 'lg' }}>Leads</Heading>
-        <Button
-          size={{ base: 'sm', md: 'md' }}
-          colorScheme="blue"
-          leftIcon={<HiPlus />}
-          onClick={onAddLeadOpen}
-          width={{ base: 'full', sm: 'auto' }}
-        >
-          Add Lead
-        </Button>
-      </Flex>
-
       {fetchError && (
         <Box bg="red.50" p={4} borderRadius="lg" mb={4} color="red.700">
           {fetchError.message || 'Failed to fetch data'}
@@ -1068,50 +1058,6 @@ function LeadsTabContent({
       {/* Search and Filters */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
         <VStack spacing={3} align="stretch">
-          {/* Tab-specific Filters Row */}
-          <Flex gap={3} direction={{ base: 'column', sm: 'row' }} align="stretch" flexWrap="wrap">
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              size={{ base: 'sm', md: 'md' }}
-              maxW={{ base: 'full', sm: '220px' }}
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
-            >
-              <option value="all">All Active Leads</option>
-              <option value="new">New</option>
-              <option value="today">Follow-up Today</option>
-              <option value="overdue">Overdue</option>
-              <option value="scheduled">Scheduled Follow-up</option>
-            </Select>
-
-            {/* Reset Local Filters Button */}
-            <Button
-              leftIcon={<HiX />}
-              onClick={handleResetFilters}
-              size={{ base: 'sm', md: 'md' }}
-              variant="outline"
-              colorScheme="red"
-              flex={{ base: '1 1 100%', sm: '0 1 auto' }}
-              isDisabled={statusFilter === 'all' && !assignedToMe && showOnlyToday}
-            >
-              Reset Local Filters
-            </Button>
-          </Flex>
-
-          {/* Assigned to Me Filter - Only for Team Lead and Super Agent */}
-          {user && (user.role === 'Team Lead' || user.role === 'Super Agent') && (
-            <Box>
-              <Checkbox
-                isChecked={assignedToMe}
-                onChange={(e) => setAssignedToMe(e.target.checked)}
-                size={{ base: 'sm', md: 'md' }}
-                colorScheme="blue"
-              >
-                <Text fontSize={{ base: 'sm', md: 'md' }}>Assigned to Me</Text>
-              </Checkbox>
-            </Box>
-          )}
-          
           {/* Show All Leads Checkbox */}
           <Box>
             <Checkbox
@@ -1121,70 +1067,28 @@ function LeadsTabContent({
                 setVisibleCount(50); // Reset lazy loading when toggling
                 setVisibleNewLeadsCount(15); // Reset new leads lazy loading
               }}
-              size={{ base: 'sm', md: 'md' }}
+              size={{ base: 'md', md: 'lg' }}
               colorScheme="blue"
+              sx={{
+                '& .chakra-checkbox__control': {
+                  borderWidth: '3px',
+                  borderColor: 'orange.500',
+                  _checked: {
+                    bg: 'blue.500',
+                    borderColor: 'orange.500',
+                  }
+                }
+              }}
             >
-              <Text fontSize={{ base: 'sm', md: 'md' }}>Show All Leads</Text>
+              <Text 
+                fontSize={{ base: 'md', md: 'lg' }} 
+                fontWeight="semibold"
+                color="blue.600"
+              >
+                ⭐ Show All Leads
+              </Text>
             </Checkbox>
           </Box>
-
-          {/* Results Count - Show contextual count based on selected filter */}
-          <Text fontSize="sm" fontWeight="medium" color="gray.700">
-            {(() => {
-              const displayedCount = lazyLoadedLeads.overdue.length + lazyLoadedLeads.newLeads.length + lazyLoadedLeads.future.length + lazyLoadedLeads.statusFiltered.length;
-              const totalCount = lazyLoadedLeads.totalItems;
-              
-              // When a specific status filter is active, show the count as "X of X"
-              // since we're showing all items that match that specific filter
-              if (statusFilter !== 'all') {
-                let label = '';
-                switch (statusFilter) {
-                  case 'new':
-                    label = 'New';
-                    break;
-                  case 'overdue':
-                    label = 'Overdue';
-                    break;
-                  case 'scheduled':
-                    label = 'Scheduled Follow-up';
-                    break;
-                  case 'today':
-                    label = 'Follow-up Today';
-                    break;
-                  case 'qualified':
-                    label = 'Qualified';
-                    break;
-                  case 'unqualified':
-                    label = 'Unqualified';
-                    break;
-                  case 'won':
-                    label = 'Won';
-                    break;
-                  case 'lost':
-                    label = 'Lost';
-                    break;
-                  case 'unreach':
-                    label = 'Unreachable';
-                    break;
-                  default:
-                    label = 'Leads';
-                }
-                return lazyLoadedLeads.hasMore 
-                  ? `Showing ${displayedCount} of ${totalCount} ${label}`
-                  : `Showing ${displayedCount} ${label}`;
-              }
-              
-              // When showOnlyToday is true (checkbox unchecked), show today's count
-              if (showOnlyToday) {
-                return `Showing ${displayedCount} of ${displayedCount} Active Leads`;
-              }
-              
-              // Show all active leads with lazy loading info
-              return lazyLoadedLeads.hasMore
-                ? `Showing ${displayedCount} of ${totalCount} Active Leads`
-                : `Showing ${displayedCount} Active Leads`;
-            })()}
-          </Text>
         </VStack>
       </Box>
 

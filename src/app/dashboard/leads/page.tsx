@@ -19,7 +19,7 @@ import {
   Text,
   Progress,
 } from '@chakra-ui/react';
-import { HiSearch, HiX } from 'react-icons/hi';
+import { HiSearch, HiX, HiPlus } from 'react-icons/hi';
 import LeadsTabContent from '@/features/leads/components/LeadsTabContent';
 import LeadOutcomesTabContent from '@/features/leads/components/LeadOutcomesTabContent';
 import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
@@ -41,6 +41,7 @@ export default function UnifiedLeadsPage() {
   const [globalSourceFilter, setGlobalSourceFilter] = useState<string>('all');
   const [globalAttemptsFilter, setGlobalAttemptsFilter] = useState<string>('all');
   const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>('all');
+  const [addLeadHandler, setAddLeadHandler] = useState<(() => void) | null>(null);
   
   // Source categorization
   const inboundSources = ['Website', 'Meta', 'Online', 'Referral', 'Direct', 'WhatsApp', 'Consultant', 'Indiamart', 'Just Dial', 'Sulekha'];
@@ -158,7 +159,20 @@ export default function UnifiedLeadsPage() {
       
       {/* Page Header */}
       <Box bg="white" p={{ base: 3, md: 4 }} borderRadius="lg" boxShadow="sm" mb={4}>
-        <Heading size={{ base: 'md', md: 'lg' }} mb={4}>Lead Management</Heading>
+        <Flex justify="space-between" align="center" mb={4}>
+          <Heading size={{ base: 'md', md: 'lg' }}>Lead Management</Heading>
+          {/* Add Lead Button - Mobile Only (Top Right) */}
+          <Button
+            size="sm"
+            colorScheme="red"
+            leftIcon={<HiPlus />}
+            onClick={() => addLeadHandler && addLeadHandler()}
+            display={{ base: 'flex', md: 'none' }}
+            isDisabled={!addLeadHandler}
+          >
+            Add Lead
+          </Button>
+        </Flex>
         
         {/* Global Filters */}
         <VStack spacing={3} align="stretch">
@@ -256,13 +270,6 @@ export default function UnifiedLeadsPage() {
               </Button>
             )}
           </Flex>
-          
-          {/* Info text about filter scope */}
-          {hasActiveGlobalFilters && (
-            <Text fontSize="xs" color="gray.600">
-              ℹ️ Filters apply to both Leads and Lead Outcome tabs
-            </Text>
-          )}
         </VStack>
       </Box>
 
@@ -328,6 +335,7 @@ export default function UnifiedLeadsPage() {
           <TabPanel p={0} pt={4}>
             <LeadsTabContent 
               onCountChange={handleLeadsCountChange}
+              onAddLeadReady={(callback) => setAddLeadHandler(() => callback)}
               globalSearchQuery={globalSearchQuery}
               globalLeadCategoryFilter={globalLeadCategoryFilter}
               globalClientTypeFilter={globalClientTypeFilter}
