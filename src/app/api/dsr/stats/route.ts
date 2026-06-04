@@ -136,11 +136,51 @@ export async function GET(request: NextRequest) {
     console.log('[DSR Stats API] Parallel batch — leads:', allLeads.length,
       '| followups:', allFollowups.length, '| calls:', allCalls.length, '| agents:', agents.length);
 
+    // ── Calculate follow-ups map first (needed for overdue pending calculation) ──────────────
+    const followupsByLeadId = new Map<string, Date[]>();
+    allFollowups.forEach((followup: any) => {
+      const scheduledDate = typeof followup.scheduledAt === 'string'
+        ? new Date(followup.scheduledAt)
+        : followup.scheduledAt;
+      const existing = followupsByLeadId.get(followup.leadId) || [];
+      existing.push(scheduledDate);
+      followupsByLeadId.set(followup.leadId, existing);
+    });
+
+    // ── Calculate "Overdue Pending" leads BEFORE filteredLeads query ────────────────────────
+    // These leads might not have activity on selected date, so we add them to activeLeadIds
+    const now = new Date();
+    const overduePendingLeadIds = new Set<string>();
+    
+    allLeads.forEach((lead: any) => {
+      // Only count active leads (new, followup, qualified)
+      const isActiveLead = ['new', 'followup', 'qualified'].includes(lead.status);
+      if (!isActiveLead) return;
+      
+      // Check if agent filter applies
+      if (agentId && lead.assignedToId !== agentId) return;
+      
+      const leadFollowupDates = followupsByLeadId.get(lead.id) || [];
+      if (leadFollowupDates.length === 0) return;
+      
+      // Has at least one overdue follow-up
+      const hasOverdue = leadFollowupDates.some(d => d < now);
+      // Has NO future follow-ups
+      const hasFuture = leadFollowupDates.some(d => d >= now);
+      
+      if (hasOverdue && !hasFuture) {
+        overduePendingLeadIds.add(lead.id);
+      }
+    });
+    
+    console.log('[DSR Stats API] Overdue Pending leads calculated:', overduePendingLeadIds.size);
+
     // ── Batch 2: filteredLeads (depends on union of active lead IDs from Batch 1) ────────────
     const activeLeadIds = new Set([
       ...leadsCreatedOnDate.map((l: any) => l.id),
       ...callsOnDate.map((c: any) => c.leadId),
       ...leadsUpdatedOnDate.map((l: any) => l.id),
+      ...Array.from(overduePendingLeadIds), // Include overdue pending leads even if no activity today
     ]);
 
     let filteredLeads: any[];
@@ -177,17 +217,6 @@ export async function GET(request: NextRequest) {
       const now = new Date();
       return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     })();
-
-    // Group follow-ups by leadId for quick lookup
-    const followupsByLeadId = new Map<string, Date[]>();
-    allFollowups.forEach((followup: any) => {
-      const scheduledDate = typeof followup.scheduledAt === 'string'
-        ? new Date(followup.scheduledAt)
-        : followup.scheduledAt;
-      const existing = followupsByLeadId.get(followup.leadId) || [];
-      existing.push(scheduledDate);
-      followupsByLeadId.set(followup.leadId, existing);
-    });
 
     // A lead is "overdue" if it has ANY active follow-up scheduled before the reference date
     const overdueLeadIds = new Set<string>();
@@ -230,6 +259,9 @@ export async function GET(request: NextRequest) {
       // 5️⃣-8️⃣ Status-based outcomes: Lead.status = X AND Lead.updatedAt = selected_date
       // These are already captured in wasUpdatedToday flag + lead.status
       
+      // 9️⃣ Overdue Pending: Lead has ONLY overdue follow-ups (no future) AND status is active
+      const isOverduePending = overduePendingLeadIds.has(lead.id);
+      
       // Debug logging
       if (hadCallToday) {
         console.log(`[DSR Transform] Lead ${lead.name}: callAttempts=${lead.callAttempts}, isNew=${isNewCall}, isFollowup=${isFollowupCall}, isOverdue=${hadOverdueCallToday}`);
@@ -263,6 +295,7 @@ export async function GET(request: NextRequest) {
           isNewLead: isNewCall,                      // CallLog today + callAttempts = 1
           isFollowup: isFollowupCall,                // CallLog today + callAttempts > 1
           isOverdue: hadOverdueCallToday,            // CallLog today + scheduled followup < today
+          isOverduePending: isOverduePending,        // Has ONLY overdue follow-ups (no future)
         },
       };
     });
@@ -273,6 +306,7 @@ export async function GET(request: NextRequest) {
       newLeads: transformedFilteredLeads.filter((l: any) => l.activityFlags.isNewLead).length,
       followups: transformedFilteredLeads.filter((l: any) => l.activityFlags.isFollowup).length,
       overdue: transformedFilteredLeads.filter((l: any) => l.activityFlags.isOverdue).length,
+      overduePending: transformedFilteredLeads.filter((l: any) => l.activityFlags.isOverduePending).length,
       statusChanged: transformedFilteredLeads.filter((l: any) => l.activityFlags.statusChangedToday).length,
     };
     console.log('[DSR Stats API] ===== LEAD CATEGORIZATION COUNTS =====');
@@ -280,6 +314,7 @@ export async function GET(request: NextRequest) {
     console.log('[DSR Stats API] Leads with isNewLead=true:', debugCounts.newLeads);
     console.log('[DSR Stats API] Leads with isFollowup=true:', debugCounts.followups);
     console.log('[DSR Stats API] Leads with isOverdue=true:', debugCounts.overdue);
+    console.log('[DSR Stats API] Leads with isOverduePending=true:', debugCounts.overduePending);
     console.log('[DSR Stats API] =====================================');
 
     // Calculate DSR metrics using the new service
@@ -393,6 +428,10 @@ export async function GET(request: NextRequest) {
           
           // Lost - status = 'lost' updated on selected date
           lost: metrics.lost.total,
+          
+          // NEW METRIC: Overdue Pending - leads with ONLY overdue follow-ups (no future)
+          // These are leads falling through the cracks that need immediate attention
+          overduePending: overduePendingLeadIds.size,
         },
         filteredLeads: transformedFilteredLeads,
         agentPerformanceData,

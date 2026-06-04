@@ -124,6 +124,7 @@ interface Lead {
     isNewLead: boolean;
     isFollowup: boolean;
     isOverdue: boolean;
+    isOverduePending: boolean;
   };
   // Optional properties for call logs
   callStatus?: string;
@@ -589,6 +590,15 @@ export default function DSRPage() {
         lead.activityFlags?.statusChangedToday === true
       );
       console.log(`[DSR Filter] Lost: ${filtered.length} leads`);
+      
+    } else if (activeCard === 'overduePending') {
+      // Overdue Pending: Leads with ONLY overdue follow-ups (no future) AND status is active
+      // These are leads falling through the cracks that need immediate attention
+      filtered = filtered.filter(lead => 
+        lead.activityFlags?.isOverduePending === true
+      );
+      console.log(`[DSR Filter] Overdue Pending: ${filtered.length} leads`);
+      
     } else {
       // If no card is active, show nothing
       filtered = [];
@@ -1296,6 +1306,40 @@ export default function DSRPage() {
                     </Card>
                   </Box>
                 </Tooltip>
+
+                {/* NEW: Overdue Pending Card */}
+                <Tooltip label={`${stats.overduePending || 0} leads with only overdue follow-ups (falling through cracks)`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('overduePending')}
+                      boxShadow={activeCard === 'overduePending' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor="orange.600"
+                      bg={activeCard === 'overduePending' ? 'orange.50' : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiExclamation} boxSize={6} color="orange.600" />
+                          <Badge colorScheme="orange" fontSize="xs">
+                            {activeCard === 'overduePending' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Overdue Pending
+                        </Text>
+                        <Heading size="lg" color="orange.600">
+                          {stats.overduePending || 0}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          Needs immediate attention
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
               </SimpleGrid>
             );
           })()}
@@ -1317,6 +1361,7 @@ export default function DSRPage() {
                   activeCard === 'unreachable' ? 'Unreachable Leads' :
                   activeCard === 'won' ? 'Won Deals' :
                   activeCard === 'lost' ? 'Lost Deals' :
+                  activeCard === 'overduePending' ? 'Overdue Pending Leads' :
                   'Filtered Leads'
                 ) : 'All Filtered Leads'}
               </Heading>
