@@ -292,7 +292,7 @@ export async function GET(request: NextRequest) {
       const leadFollowupDates = followupsByLeadId.get(lead.id) || [];
       const now = new Date();
       const futureFollowups = leadFollowupDates.filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
-      const nextFollowupAt = futureFollowups.length > 0 ? futureFollowups[0].toISOString() : null;
+      const nextFollowupAt = futureFollowups.length > 0 ? futureFollowups[0]?.toISOString() : null;
 
       return {
         ...lead,
