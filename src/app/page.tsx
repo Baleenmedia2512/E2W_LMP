@@ -14,14 +14,14 @@ export default function HomePage() {
       if (isAuthenticated) {
         router.push('/dashboard');
       } else {
-        router.push('/login');
+        router.push('/auth/welcome');
       }
     }
   }, [isAuthenticated, isLoading, router]);
 
   return (
-    <Center h="100vh">
-      <Spinner size="xl" color="brand.500" thickness="4px" />
+    <Center minH="100vh" bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+      <Spinner size="xl" color="white" thickness="4px" />
     </Center>
   );
 }

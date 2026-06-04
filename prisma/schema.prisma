@@ -185,8 +185,61 @@ model User {
   Lead_Lead_assignedToIdToUser Lead[]            @relation("Lead_assignedToIdToUser")
   Lead_Lead_createdByIdToUser  Lead[]            @relation("Lead_createdByIdToUser")
   Notification                 Notification[]
+  Session                      Session[]
   Role                         Role              @relation(fields: [roleId], references: [id])
 
   @@index([email])
   @@index([roleId])
+}
+
+model OtpRequest {
+  id         String   @id @default(cuid())
+  email      String
+  hashedOtp  String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  used       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([email, createdAt])
+  @@index([expiresAt])
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  userId         String
+  token          String   @unique
+  refreshToken   String?  @unique
+  deviceInfo     String?
+  ipAddress      String?
+  userAgent      String?
+  lastActivityAt DateTime @default(now())
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model LoginActivity {
+  id            String   @id @default(cuid())
+  userId        String?
+  email         String
+  action        String
+  status        String
+  success       Boolean
+  failureReason String?
+  ipAddress     String?
+  userAgent     String?
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([userId, createdAt])
+  @@index([action])
 }
