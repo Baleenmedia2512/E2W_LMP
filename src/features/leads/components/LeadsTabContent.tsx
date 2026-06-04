@@ -1107,6 +1107,10 @@ function LeadsTabContent({
               flexWrap="wrap"
               gap={2}
               justify="space-between"
+              cursor="pointer"
+              _hover={{ bg: 'blue.100' }}
+              transition="all 0.2s"
+              onClick={() => handleSectionToggle('newLeads')}
             >
               <Flex align="center" gap={2} flexWrap="wrap">
                 <Icon as={HiUserAdd} boxSize={{ base: 5, md: 6 }} color="blue.600" />
@@ -1123,7 +1127,8 @@ function LeadsTabContent({
                 size="sm"
                 variant="ghost"
                 colorScheme="blue"
-                onClick={() => handleSectionToggle('newLeads')}
+                onClick={(e) => e.stopPropagation()}
+                pointerEvents="none"
               />
             </Flex>
             
@@ -1209,6 +1214,10 @@ function LeadsTabContent({
               flexWrap="wrap"
               gap={2}
               justify="space-between"
+              cursor="pointer"
+              _hover={{ bg: 'red.100' }}
+              transition="all 0.2s"
+              onClick={() => handleSectionToggle('overdue')}
             >
               <Flex align="center" gap={2} flexWrap="wrap">
                 <Icon as={HiExclamation} boxSize={{ base: 5, md: 6 }} color="red.600" />
@@ -1225,7 +1234,8 @@ function LeadsTabContent({
                 size="sm"
                 variant="ghost"
                 colorScheme="red"
-                onClick={() => handleSectionToggle('overdue')}
+                onClick={(e) => e.stopPropagation()}
+                pointerEvents="none"
               />
             </Flex>
             
@@ -1296,6 +1306,10 @@ function LeadsTabContent({
               flexWrap="wrap"
               gap={2}
               justify="space-between"
+              cursor="pointer"
+              _hover={{ bg: 'green.100' }}
+              transition="all 0.2s"
+              onClick={() => handleSectionToggle('scheduled')}
             >
               <Flex align="center" gap={2} flexWrap="wrap">
                 <Icon as={HiClock} boxSize={{ base: 5, md: 6 }} color="green.600" />
@@ -1312,7 +1326,8 @@ function LeadsTabContent({
                 size="sm"
                 variant="ghost"
                 colorScheme="green"
-                onClick={() => handleSectionToggle('scheduled')}
+                onClick={(e) => e.stopPropagation()}
+                pointerEvents="none"
               />
             </Flex>
             

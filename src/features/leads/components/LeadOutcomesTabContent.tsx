@@ -245,6 +245,16 @@ export default function LeadOutcomesTabContent({
     lost: { field: 'updatedAt', direction: 'desc' },
   });
 
+  // Pagination state for each section (100 leads per page)
+  const [paginationState, setPaginationState] = useState<{
+    [key: string]: { currentPage: number; pageSize: number };
+  }>({
+    unqualified: { currentPage: 1, pageSize: 100 },
+    unreach: { currentPage: 1, pageSize: 100 },
+    won: { currentPage: 1, pageSize: 100 },
+    lost: { currentPage: 1, pageSize: 100 },
+  });
+
 
 
   // Fetch historical won leads
@@ -474,6 +484,31 @@ export default function LeadOutcomesTabContent({
         direction: prev[status]?.field === field && prev[status]?.direction === 'asc' ? 'desc' : 'asc',
       },
     }));
+    // Reset to page 1 when sorting changes
+    setPaginationState(prev => ({
+      ...prev,
+      [status]: { ...prev[status], currentPage: 1 },
+    }));
+  };
+
+  // Pagination helpers
+  const handlePageChange = (status: string, newPage: number) => {
+    setPaginationState(prev => ({
+      ...prev,
+      [status]: { ...prev[status], currentPage: newPage },
+    }));
+  };
+
+  const getPaginatedLeads = (leads: Lead[], status: string) => {
+    const { currentPage, pageSize } = paginationState[status] || { currentPage: 1, pageSize: 100 };
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return leads.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (totalLeads: number, status: string) => {
+    const { pageSize } = paginationState[status] || { pageSize: 100 };
+    return Math.ceil(totalLeads / pageSize);
   };
 
   // Get sections based on status filter
@@ -556,6 +591,16 @@ export default function LeadOutcomesTabContent({
       onCountChange(totalCount);
     }
   }, [sections, onCountChange]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPaginationState({
+      unqualified: { currentPage: 1, pageSize: 100 },
+      unreach: { currentPage: 1, pageSize: 100 },
+      won: { currentPage: 1, pageSize: 100 },
+      lost: { currentPage: 1, pageSize: 100 },
+    });
+  }, [searchQuery, leadCategoryFilter, sourceFilter, ownerFilter, clientTypeFilter, outcomeStatusFilter, wonViewMode]);
 
   // Clear local filters
   const clearLocalFilters = () => {
@@ -732,10 +777,34 @@ export default function LeadOutcomesTabContent({
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <VStack spacing={4}>
-          <Spinner size="lg" color="blue.500" />
-          <Text color="gray.600">Loading lead outcomes...</Text>
+      <Box>
+        <VStack spacing={6} align="stretch">
+          {['Won', 'Lost', 'Unqualified', 'Unreachable'].map((title) => (
+            <Box key={title}>
+              <Flex
+                align="center"
+                justify="space-between"
+                mb={4}
+                p={3}
+                bg="gray.100"
+        
+                borderLeft="4px"
+                borderColor="gray.300"
+              >
+                <Flex align="center" gap={3}>
+                  <Box h="24px" w="120px" bg="gray.200" borderRadius="md" />
+                  <Box h="20px" w="40px" bg="gray.200" borderRadius="full" />
+                </Flex>
+              </Flex>
+              <Box bg="white" borderRadius="lg" boxShadow="sm" p={4}>
+                <VStack spacing={3}>
+                  {[1, 2, 3].map((i) => (
+                    <Box key={i} h="60px" w="full" bg="gray.100" borderRadius="md" />
+                  ))}
+                </VStack>
+              </Box>
+            </Box>
+          ))}
         </VStack>
       </Box>
     );
@@ -769,6 +838,11 @@ export default function LeadOutcomesTabContent({
               borderColor={`${section.colorScheme}.500`}
               _hover={{ bg: `${section.colorScheme}.100` }}
               transition="all 0.2s"
+              cursor="pointer"
+              onClick={() => setCollapsedSections(prev => ({
+                ...prev,
+                [section.status]: !prev[section.status]
+              }))}
             >
               <Flex align="center" gap={3} flexWrap="wrap">
                 <Flex align="center">
@@ -789,6 +863,7 @@ export default function LeadOutcomesTabContent({
                   <Select
                     value={wonViewMode}
                     onChange={(e) => setWonViewMode(e.target.value as 'current' | 'historical')}
+                    onClick={(e) => e.stopPropagation()}
                     size="sm"
                     maxW="220px"
                     bg="white"
@@ -806,10 +881,8 @@ export default function LeadOutcomesTabContent({
                 size="sm"
                 variant="ghost"
                 colorScheme={section.colorScheme}
-                onClick={() => setCollapsedSections(prev => ({
-                  ...prev,
-                  [section.status]: !prev[section.status]
-                }))}
+                onClick={(e) => e.stopPropagation()}
+                pointerEvents="none"
               />
             </Flex>
 
@@ -915,7 +988,7 @@ export default function LeadOutcomesTabContent({
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {section.leads.map((lead: any) => {
+                    {getPaginatedLeads(section.leads, section.status).map((lead: any) => {
                       const isHistoricalWon = section.status === 'won' && wonViewMode === 'historical';
                       const currentStatus = isHistoricalWon ? lead.currentStatus : lead.status;
                       const isStatusDifferent = isHistoricalWon && currentStatus !== 'won';
@@ -1027,6 +1100,39 @@ export default function LeadOutcomesTabContent({
                   </Tbody>
                 </Table>
                 </Box>
+
+                {/* Pagination Controls */}
+                {section.leads.length > 0 && getTotalPages(section.leads.length, section.status) > 1 && (
+                  <Box p={4} borderTop="1px" borderColor="gray.200" bg="gray.50">
+                    <Flex justify="space-between" align="center" flexWrap="wrap" gap={3}>
+                      <Text fontSize="sm" color="gray.600">
+                        Showing {((paginationState[section.status]?.currentPage - 1) * paginationState[section.status]?.pageSize) + 1} - {Math.min(paginationState[section.status]?.currentPage * paginationState[section.status]?.pageSize, section.leads.length)} of {section.leads.length} leads
+                      </Text>
+                      <HStack spacing={2}>
+                        <Button
+                          size="sm"
+                          onClick={() => handlePageChange(section.status, paginationState[section.status]?.currentPage - 1)}
+                          isDisabled={paginationState[section.status]?.currentPage === 1}
+                          variant="outline"
+                        >
+                          Previous
+                        </Button>
+                        <Text fontSize="sm" fontWeight="medium" px={3}>
+                          Page {paginationState[section.status]?.currentPage} of {getTotalPages(section.leads.length, section.status)}
+                        </Text>
+                        <Button
+                          size="sm"
+                          onClick={() => handlePageChange(section.status, paginationState[section.status]?.currentPage + 1)}
+                          isDisabled={paginationState[section.status]?.currentPage >= getTotalPages(section.leads.length, section.status)}
+                          variant="outline"
+                        >
+                          Next
+                        </Button>
+                      </HStack>
+                    </Flex>
+                  </Box>
+                )}
+
                 </>
               ) : (
                 <Box p={8} textAlign="center">

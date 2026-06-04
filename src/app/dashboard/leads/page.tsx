@@ -76,11 +76,9 @@ export default function UnifiedLeadsPage() {
   };
   
   const [activeTabIndex, setActiveTabIndex] = useState(getInitialTab());
-  // Lazy mount: only render LeadOutcomesTabContent when first visited
-  const [hasVisitedOutcomes, setHasVisitedOutcomes] = useState(() => getInitialTab() === 1);
+  // Component pre-mounted for instant tab switching
 
   const handleTabChange = (index: number) => {
-    if (index === 1) setHasVisitedOutcomes(true);
     setActiveTabIndex(index);
   };
 
@@ -96,7 +94,6 @@ export default function UnifiedLeadsPage() {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'outcomes') {
       setActiveTabIndex(1);
-      setHasVisitedOutcomes(true);
     } else {
       setActiveTabIndex(0);
     }
@@ -345,21 +342,19 @@ export default function UnifiedLeadsPage() {
             />
           </TabPanel>
 
-          {/* Lead Outcomes Tab Panel - Only mounted when first visited */}
+          {/* Lead Outcomes Tab Panel - Pre-mounted for instant switching */}
           <TabPanel p={0} pt={4}>
-            {hasVisitedOutcomes && (
-              <LeadOutcomesTabContent 
-                onCountChange={handleLeadOutcomesCountChange}
-                globalSearchQuery={globalSearchQuery}
-                globalLeadCategoryFilter={globalLeadCategoryFilter}
-                globalClientTypeFilter={globalClientTypeFilter}
-                globalSourceFilter={globalSourceFilter}
-                globalOwnerFilter={globalOwnerFilter}
-                onOwnersLoad={(owners) => {
-                  setAvailableOwners(owners);
-                }}
-              />
-            )}
+            <LeadOutcomesTabContent 
+              onCountChange={handleLeadOutcomesCountChange}
+              globalSearchQuery={globalSearchQuery}
+              globalLeadCategoryFilter={globalLeadCategoryFilter}
+              globalClientTypeFilter={globalClientTypeFilter}
+              globalSourceFilter={globalSourceFilter}
+              globalOwnerFilter={globalOwnerFilter}
+              onOwnersLoad={(owners) => {
+                setAvailableOwners(owners);
+              }}
+            />
           </TabPanel>
         </TabPanels>
       </Tabs>
