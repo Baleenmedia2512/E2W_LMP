@@ -414,48 +414,48 @@ export async function GET(request: NextRequest) {
 
     console.log('[DSR Stats API] Agent performance calculated. Preparing response...');
 
-    // ── Calculate Average Overdue Response Time ─────────────────────────────────────────────
-    // For each call made in the selected date range where the lead was overdue,
-    // calculate how long it took to respond after the follow-up was due
-    console.log('[DSR Stats API] Calculating average overdue response time...');
+    // ── Calculate Average Overdue Waiting Time (for Overdue Pending leads) ─────────────────
+    // For each lead in Overdue Pending (49 leads waiting right now),
+    // calculate how long they've been waiting since their follow-up was due
+    console.log('[DSR Stats API] Calculating average overdue waiting time for pending leads...');
     
-    let totalOverdueResponseTimeMinutes = 0;
-    let overdueCallsWithResponseTimeCount = 0;
+    let totalOverdueWaitingTimeMinutes = 0;
+    let overduePendingCount = 0;
+    const currentTime = new Date(); // NOW
     
-    // Process all calls made in the selected date range
-    allCalls.forEach((call: any) => {
-      const leadFollowupDates = followupsByLeadId.get(call.leadId) || [];
+    // Process all Overdue Pending leads (leads with only overdue follow-ups, no future ones)
+    overduePendingLeadIds.forEach((leadId: string) => {
+      const leadFollowupDates = followupsByLeadId.get(leadId) || [];
       if (leadFollowupDates.length === 0) return;
       
-      const callTimestamp = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
-      
-      // Find all follow-ups that were due BEFORE this call was made (overdue at call time)
-      const overdueFollowups = leadFollowupDates.filter(scheduledDate => scheduledDate < callTimestamp);
+      // Find all overdue follow-ups (due before NOW)
+      const overdueFollowups = leadFollowupDates.filter(scheduledDate => scheduledDate < currentTime);
       
       if (overdueFollowups.length > 0) {
-        // Use the most recent overdue follow-up (closest to the call time)
+        // Use the most recent overdue follow-up (the one closest to now)
         const mostRecentOverdueDate = new Date(Math.max(...overdueFollowups.map(d => d.getTime())));
         
-        // Calculate time difference in minutes
-        const timeDiffMs = callTimestamp.getTime() - mostRecentOverdueDate.getTime();
-        const timeDiffMinutes = Math.floor(timeDiffMs / (1000 * 60));
+        // Calculate how long this lead has been waiting: NOW - Due Date
+        const waitingTimeMs = currentTime.getTime() - mostRecentOverdueDate.getTime();
+        const waitingTimeMinutes = Math.floor(waitingTimeMs / (1000 * 60));
         
-        if (timeDiffMinutes >= 0) { // Only count positive differences
-          totalOverdueResponseTimeMinutes += timeDiffMinutes;
-          overdueCallsWithResponseTimeCount++;
+        if (waitingTimeMinutes >= 0) { // Only count positive differences
+          totalOverdueWaitingTimeMinutes += waitingTimeMinutes;
+          overduePendingCount++;
         }
       }
     });
     
-    // Calculate average (0 if no overdue calls)
-    const avgOverdueResponseTimeMinutes = overdueCallsWithResponseTimeCount > 0
-      ? Math.round(totalOverdueResponseTimeMinutes / overdueCallsWithResponseTimeCount)
+    // Calculate average (0 if no overdue pending leads)
+    const avgOverdueWaitingTimeMinutes = overduePendingCount > 0
+      ? Math.round(totalOverdueWaitingTimeMinutes / overduePendingCount)
       : 0;
     
-    console.log('[DSR Stats API] Avg overdue response time:', {
-      totalMinutes: totalOverdueResponseTimeMinutes,
-      count: overdueCallsWithResponseTimeCount,
-      average: avgOverdueResponseTimeMinutes
+    console.log('[DSR Stats API] Avg overdue waiting time (Pending):', {
+      totalMinutes: totalOverdueWaitingTimeMinutes,
+      count: overduePendingCount,
+      average: avgOverdueWaitingTimeMinutes,
+      overduePendingLeads: overduePendingLeadIds.size
     });
 
     return NextResponse.json({
@@ -493,9 +493,10 @@ export async function GET(request: NextRequest) {
           // These are leads falling through the cracks that need immediate attention
           overduePending: overduePendingLeadIds.size,
           
-          // NEW METRIC: Average Overdue Response Time - average time taken to respond to overdue leads
-          // Shows how quickly agents respond to overdue follow-ups (in minutes)
-          avgOverdueResponseTime: avgOverdueResponseTimeMinutes,
+          // NEW METRIC: Average Overdue Waiting Time - average time CURRENTLY waiting for overdue pending leads
+          // Shows how long the 49 overdue pending leads have been waiting (in minutes)
+          // This is a LIVE metric - decreases as oldest leads are handled
+          avgOverdueResponseTime: avgOverdueWaitingTimeMinutes,
         },
         filteredLeads: transformedFilteredLeads,
         agentPerformanceData,

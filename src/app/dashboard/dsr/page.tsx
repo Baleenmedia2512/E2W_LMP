@@ -1354,9 +1354,9 @@ export default function DSRPage() {
                   </Box>
                 </Tooltip>
 
-                {/* Average Overdue Response Time Card */}
+                {/* Average Overdue Waiting Time Card */}
                 <Tooltip 
-                  label={`Average time to respond to overdue leads: ${formatMinutesToReadable(stats.avgOverdueResponseTime || 0)}. This shows how quickly agents respond after a follow-up becomes overdue.`} 
+                  label={`Average waiting time for ${stats.overduePending || 0} overdue pending leads: ${formatMinutesToReadable(stats.avgOverdueResponseTime || 0)}. This shows how long leads in your current backlog have been waiting since their follow-up was due. Decreases as you handle the oldest leads first.`} 
                   placement="top"
                 >
                   <Box>
@@ -1372,17 +1372,17 @@ export default function DSRPage() {
                         <HStack justify="space-between" mb={2}>
                           <Icon as={HiClock} boxSize={6} color="purple.500" />
                           <Badge colorScheme="purple" fontSize="xs">
-                            Performance
+                            Live Backlog
                           </Badge>
                         </HStack>
                         <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                          Avg Overdue Response Time
+                          Avg Overdue Waiting Time
                         </Text>
                         <Heading size="lg" color="purple.600">
                           {formatMinutesToReadable(stats.avgOverdueResponseTime || 0)}
                         </Heading>
                         <Text fontSize="xs" color="gray.600" mt={2}>
-                          {viewMode === 'single' ? 'How fast agents respond' : 'Average response speed'}
+                          {stats.overduePending || 0} leads waiting (live)
                         </Text>
                       </CardBody>
                     </Card>
