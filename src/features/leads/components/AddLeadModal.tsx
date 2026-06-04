@@ -86,7 +86,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     state: '',
     pincode: '',
     customerRequirement: '',
-    assignedToId: user?.id || '',
+    assignedToId: 'SYSTEM', // Default to auto-assignment
   });
 
   const [initialFormData, setInitialFormData] = useState(formData);
@@ -114,7 +114,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
         state: '',
         pincode: '',
         customerRequirement: '',
-        assignedToId: user?.id || '',
+        assignedToId: 'SYSTEM', // Default to auto-assignment
       };
       setFormData(freshData);
       setInitialFormData(freshData);
@@ -134,13 +134,18 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
           const usersList = result.data || result.users || [];
           console.log('Users list:', usersList); // Debug log
           
-          if (user?.role === 'sales_agent') {
+          // Normalize role name for comparison (handle both 'Sales Agent' and 'sales_agent')
+          const normalizeRole = (role: string) => role?.toLowerCase().replace(/\s+/g, '_');
+          const userRoleNormalized = normalizeRole(user?.role || '');
+          
+          if (userRoleNormalized === 'sales_agent') {
             setAgents(usersList.filter((u: User) => u.id === user.id));
-          } else if (user?.role === 'team_lead') {
+          } else if (userRoleNormalized === 'team_lead') {
             setAgents(usersList.filter((u: User) => 
-              u.role === 'sales_agent' || u.id === user.id
+              normalizeRole(u.role) === 'sales_agent' || u.id === user.id
             ));
           } else {
+            // Super Agent, Admin, or other roles - show all agents
             setAgents(usersList);
           }
           
@@ -368,7 +373,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
           source: formData.source,
           campaign: formData.campaign || null,
           customerRequirement: formData.customerRequirement || null,
-          assignedToId: formData.assignedToId || user?.id || null,
+          assignedToId: formData.assignedToId === 'SYSTEM' ? null : (formData.assignedToId || null),
           createdById: user?.id || null,
           lead_category: formData.lead_category,
           notes: null,
@@ -378,13 +383,18 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       if (response.ok) {
         const result = await response.json();
         const isUpdate = !!existingLead;
+        const wasAutoAssigned = formData.assignedToId === 'SYSTEM';
+        const assignedAgent = result.data?.assignedTo?.name || 'an agent';
+        
         toast({
           title: isUpdate ? 'Lead updated successfully' : 'Lead created successfully',
           description: isUpdate
             ? `${result.data.name} has been updated`
-            : `${result.data.name} has been added to the system`,
+            : wasAutoAssigned
+              ? `${result.data.name} has been added and auto-assigned to ${assignedAgent}`
+              : `${result.data.name} has been added to the system`,
           status: 'success',
-          duration: 3000,
+          duration: 4000,
         });
         resetAndClose();
         if (onSuccess) onSuccess();
@@ -521,7 +531,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
       state: '',
       pincode: '',
       customerRequirement: '',
-      assignedToId: user?.id || '',
+      assignedToId: 'SYSTEM', // Default to auto-assignment
     };
     setFormData(resetData);
     setInitialFormData(resetData);
@@ -699,9 +709,23 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                       _hover={{ borderColor: 'blue.300' }}
                       rightIcon={<Text as="span" fontSize="xs">▾</Text>}
                     >
-                      {agents.find(a => a.id === formData.assignedToId)?.name || 'Loading...'}
+                      {formData.assignedToId === 'SYSTEM'
+                        ? '🤖 System (Auto-assign)'
+                        : agents.find(a => a.id === formData.assignedToId)?.name || 'Loading...'}
                     </MenuButton>
                     <MenuList maxH="200px" overflowY="auto" zIndex={2000} fontSize={{ base: 'sm', md: 'md' }}>
+                      <MenuItem
+                        key="SYSTEM"
+                        onClick={() => handleMenuSelect('assignedToId', 'SYSTEM')}
+                        bg={formData.assignedToId === 'SYSTEM' ? 'blue.50' : undefined}
+                        fontWeight={formData.assignedToId === 'SYSTEM' ? 'semibold' : 'normal'}
+                        icon={<Text>🤖</Text>}
+                      >
+                        <VStack align="start" spacing={0}>
+                          <Text>System (Auto-assign)</Text>
+                          <Text fontSize="xs" color="gray.500">Assigns to agent with least work today</Text>
+                        </VStack>
+                      </MenuItem>
                       {agents.map(agent => (
                         <MenuItem
                           key={agent.id}
@@ -714,6 +738,11 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                       ))}
                     </MenuList>
                   </Menu>
+                  {formData.assignedToId === 'SYSTEM' && (
+                    <Text fontSize="xs" color="blue.600" mt={1}>
+                      ℹ️ Will automatically assign to agent with least workload today
+                    </Text>
+                  )}
                 </FormControl>
 
                 {/* Quick Submit button */}

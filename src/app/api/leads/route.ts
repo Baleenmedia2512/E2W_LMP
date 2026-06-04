@@ -174,10 +174,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper function for round-robin assignment
+// Helper function for workload-based assignment
+// Assigns to agent with LEAST pending workload (all "new" leads + follow-ups due today + overdue follow-ups)
 async function getNextAgentForRoundRobin(): Promise<string | null> {
+  console.log('🔵 getNextAgentForRoundRobin called');
   try {
-    // Get all active sales agents
+    // Define today's date range (midnight to midnight)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    console.log('📅 Date range:', { today: today.toISOString(), tomorrow: tomorrow.toISOString() });
+
+    // Get all active Sales Agents with their workload
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
@@ -189,42 +200,106 @@ async function getNextAgentForRoundRobin(): Promise<string | null> {
       },
       select: {
         id: true,
+        name: true,
       },
     });
 
-    if (agents.length === 0) return null;
+    console.log('👥 Found agents:', agents.length, agents.map(a => a.name));
 
-    // Get the last assigned lead to determine next agent in rotation
-    const lastLead = await prisma.lead.findFirst({
-      where: {
-        assignedToId: {
-          not: null,
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: {
-        assignedToId: true,
-      },
-    });
-
-    // If no previous leads or no assignment, start with first agent
-    if (!lastLead || !lastLead.assignedToId) {
-      return agents[0]?.id || null;
+    if (agents.length === 0) {
+      console.log('⚠️ No active Sales Agents available for assignment');
+      return null;
     }
 
-    // Find current agent's index
-    const currentIndex = agents.findIndex((a: any) => a.id === lastLead.assignedToId);
-    
-    // If agent not found or is last, start from beginning; otherwise next agent
-    const nextIndex = currentIndex === -1 || currentIndex === agents.length - 1 
-      ? 0 
-      : currentIndex + 1;
-    
-    return agents[nextIndex]?.id || null;
+    // Calculate workload for each agent
+    // Workload = New leads + Today's follow-up records + Leads with ONLY overdue (no future)
+    console.log('🔍 Calculating workload for each agent...');
+    const agentWorkloads = await Promise.all(
+      agents.map(async (agent) => {
+        console.log(`  Checking workload for ${agent.name}...`);
+        
+        // Count 1: ALL leads with status "new" (need first contact)
+        const newLeadsCount = await prisma.lead.count({
+          where: {
+            assignedToId: agent.id,
+            status: 'new',
+          },
+        });
+
+        // Count 2: Follow-up RECORDS scheduled for TODAY (individual tasks)
+        const todayFollowUpsCount = await prisma.followUp.count({
+          where: {
+            Lead: {
+              assignedToId: agent.id,
+            },
+            scheduledAt: {
+              gte: today,
+              lt: tomorrow,
+            },
+            status: {
+              notIn: ['completed', 'cancelled'],
+            },
+          },
+        });
+
+        // Count 3: DISTINCT LEADS with ONLY overdue follow-ups (no future scheduled)
+        // These are "stuck" leads that need rescue
+        const overdueOnlyLeadsCount = await prisma.lead.count({
+          where: {
+            assignedToId: agent.id,
+            status: {
+              in: ['new', 'followup', 'qualified'],
+            },
+            // Has at least one overdue follow-up
+            FollowUp: {
+              some: {
+                scheduledAt: {
+                  lt: today,
+                },
+                status: {
+                  notIn: ['completed', 'cancelled'],
+                },
+              },
+            },
+            // Has NO future follow-ups
+            NOT: {
+              FollowUp: {
+                some: {
+                  scheduledAt: {
+                    gte: today,
+                  },
+                  status: {
+                    notIn: ['completed', 'cancelled'],
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        const totalWorkload = newLeadsCount + todayFollowUpsCount + overdueOnlyLeadsCount;
+
+        console.log(`  ${agent.name}: ${totalWorkload} tasks (${newLeadsCount} new + ${todayFollowUpsCount} today + ${overdueOnlyLeadsCount} stuck)`);
+        return {
+          agentId: agent.id,
+          agentName: agent.name,
+          todayWorkload: totalWorkload,
+        };
+      })
+    );
+
+    // Find agent with minimum workload
+    const leastBusyAgent = agentWorkloads.reduce((min, current) =>
+      current.todayWorkload < min.todayWorkload ? current : min
+    );
+
+    console.log('📊 Pending Workload Distribution:', agentWorkloads.map(a => `${a.agentName}: ${a.todayWorkload}`).join(', '));
+    console.log(`✅ Assigned to: ${leastBusyAgent.agentName} (${leastBusyAgent.todayWorkload} pending tasks)`);
+
+    return leastBusyAgent.agentId;
   } catch (error) {
-    console.error('Error in round-robin assignment:', error);
+    console.error('❌ Error calculating workload-based assignment:', error);
+    console.error('❌ Full error:', JSON.stringify(error, null, 2));
     return null;
   }
 }
@@ -306,12 +381,17 @@ export async function POST(request: NextRequest) {
         },
       });
     } else {
-      // Determine assignedToId: use provided value or auto-assign via round-robin
+      // Determine assignedToId: use provided value or auto-assign via workload-based assignment
       let assignedToId = body.assignedToId || null;
       
-      // If not manually assigned, use round-robin auto-assignment
-      if (!assignedToId) {
+      console.log('🟢 POST /api/leads - assignedToId from body:', body.assignedToId);
+      console.log('🟢 Checking if should auto-assign:', !assignedToId || assignedToId === 'SYSTEM');
+      
+      // If "SYSTEM" keyword or null, use workload-based auto-assignment
+      if (!assignedToId || assignedToId === 'SYSTEM') {
+        console.log('🟢 Calling getNextAgentForRoundRobin...');
         assignedToId = await getNextAgentForRoundRobin();
+        console.log('🟢 Result from getNextAgentForRoundRobin:', assignedToId);
       }
 
       // Create new lead

@@ -178,60 +178,124 @@ async function checkDuplicateLead(phone: string, email: string | null, metaLeadI
 }
 
 /**
- * True 50-50 alternating assignment for Meta leads (ignores historical counts)
+ * Workload-based assignment for Meta leads
+ * Assigns to agent with LEAST work today (new leads + follow-ups due today)
  */
 async function getNextAgentForRoundRobin(): Promise<string | null> {
   try {
-    // Get all active Sales Agents (role-based — auto-includes new agents)
+    // Define today's date range (midnight to midnight)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Get all active Sales Agents with their workload
     const agents = await prisma.user.findMany({
       where: {
         isActive: true,
-        Role: { name: { in: ['Sales Agent'] } },
+        Role: {
+          name: {
+            in: ['Sales Agent'],
+          },
+        },
       },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' }, // alphabetical order for consistency
+      select: {
+        id: true,
+        name: true,
+      },
     });
 
     if (agents.length === 0) {
-      logWebhookEvent('warn', 'No Sales Agents available for Meta lead assignment');
+      logWebhookEvent('warn', '⚠️ No active Sales Agents available for assignment');
       return null;
     }
 
-    if (agents.length === 1) {
-      const agent = agents[0];
-      return agent ? agent.id : null;
-    }
+    // Calculate workload for each agent
+    // Workload = New leads + Today's follow-up records + Leads with ONLY overdue (no future)
+    const agentWorkloads = await Promise.all(
+      agents.map(async (agent) => {
+        // Count 1: ALL leads with status "new" (need first contact)
+        const newLeadsCount = await prisma.lead.count({
+          where: {
+            assignedToId: agent.id,
+            status: 'new',
+          },
+        });
 
-    // Get the last Meta lead assigned to find who got it
-    const lastMetaLead = await prisma.lead.findFirst({
-      where: {
-        source: { in: ['meta', 'Meta', 'META'] },
-        assignedToId: { in: agents.map((a) => a.id) },
-      },
-      select: { assignedToId: true },
-      orderBy: { createdAt: 'desc' },
-    });
+        // Count 2: Follow-up RECORDS scheduled for TODAY (individual tasks)
+        const todayFollowUpsCount = await prisma.followUp.count({
+          where: {
+            Lead: {
+              assignedToId: agent.id,
+            },
+            scheduledAt: {
+              gte: today,
+              lt: tomorrow,
+            },
+            status: {
+              notIn: ['completed', 'cancelled'],
+            },
+          },
+        });
 
-    // Find the index of the last assigned agent
-    let nextIndex = 0;
-    if (lastMetaLead && lastMetaLead.assignedToId) {
-      const lastIndex = agents.findIndex((a) => a.id === lastMetaLead.assignedToId);
-      if (lastIndex !== -1) {
-        // Move to next agent (wrap around if at end)
-        nextIndex = (lastIndex + 1) % agents.length;
-      }
-    }
+        // Count 3: DISTINCT LEADS with ONLY overdue follow-ups (no future scheduled)
+        // These are "stuck" leads that need rescue
+        const overdueOnlyLeadsCount = await prisma.lead.count({
+          where: {
+            assignedToId: agent.id,
+            status: {
+              in: ['new', 'followup', 'qualified'],
+            },
+            // Has at least one overdue follow-up
+            FollowUp: {
+              some: {
+                scheduledAt: {
+                  lt: today,
+                },
+                status: {
+                  notIn: ['completed', 'cancelled'],
+                },
+              },
+            },
+            // Has NO future follow-ups
+            NOT: {
+              FollowUp: {
+                some: {
+                  scheduledAt: {
+                    gte: today,
+                  },
+                  status: {
+                    notIn: ['completed', 'cancelled'],
+                  },
+                },
+              },
+            },
+          },
+        });
 
-    const chosen = agents[nextIndex];
-    if (!chosen) {
-      logWebhookEvent('error', 'Failed to select agent from rotation');
-      return null;
-    }
+        const totalWorkload = newLeadsCount + todayFollowUpsCount + overdueOnlyLeadsCount;
 
-    logWebhookEvent('info', `True 50-50 rotation: ${chosen.name} (next in rotation)`);
-    return chosen.id;
+        return {
+          agentId: agent.id,
+          agentName: agent.name,
+          todayWorkload: totalWorkload,
+        };
+      })
+    );
+
+    // Find agent with minimum workload
+    const leastBusyAgent = agentWorkloads.reduce((min, current) =>
+      current.todayWorkload < min.todayWorkload ? current : min
+    );
+
+    logWebhookEvent('info', '📊 Pending Workload Distribution', 
+      agentWorkloads.map(a => `${a.agentName}: ${a.todayWorkload}`).join(', '));
+    logWebhookEvent('info', `✅ Assigned to: ${leastBusyAgent.agentName} (${leastBusyAgent.todayWorkload} pending tasks)`);
+
+    return leastBusyAgent.agentId;
   } catch (error) {
-    logWebhookEvent('error', 'Error in round-robin assignment', error);
+    logWebhookEvent('error', '❌ Error calculating workload-based assignment', error);
     return null;
   }
 }
