@@ -2,13 +2,22 @@ import { LRUCache } from 'lru-cache';
 
 // Rate limit configuration
 const OTP_RATE_LIMIT_PER_EMAIL = parseInt(process.env.OTP_RATE_LIMIT_PER_EMAIL || '3');
-const OTP_RATE_LIMIT_WINDOW_MINUTES = parseInt(process.env.OTP_RATE_LIMIT_WINDOW_MINUTES || '15');
+const OTP_RATE_LIMIT_WINDOW_MINUTES = parseFloat(process.env.OTP_RATE_LIMIT_WINDOW_MINUTES || '15');
 const OTP_RESEND_COOLDOWN_SECONDS = parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || '60');
 const IP_RATE_LIMIT = 10; // 10 requests per window per IP
 
 // Cache configuration
 const CACHE_MAX_SIZE = 1000;
 const CACHE_TTL = OTP_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000; // Convert to milliseconds
+
+// Helper to format time message
+function formatWaitTime(minutes: number): string {
+  if (minutes < 1) {
+    const seconds = Math.ceil(minutes * 60);
+    return `${seconds} seconds`;
+  }
+  return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+}
 
 // Create LRU cache instances
 const emailRateLimitCache = new LRUCache<string, number>({
@@ -43,7 +52,7 @@ export function checkEmailRateLimit(email: string): RateLimitResult {
     return {
       allowed: false,
       retryAfter: Math.ceil(OTP_RATE_LIMIT_WINDOW_MINUTES * 60),
-      reason: `Too many OTP requests. Please try again in ${OTP_RATE_LIMIT_WINDOW_MINUTES} minutes.`,
+      reason: `Too many OTP requests. Please try again in ${formatWaitTime(OTP_RATE_LIMIT_WINDOW_MINUTES)}.`,
     };
   }
 

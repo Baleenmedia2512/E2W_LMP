@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { z } from 'zod';
-import { verifyOTP, isOtpExpired, isMaxAttemptsExceeded, isValidOtpFormat } from '@/shared/lib/auth/otp-utils';
+import { verifyOTP, isOtpExpired, isMaxAttemptsExceeded, isValidOtpFormat, getMaxOtpAttempts } from '@/shared/lib/auth/otp-utils';
 import { createSession } from '@/shared/lib/auth/session-manager';
 
 const verifyOtpSchema = z.object({
@@ -50,6 +50,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log('🔍 OTP VERIFY DEBUG:', {
+      email: normalizedEmail,
+      otpRequestId,
+      found: !!otpRequest,
+      attempts: otpRequest?.attempts,
+      used: otpRequest?.used,
+      expired: otpRequest ? isOtpExpired(otpRequest.expiresAt) : null,
+      maxAttemptsExceeded: otpRequest ? isMaxAttemptsExceeded(otpRequest.attempts) : null,
+      maxAllowed: parseInt(process.env.OTP_MAX_ATTEMPTS || '5'),
+    });
+
     if (!otpRequest) {
       await prisma.loginActivity.create({
         data: {
@@ -94,7 +105,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if max attempts exceeded
+    // Check if max attempts already exceeded
     if (isMaxAttemptsExceeded(otpRequest.attempts)) {
       await prisma.otpRequest.update({
         where: { id: otpRequest.id },
@@ -114,7 +125,11 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json(
-        { error: 'Too many failed attempts. Please request a new code.' },
+        { 
+          error: 'Maximum verification attempts reached. This code has been disabled.',
+          blocked: true,
+          message: 'Click "Resend Code" below to receive a new verification code.'
+        },
         { status: 400 }
       );
     }
@@ -124,13 +139,20 @@ export async function POST(request: NextRequest) {
 
     if (!isValid) {
       // Increment attempts
-      await prisma.otpRequest.update({
+      const updatedOtpRequest = await prisma.otpRequest.update({
         where: { id: otpRequest.id },
         data: {
           attempts: {
             increment: 1,
           },
         },
+      });
+
+      console.log('❌ WRONG OTP - INCREMENTED:', {
+        otpRequestId: otpRequest.id,
+        oldAttempts: otpRequest.attempts,
+        newAttempts: updatedOtpRequest.attempts,
+        remaining: parseInt(process.env.OTP_MAX_ATTEMPTS || '5') - updatedOtpRequest.attempts,
       });
 
       await prisma.loginActivity.create({
@@ -149,7 +171,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Invalid verification code',
-          attemptsRemaining: Math.max(0, 5 - (otpRequest.attempts + 1)),
+          attemptsRemaining: Math.max(0, getMaxOtpAttempts() - (otpRequest.attempts + 1)),
         },
         { status: 400 }
       );

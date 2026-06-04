@@ -6,54 +6,57 @@ import { HStack, PinInput, PinInputField } from '@chakra-ui/react';
 interface OtpInputProps {
   length?: number;
   onComplete: (otp: string) => void;
+  onChange?: (otp: string) => void;
   onClear?: () => void;
   isDisabled?: boolean;
   hasError?: boolean;
+  value?: string;
 }
 
 export function OtpInput({
   length = 6,
   onComplete,
+  onChange,
   onClear,
   isDisabled = false,
   hasError = false,
+  value = '',
 }: OtpInputProps) {
-  const [otp, setOtp] = useState<string>('');
   const hasSubmitted = useRef(false);
+  const previousValueRef = useRef('');
 
-  // Reset submission flag when hasError changes to true (retry scenario)
+  // Track submission based on value prop changes
   useEffect(() => {
-    if (hasError) {
+    // Reset submission flag when value is cleared
+    if (value === '') {
       hasSubmitted.current = false;
-    }
-  }, [hasError]);
-
-  useEffect(() => {
-    // Only submit once when OTP is complete
-    if (otp.length === length && !hasSubmitted.current) {
-      hasSubmitted.current = true;
-      onComplete(otp);
+      previousValueRef.current = '';
     }
     
-    // Reset submission flag when OTP is cleared
-    if (otp.length === 0) {
-      hasSubmitted.current = false;
+    // Only submit once when OTP is complete and value actually changed
+    if (value.length === length && !hasSubmitted.current && value !== previousValueRef.current) {
+      hasSubmitted.current = true;
+      previousValueRef.current = value;
+      onComplete(value);
     }
-  }, [otp, length, onComplete]);
+  }, [value, length, onComplete]);
 
-  const handleChange = useCallback((value: string) => {
-    setOtp(value);
+  const handleChange = useCallback((newValue: string) => {
+    // Notify parent of changes
+    if (onChange) {
+      onChange(newValue);
+    }
     
     // Call onClear when OTP is cleared
-    if (value === '' && onClear) {
+    if (newValue === '' && onClear) {
       onClear();
     }
-  }, [onClear]);
+  }, [onChange, onClear]);
 
   return (
     <HStack spacing={{ base: 2, md: 3 }} justify="center">
       <PinInput
-        value={otp}
+        value={value}
         onChange={handleChange}
         otp
         size={{ base: 'lg', md: 'xl' }}

@@ -37,6 +37,7 @@ function VerifyPageContent() {
 
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
+  const [helperMessage, setHelperMessage] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [canResend, setCanResend] = useState(false);
@@ -79,6 +80,17 @@ function VerifyPageContent() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Update attempts remaining if provided in error response
+        if (data.attemptsRemaining !== undefined) {
+          setAttemptsRemaining(data.attemptsRemaining);
+        }
+        
+        // Check if blocked and show helper message
+        if (data.blocked && data.message) {
+          setHelperMessage(data.message);
+          setCanResend(true); // Enable resend immediately when blocked
+        }
+        
         throw new Error(data.error || 'Invalid verification code');
       }
 
@@ -124,6 +136,7 @@ function VerifyPageContent() {
   const handleResendOtp = async () => {
     setIsResending(true);
     setError('');
+    setHelperMessage('');
 
     try {
       const response = await fetch('/api/auth/otp/resend', {
@@ -217,18 +230,32 @@ function VerifyPageContent() {
 
           {/* Error Alert */}
           {error && (
-            <Alert status="error" borderRadius="lg">
-              <AlertIcon />
-              <Text fontSize="sm">{error}</Text>
-            </Alert>
+            <VStack spacing={2} width="100%">
+              <Alert status="error" borderRadius="lg">
+                <AlertIcon />
+                <Text fontSize="sm">{error}</Text>
+              </Alert>
+              
+              {helperMessage && (
+                <Alert status="info" borderRadius="lg">
+                  <AlertIcon />
+                  <Text fontSize="sm">{helperMessage}</Text>
+                </Alert>
+              )}
+            </VStack>
           )}
 
           {/* OTP Input */}
           <VStack spacing={4} py={4}>
             <OtpInput
               length={4}
+              value={otp}
+              onChange={setOtp}
               onComplete={handleOtpComplete}
-              onClear={() => setError('')}
+              onClear={() => {
+                setError('');
+                setHelperMessage('');
+              }}
               isDisabled={isVerifying}
               hasError={!!error}
             />
