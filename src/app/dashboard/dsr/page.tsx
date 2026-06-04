@@ -99,6 +99,19 @@ const THEME_COLORS = {
   accent: '#8c9b96',
 };
 
+// Helper function to format minutes into human-readable time
+const formatMinutesToReadable = (minutes: number): string => {
+  if (minutes === 0) return '0 min';
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1440) { // Less than 24 hours
+    const hours = (minutes / 60).toFixed(1);
+    return `${hours} hrs`;
+  }
+  // 1440 minutes = 1 day
+  const days = (minutes / 1440).toFixed(1);
+  return `${days} days`;
+};
+
 // Types for API response
 interface Lead {
   id: string;
@@ -1034,7 +1047,7 @@ export default function DSRPage() {
               : `from ${formatDate(new Date(startDate))} to ${formatDate(new Date(endDate))}`;
             
             return (
-              <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
+              <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 5 }} spacing={{ base: 4, md: 4 }} mb={{ base: 4, md: 6 }}>
                 {/* New Leads Handled Card */}
                 <Tooltip label={`${stats.newCallsCount} new leads handled (first contact) ${dateDescription}`} placement="top">
                   <Box>
@@ -1103,6 +1116,40 @@ export default function DSRPage() {
                   </Box>
                 </Tooltip>
 
+                {/* Overdue Leads Handled Card */}
+                <Tooltip label={`${stats.overdueCallsHandled} overdue leads handled ${dateDescription}`} placement="top">
+                  <Box>
+                    <Card
+                      cursor="pointer"
+                      onClick={() => handleCardClick('overdue')}
+                      boxShadow={activeCard === 'overdue' ? 'xl' : 'md'}
+                      _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
+                      transition="all 0.2s"
+                      borderTop="4px"
+                      borderColor="red.500"
+                      bg={activeCard === 'overdue' ? 'red.50' : 'white'}
+                    >
+                      <CardBody>
+                        <HStack justify="space-between" mb={2}>
+                          <Icon as={HiClock} boxSize={6} color="red.500" />
+                          <Badge colorScheme="red" fontSize="xs">
+                            {activeCard === 'overdue' ? 'Active' : 'Click to filter'}
+                          </Badge>
+                        </HStack>
+                        <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
+                          Overdue Leads/Client Handled
+                        </Text>
+                        <Heading size="lg" color="red.600">
+                          {stats.overdueCallsHandled}
+                        </Heading>
+                        <Text fontSize="xs" color="gray.600" mt={2}>
+                          {viewMode === 'single' ? 'Overdue handled (Calls Page)' : 'Total overdue handled'}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                </Tooltip>
+
                 {/* Total Calls Handled Card */}
                 <Tooltip label={`${stats.totalCalls} total unique leads handled ${dateDescription}`} placement="top">
                   <Box>
@@ -1137,34 +1184,34 @@ export default function DSRPage() {
                   </Box>
                 </Tooltip>
 
-                {/* Overdue Leads Handled Card */}
-                <Tooltip label={`${stats.overdueCallsHandled} overdue leads handled ${dateDescription}`} placement="top">
+                {/* Overdue Pending Card */}
+                <Tooltip label={`${stats.overduePending || 0} leads with only overdue follow-ups (falling through cracks)`} placement="top">
                   <Box>
                     <Card
                       cursor="pointer"
-                      onClick={() => handleCardClick('overdue')}
-                      boxShadow={activeCard === 'overdue' ? 'xl' : 'md'}
+                      onClick={() => handleCardClick('overduePending')}
+                      boxShadow={activeCard === 'overduePending' ? 'xl' : 'md'}
                       _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
                       transition="all 0.2s"
                       borderTop="4px"
-                      borderColor="red.500"
-                      bg={activeCard === 'overdue' ? 'red.50' : 'white'}
+                      borderColor="orange.600"
+                      bg={activeCard === 'overduePending' ? 'orange.50' : 'white'}
                     >
                       <CardBody>
                         <HStack justify="space-between" mb={2}>
-                          <Icon as={HiClock} boxSize={6} color="red.500" />
-                          <Badge colorScheme="red" fontSize="xs">
-                            {activeCard === 'overdue' ? 'Active' : 'Click to filter'}
+                          <Icon as={HiExclamation} boxSize={6} color="orange.600" />
+                          <Badge colorScheme="orange" fontSize="xs">
+                            {activeCard === 'overduePending' ? 'Active' : 'Click to filter'}
                           </Badge>
                         </HStack>
                         <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                          Overdue Leads/Client Handled
+                          Overdue Pending
                         </Text>
-                        <Heading size="lg" color="red.600">
-                          {stats.overdueCallsHandled}
+                        <Heading size="lg" color="orange.600">
+                          {stats.overduePending || 0}
                         </Heading>
                         <Text fontSize="xs" color="gray.600" mt={2}>
-                          {viewMode === 'single' ? 'Overdue handled (Calls Page)' : 'Total overdue handled'}
+                          Needs immediate attention
                         </Text>
                       </CardBody>
                     </Card>
@@ -1307,34 +1354,35 @@ export default function DSRPage() {
                   </Box>
                 </Tooltip>
 
-                {/* NEW: Overdue Pending Card */}
-                <Tooltip label={`${stats.overduePending || 0} leads with only overdue follow-ups (falling through cracks)`} placement="top">
+                {/* Average Overdue Response Time Card */}
+                <Tooltip 
+                  label={`Average time to respond to overdue leads: ${formatMinutesToReadable(stats.avgOverdueResponseTime || 0)}. This shows how quickly agents respond after a follow-up becomes overdue.`} 
+                  placement="top"
+                >
                   <Box>
                     <Card
-                      cursor="pointer"
-                      onClick={() => handleCardClick('overduePending')}
-                      boxShadow={activeCard === 'overduePending' ? 'xl' : 'md'}
+                      boxShadow="md"
                       _hover={{ boxShadow: 'xl', transform: 'translateY(-2px)' }}
                       transition="all 0.2s"
                       borderTop="4px"
-                      borderColor="orange.600"
-                      bg={activeCard === 'overduePending' ? 'orange.50' : 'white'}
+                      borderColor="purple.500"
+                      bg="white"
                     >
                       <CardBody>
                         <HStack justify="space-between" mb={2}>
-                          <Icon as={HiExclamation} boxSize={6} color="orange.600" />
-                          <Badge colorScheme="orange" fontSize="xs">
-                            {activeCard === 'overduePending' ? 'Active' : 'Click to filter'}
+                          <Icon as={HiClock} boxSize={6} color="purple.500" />
+                          <Badge colorScheme="purple" fontSize="xs">
+                            Performance
                           </Badge>
                         </HStack>
                         <Text fontSize="sm" fontWeight="semibold" color={THEME_COLORS.medium} mb={2}>
-                          Overdue Pending
+                          Avg Overdue Response Time
                         </Text>
-                        <Heading size="lg" color="orange.600">
-                          {stats.overduePending || 0}
+                        <Heading size="lg" color="purple.600">
+                          {formatMinutesToReadable(stats.avgOverdueResponseTime || 0)}
                         </Heading>
                         <Text fontSize="xs" color="gray.600" mt={2}>
-                          Needs immediate attention
+                          {viewMode === 'single' ? 'How fast agents respond' : 'Average response speed'}
                         </Text>
                       </CardBody>
                     </Card>

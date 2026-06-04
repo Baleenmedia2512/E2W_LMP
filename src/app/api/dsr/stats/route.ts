@@ -93,15 +93,14 @@ export async function GET(request: NextRequest) {
           where: agentId ? { assignedToId: agentId } : {},
           select: { id: true, status: true, createdAt: true, updatedAt: true, assignedToId: true, callAttempts: true },
         }),
-        // 2. Active follow-ups (for overdue detection)
+        // 2. ALL follow-ups (including completed/cancelled) for accurate overdue detection
+        // CRITICAL FIX: Don't filter by status so overdue calls are counted correctly even after follow-up completion
+        // Include status field to separate "Overdue Handled" vs "Overdue Pending" calculations
         prisma.followUp.findMany({
           where: agentId ? {
-            status: { notIn: ['completed', 'cancelled'] },
             Lead: { assignedToId: agentId },
-          } : {
-            status: { notIn: ['completed', 'cancelled'] },
-          },
-          select: { id: true, leadId: true, scheduledAt: true, createdAt: true },
+          } : {},
+          select: { id: true, leadId: true, scheduledAt: true, createdAt: true, status: true },
         }),
         // 3. Calls on selected date — also serves as callsOnDate; adds callerId for per-agent grouping
         prisma.callLog.findMany({
@@ -136,7 +135,8 @@ export async function GET(request: NextRequest) {
     console.log('[DSR Stats API] Parallel batch — leads:', allLeads.length,
       '| followups:', allFollowups.length, '| calls:', allCalls.length, '| agents:', agents.length);
 
-    // ── Calculate follow-ups map first (needed for overdue pending calculation) ──────────────
+    // ── Calculate follow-ups maps (two versions for different purposes) ──────────────────────
+    // 1. ALL follow-ups (for "Overdue Handled" detection - includes completed)
     const followupsByLeadId = new Map<string, Date[]>();
     allFollowups.forEach((followup: any) => {
       const scheduledDate = typeof followup.scheduledAt === 'string'
@@ -147,8 +147,22 @@ export async function GET(request: NextRequest) {
       followupsByLeadId.set(followup.leadId, existing);
     });
 
+    // 2. PENDING follow-ups only (for "Overdue Pending" calculation - excludes completed)
+    const pendingFollowupsByLeadId = new Map<string, Date[]>();
+    allFollowups
+      .filter((f: any) => f.status !== 'completed' && f.status !== 'cancelled')
+      .forEach((followup: any) => {
+        const scheduledDate = typeof followup.scheduledAt === 'string'
+          ? new Date(followup.scheduledAt)
+          : followup.scheduledAt;
+        const existing = pendingFollowupsByLeadId.get(followup.leadId) || [];
+        existing.push(scheduledDate);
+        pendingFollowupsByLeadId.set(followup.leadId, existing);
+      });
+
     // ── Calculate "Overdue Pending" leads BEFORE filteredLeads query ────────────────────────
     // These leads might not have activity on selected date, so we add them to activeLeadIds
+    // Use PENDING follow-ups only (not completed) for this calculation
     const now = new Date();
     const overduePendingLeadIds = new Set<string>();
     
@@ -160,12 +174,13 @@ export async function GET(request: NextRequest) {
       // Check if agent filter applies
       if (agentId && lead.assignedToId !== agentId) return;
       
-      const leadFollowupDates = followupsByLeadId.get(lead.id) || [];
+      // Use PENDING follow-ups for "Overdue Pending" calculation
+      const leadFollowupDates = pendingFollowupsByLeadId.get(lead.id) || [];
       if (leadFollowupDates.length === 0) return;
       
-      // Has at least one overdue follow-up
+      // Has at least one overdue follow-up (pending only)
       const hasOverdue = leadFollowupDates.some(d => d < now);
-      // Has NO future follow-ups
+      // Has NO future follow-ups (pending only)
       const hasFuture = leadFollowupDates.some(d => d >= now);
       
       if (hasOverdue && !hasFuture) {
@@ -218,7 +233,8 @@ export async function GET(request: NextRequest) {
       return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     })();
 
-    // A lead is "overdue" if it has ANY active follow-up scheduled before the reference date
+    // Build set of leads with ANY follow-up scheduled before the reference date (for "Overdue Handled")
+    // Uses ALL follow-ups (including completed) so overdue calls stay counted after follow-up completion
     const overdueLeadIds = new Set<string>();
     followupsByLeadId.forEach((dates, leadId) => {
       if (dates.some(d => d < overdueReferenceDate)) {
@@ -398,6 +414,50 @@ export async function GET(request: NextRequest) {
 
     console.log('[DSR Stats API] Agent performance calculated. Preparing response...');
 
+    // ── Calculate Average Overdue Response Time ─────────────────────────────────────────────
+    // For each call made in the selected date range where the lead was overdue,
+    // calculate how long it took to respond after the follow-up was due
+    console.log('[DSR Stats API] Calculating average overdue response time...');
+    
+    let totalOverdueResponseTimeMinutes = 0;
+    let overdueCallsWithResponseTimeCount = 0;
+    
+    // Process all calls made in the selected date range
+    allCalls.forEach((call: any) => {
+      const leadFollowupDates = followupsByLeadId.get(call.leadId) || [];
+      if (leadFollowupDates.length === 0) return;
+      
+      const callTimestamp = typeof call.createdAt === 'string' ? new Date(call.createdAt) : call.createdAt;
+      
+      // Find all follow-ups that were due BEFORE this call was made (overdue at call time)
+      const overdueFollowups = leadFollowupDates.filter(scheduledDate => scheduledDate < callTimestamp);
+      
+      if (overdueFollowups.length > 0) {
+        // Use the most recent overdue follow-up (closest to the call time)
+        const mostRecentOverdueDate = new Date(Math.max(...overdueFollowups.map(d => d.getTime())));
+        
+        // Calculate time difference in minutes
+        const timeDiffMs = callTimestamp.getTime() - mostRecentOverdueDate.getTime();
+        const timeDiffMinutes = Math.floor(timeDiffMs / (1000 * 60));
+        
+        if (timeDiffMinutes >= 0) { // Only count positive differences
+          totalOverdueResponseTimeMinutes += timeDiffMinutes;
+          overdueCallsWithResponseTimeCount++;
+        }
+      }
+    });
+    
+    // Calculate average (0 if no overdue calls)
+    const avgOverdueResponseTimeMinutes = overdueCallsWithResponseTimeCount > 0
+      ? Math.round(totalOverdueResponseTimeMinutes / overdueCallsWithResponseTimeCount)
+      : 0;
+    
+    console.log('[DSR Stats API] Avg overdue response time:', {
+      totalMinutes: totalOverdueResponseTimeMinutes,
+      count: overdueCallsWithResponseTimeCount,
+      average: avgOverdueResponseTimeMinutes
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -432,6 +492,10 @@ export async function GET(request: NextRequest) {
           // NEW METRIC: Overdue Pending - leads with ONLY overdue follow-ups (no future)
           // These are leads falling through the cracks that need immediate attention
           overduePending: overduePendingLeadIds.size,
+          
+          // NEW METRIC: Average Overdue Response Time - average time taken to respond to overdue leads
+          // Shows how quickly agents respond to overdue follow-ups (in minutes)
+          avgOverdueResponseTime: avgOverdueResponseTimeMinutes,
         },
         filteredLeads: transformedFilteredLeads,
         agentPerformanceData,
