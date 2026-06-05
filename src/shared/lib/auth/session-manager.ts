@@ -2,8 +2,8 @@ import { generateToken, JWTPayload } from './auth-utils';
 import prisma from '@/shared/lib/db/prisma';
 import crypto from 'crypto';
 
-const SESSION_EXPIRY_DAYS = parseInt(process.env.SESSION_EXPIRY_DAYS || '7');
-const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || '30');
+const SESSION_EXPIRY_DAYS = parseInt(process.env.SESSION_EXPIRY_DAYS || '3650'); // 10 years
+const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || '3650'); // 10 years
 
 export interface SessionData {
   token: string;
