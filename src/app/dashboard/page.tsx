@@ -25,19 +25,23 @@ import {
   Input,
   Card,
   CardBody,
+  CardHeader,
   Switch,
   FormControl,
   FormLabel,
+  Select,
   useToast,
   useDisclosure,
 } from '@chakra-ui/react';
-import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle, FiXCircle } from 'react-icons/fi';
+import { FiUsers, FiPhone, FiCheckCircle, FiClock, FiRefreshCw, FiAlertCircle, FiXCircle, FiFilter } from 'react-icons/fi';
 import { HiPlus } from 'react-icons/hi';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import AddLeadModal from '@/features/leads/components/AddLeadModal';
+import { useAuth } from '@/shared/lib/auth/auth-context';
+import { useRoleBasedAccess } from '@/shared/hooks/useRoleBasedAccess';
 
 const StatCard = ({
   label,
@@ -104,9 +108,91 @@ const getStatusColor = (status: string) => {
 // Fetcher function for SWR
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+// User Filter Card Component
+const UserFilterCard = ({
+  user,
+  selectedUserId,
+  onUserChange,
+  isSuperAgent,
+}: {
+  user: any;
+  selectedUserId: string | null;
+  onUserChange: (userId: string | null) => void;
+  isSuperAgent: boolean;
+}) => {
+  // Fetch users list for dropdown
+  const { data: usersData } = useSWR('/api/users', fetcher);
+  const users = usersData?.data || [];
+
+  // Filter users based on role
+  const displayUsers = isSuperAgent 
+    ? users // Super Agent sees all users
+    : users.filter((u: any) => u.Role?.name !== 'Super Agent'); // Team Lead doesn't see Super Agents
+
+  // Get selected user name for display
+  const selectedUser = users.find((u: any) => u.id === selectedUserId);
+  const displayText = selectedUserId 
+    ? (selectedUserId === user?.id ? 'My Data Only' : selectedUser?.name || 'Selected User')
+    : (isSuperAgent ? 'All Users (System-wide)' : 'All Team Members');
+
+  return (
+    <Card>
+      <CardHeader pb={3}>
+        <HStack spacing={2}>
+          <Icon as={FiFilter} color="blue.500" />
+          <Heading size="sm">Filter by User</Heading>
+        </HStack>
+      </CardHeader>
+      <CardBody pt={0}>
+        <HStack spacing={4} flexWrap="wrap">
+          <FormControl maxW={{ base: 'full', md: '400px' }}>
+            <FormLabel fontSize="sm" mb={2}>View Data For:</FormLabel>
+            <Select
+              value={selectedUserId || 'all'}
+              onChange={(e) => onUserChange(e.target.value === 'all' ? null : e.target.value)}
+              size="md"
+            >
+              <option value="all">
+                {isSuperAgent ? '📊 All Users (System-wide)' : '👥 All Team Members'}
+              </option>
+              <option value={user?.id}>👤 My Data Only</option>
+              {displayUsers.length > 0 && (
+                <>
+                  <option disabled>───────────────</option>
+                  {displayUsers.map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name || u.email} {u.Role?.name ? `(${u.Role.name})` : ''}
+                    </option>
+                  ))}
+                </>
+              )}
+            </Select>
+          </FormControl>
+          {selectedUserId && (
+            <Button
+              size="sm"
+              variant="ghost"
+              colorScheme="blue"
+              onClick={() => onUserChange(null)}
+              mt={{ base: 0, md: 8 }}
+            >
+              Clear Filter
+            </Button>
+          )}
+        </HStack>
+        <Text fontSize="xs" color="gray.600" mt={3}>
+          Currently viewing: <strong>{displayText}</strong>
+        </Text>
+      </CardBody>
+    </Card>
+  );
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const toast = useToast();
+  const { user } = useAuth();
+  const { isSalesAgent, isTeamLead, isSuperAgent } = useRoleBasedAccess();
   const { isOpen: isAddLeadOpen, onOpen: onAddLeadOpen, onClose: onAddLeadClose } = useDisclosure();
   
   const [startDate, setStartDate] = useState<string>(() => {
@@ -119,11 +205,39 @@ export default function DashboardPage() {
   const [dateRangeLabel, setDateRangeLabel] = useState<string>('Today');
   const [hasDateFilter, setHasDateFilter] = useState<boolean>(true);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  
+  // User filtering state
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-  // Build API URL with date filters (only include dates if filter is active)
-  const statsUrl = hasDateFilter && startDate && endDate
-    ? `/api/dashboard/stats?startDate=${startDate}&endDate=${endDate}`
-    : '/api/dashboard/stats';
+  // Auto-set userId for Sales Agents (they can only see their own data)
+  useEffect(() => {
+    if (isSalesAgent() && user?.id) {
+      setSelectedUserId(user.id);
+    }
+  }, [user?.id, isSalesAgent]);
+
+  // Build API URL with date filters and user filter
+  const statsUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    
+    // Add date filters
+    if (hasDateFilter && startDate && endDate) {
+      params.append('startDate', startDate);
+      params.append('endDate', endDate);
+    }
+    
+    // Add user filter
+    if (isSalesAgent() && user?.id) {
+      // Sales agents must always see only their own data
+      params.append('userId', user.id);
+    } else if (selectedUserId) {
+      // Team Lead or Super Agent filtering by specific user
+      params.append('userId', selectedUserId);
+    }
+    
+    const queryString = params.toString();
+    return queryString ? `/api/dashboard/stats?${queryString}` : '/api/dashboard/stats';
+  }, [hasDateFilter, startDate, endDate, selectedUserId, user?.id, isSalesAgent]);
 
   // Use SWR for real-time data fetching with auto-refresh
   const { data, error, isLoading, mutate } = useSWR(
@@ -313,6 +427,30 @@ export default function DashboardPage() {
           Add Lead
         </Button>
       </Flex>
+
+      {/* User Filter Section - Only for Team Lead and Super Agent */}
+      {(isTeamLead() || isSuperAgent()) && (
+        <UserFilterCard
+          user={user}
+          selectedUserId={selectedUserId}
+          onUserChange={setSelectedUserId}
+          isSuperAgent={isSuperAgent()}
+        />
+      )}
+
+      {/* Info Badge for Sales Agents */}
+      {isSalesAgent() && (
+        <Card bg="blue.50" borderColor="blue.200">
+          <CardBody py={3}>
+            <HStack spacing={2}>
+              <Icon as={FiFilter} color="blue.600" />
+              <Text fontSize="sm" color="blue.800" fontWeight="medium">
+                Showing your assigned leads only
+              </Text>
+            </HStack>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing={{ base: 3, md: 4, lg: 6 }}>
