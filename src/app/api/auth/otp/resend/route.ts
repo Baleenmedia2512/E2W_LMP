@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { z } from 'zod';
 import { generateOtpData } from '@/shared/lib/auth/otp-utils';
-import { sendOtpEmail } from '@/shared/lib/email/email-service';
+import emailQueue from '@/shared/lib/queue/email-queue';
 import { checkAllRateLimits } from '@/shared/lib/auth/rate-limiter';
 
 const resendOtpSchema = z.object({
@@ -126,30 +126,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send OTP email
-    const emailSent = await sendOtpEmail(normalizedEmail, otp);
+    // Queue email for async sending (non-blocking)
+    emailQueue.addToQueue(normalizedEmail, otp).catch(error => {
+      console.error('Failed to queue email:', error);
+    });
 
-    if (!emailSent) {
-      await prisma.loginActivity.create({
-        data: {
-          userId: user.id,
-          email: normalizedEmail,
-          action: 'otp_resend_failed',
-          status: 'failed',
-          success: false,
-          failureReason: 'email_service_error',
-          ipAddress,
-          userAgent,
-        },
-      });
-
-      return NextResponse.json(
-        { error: 'Failed to send verification code. Please try again.' },
-        { status: 500 }
-      );
-    }
-
-    // Log success
+    // Log success immediately (email is queued)
     await prisma.loginActivity.create({
       data: {
         userId: user.id,
@@ -163,6 +145,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Return immediately without waiting for email
     return NextResponse.json(
       {
         success: true,
