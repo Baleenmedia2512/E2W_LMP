@@ -42,6 +42,27 @@ function VerifyPageContent() {
   const [isResending, setIsResending] = useState(false);
   const [canResend, setCanResend] = useState(false);
   const [attemptsRemaining, setAttemptsRemaining] = useState(5);
+  const [otpExpiryMinutes, setOtpExpiryMinutes] = useState(5);
+  const [maxAttempts, setMaxAttempts] = useState(5);
+
+  // Fetch OTP configuration
+  useEffect(() => {
+    const fetchOtpConfig = async () => {
+      try {
+        const response = await fetch('/api/auth/otp/config');
+        if (response.ok) {
+          const data = await response.json();
+          setOtpExpiryMinutes(data.expiryMinutes);
+          setMaxAttempts(data.maxAttempts);
+          setAttemptsRemaining(data.maxAttempts);
+        }
+      } catch (error) {
+        console.error('Failed to fetch OTP config:', error);
+      }
+    };
+    
+    fetchOtpConfig();
+  }, []);
 
   useEffect(() => {
     if (!email) {
@@ -162,7 +183,7 @@ function VerifyPageContent() {
       });
 
       setCanResend(false);
-      setAttemptsRemaining(5);
+      setAttemptsRemaining(maxAttempts);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to resend code';
       
@@ -292,7 +313,7 @@ function VerifyPageContent() {
 
           {/* Info Text */}
           <Text fontSize="xs" color="gray.500" textAlign="center">
-            The code expires in 5 minutes. You have {attemptsRemaining} attempts remaining.
+            The code expires in {otpExpiryMinutes} {otpExpiryMinutes === 1 ? 'minute' : 'minutes'}. You have {attemptsRemaining} {attemptsRemaining === 1 ? 'attempt' : 'attempts'} remaining.
           </Text>
         </MotionVStack>
       </Box>

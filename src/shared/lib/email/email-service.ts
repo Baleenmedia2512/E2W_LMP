@@ -8,6 +8,9 @@ const SMTP_PASSWORD = process.env.SMTP_PASSWORD || '';
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'E2W LMS';
 const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL || 'noreply@e2wlms.com';
 
+// OTP configuration
+const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '5');
+
 // Create reusable transporter
 const transporter = nodemailer.createTransport({
   host: SMTP_HOST,
@@ -59,8 +62,8 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
  * Send OTP email
  */
 export async function sendOtpEmail(email: string, otp: string): Promise<boolean> {
-  const html = getOtpEmailTemplate(otp);
-  const text = `Your E2W LMS verification code is: ${otp}\n\nThis code expires in 5 minutes.\n\nIf you didn't request this code, please ignore this email.`;
+  const html = getOtpEmailTemplate(otp, OTP_EXPIRY_MINUTES);
+  const text = `Your E2W LMS verification code is: ${otp}\n\nThis code expires in ${OTP_EXPIRY_MINUTES} ${OTP_EXPIRY_MINUTES === 1 ? 'minute' : 'minutes'}.\n\nIf you didn't request this code, please ignore this email.`;
 
   return sendEmail({
     to: email,
@@ -73,7 +76,7 @@ export async function sendOtpEmail(email: string, otp: string): Promise<boolean>
 /**
  * OTP Email Template
  */
-function getOtpEmailTemplate(otp: string): string {
+function getOtpEmailTemplate(otp: string, expiryMinutes: number): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -110,7 +113,7 @@ function getOtpEmailTemplate(otp: string): string {
               </div>
               
               <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px; line-height: 20px;">
-                This code expires in <strong style="color: #111827;">5 minutes</strong>
+                This code expires in <strong style="color: #111827;">${expiryMinutes} ${expiryMinutes === 1 ? 'minute' : 'minutes'}</strong>
               </p>
             </td>
           </tr>
