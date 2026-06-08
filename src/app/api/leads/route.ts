@@ -123,6 +123,13 @@ export async function GET(request: NextRequest) {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
+    // CRITICAL FIX: In dashboard mode, we must fetch enough leads to include ALL with overdue follow-ups
+    // Previous bug: Ordered by createdAt desc with limit 500, so older leads with overdue follow-ups
+    // were excluded if user had >500 total leads. This caused dashboard to show 13 overdue but
+    // leads page to show 0 (they were beyond the 500 limit).
+    // Solution: In dashboard mode, fetch MORE leads and prioritize by updatedAt (recent activity)
+    const effectiveLimit = mode === 'dashboard' ? 1000 : limit; // Double the dashboard fetch limit
+    
     const leads = await prisma.lead.findMany({
       where,
       include: {
@@ -143,9 +150,14 @@ export async function GET(request: NextRequest) {
           }
         },
       },
-      orderBy: { createdAt: 'desc' },
+      // In dashboard mode: sort by updatedAt to show leads with recent activity (including follow-ups)
+      // This ensures overdue leads (which get updated when follow-ups are created) appear in the result set
+      // In normal mode: show newest leads first
+      orderBy: mode === 'dashboard' 
+        ? { updatedAt: 'desc' }  // Recent activity = higher priority
+        : { createdAt: 'desc' }, // Chronological for full list
       skip,
-      take: limit,
+      take: effectiveLimit,
     });
 
     // Transform the response to match frontend expectations

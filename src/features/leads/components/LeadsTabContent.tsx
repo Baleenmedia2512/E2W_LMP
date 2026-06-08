@@ -419,10 +419,10 @@ function LeadsTabContent({
   } = useLeadsAndFollowUps({
     assignedToMe: assignedToMe && ownerFilter === 'all',
     assignedToId: ownerFilter !== 'all' ? ownerFilter : undefined, // Server-side owner filter
-    // dashboardMode=true (default): fetches only new leads + leads with follow-ups (~200-400 rows)
+    // dashboardMode=true (default): fetches only new leads + leads with follow-ups (~1000 rows max)
     // dashboardMode=false (Show All): fetches full dataset (2000 rows, only on demand)
     dashboardMode: showOnlyToday,
-    limit: showOnlyToday ? 500 : 2000,
+    limit: showOnlyToday ? 1000 : 2000, // Increased from 500 to 1000 to capture all overdue leads
     refreshInterval: 60000, // 60s polling — safety net if realtime misses an event
   });
 

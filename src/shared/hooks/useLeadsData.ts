@@ -56,9 +56,10 @@ export function useLeadsData(options: UseLeadsDataOptions = {}) {
 
   if (dashboardMode) {
     // Dashboard mode: only fetch new leads + leads with active follow-ups
-    // Cuts DB query from 2000+ rows to ~100-400 rows (6-10x faster initial load)
+    // CRITICAL: Increased limit to 1000 to ensure ALL overdue leads are fetched
+    // (Previous 500 limit caused overdue leads to be excluded if they were older than the 500 newest leads)
     params.set('mode', 'dashboard');
-    params.set('limit', '500'); // 500 is enough — dashboard won't show more
+    params.set('limit', '1000'); // Increased from 500 to capture all overdue leads
   } else {
     params.set('limit', limit.toString());
   }

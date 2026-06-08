@@ -15,9 +15,9 @@ export const runtime = 'nodejs';
  * - userId: Filter by assigned user (optional)
  * 
  * When date range is provided (e.g., Today):
- * - New Arrival: Leads CREATED in date range
+ * - New Arrival: ALL leads with status='new' (unprocessed leads backlog, any date)
  * - Follow-up Today: Follow-ups SCHEDULED in date range
- * - Overdue Follow-up: Follow-ups that BECAME overdue in date range
+ * - Overdue Follow-up: Follow-ups that are currently overdue
  * - Total: All leads CREATED or UPDATED in date range
  * - Won: Leads marked as WON (updatedAt) in date range
  * - Conversations: Calls made in date range
@@ -59,11 +59,13 @@ export async function GET(request: NextRequest) {
     // Build user filter
     const userFilter = userId ? { assignedToId: userId } : {};
 
-    // 1. NEW ARRIVAL - Leads with status "new" created in date range
+    // 1. NEW ARRIVAL - ALL leads with status "new" (regardless of creation date)
+    // This shows the total backlog of unprocessed leads that need first contact
     const newLeadsWhere: any = { status: 'new', ...userFilter };
-    if (hasDateFilter) {
-      newLeadsWhere.createdAt = dateFilter;
-    }
+    // Removed date filter - we want ALL unprocessed leads, not just today's
+    // if (hasDateFilter) {
+    //   newLeadsWhere.createdAt = dateFilter;
+    // }
 
     // 2. FOLLOW-UPS SCHEDULED in date range - count unique leads
     // CRITICAL: Only count follow-ups for leads with ACTIVE statuses to match lead categorization

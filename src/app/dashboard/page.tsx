@@ -464,7 +464,7 @@ export default function DashboardPage() {
         <StatCard
           label={getLabel('New Arrival')}
           value={stats.newLeads}
-          helpText="Leads created"
+          helpText="Unprocessed leads (all dates)"
           icon={FiUsers}
           colorScheme="blue"
           onClick={() => handleCardClick('new')}
