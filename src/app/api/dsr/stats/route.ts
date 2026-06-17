@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { calculateDSRMetrics } from '@/shared/lib/utils/dsr-metrics';
+import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,8 +21,8 @@ export const revalidate = 0;
  *   • Total Calls: Unique leads called (New + Follow-up + Overdue = Total)
  *   NOTE: All metrics count unique leads; Follow-up and Overdue are mutually exclusive
  * 
- * - LEADS OUTCOME PAGE: Lead filtered by updatedAt = selected_date
- *   • Unqualified, Unreachable, Won, Lost: status changes on selected date
+ * - LEADS OUTCOME PAGE: ActivityHistory status_changed events filtered by createdAt = selected_date
+ *   • Unqualified, Unreachable, Won, Lost: each status-change event counts (same lead twice = 2)
  * 
  * Query Parameters:
  * - startDate: ISO date string (optional, defaults to TODAY)
@@ -30,6 +31,14 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
+    // Auth check — must be logged in
+    const authHeader = request.headers.get('authorization');
+    const token = extractTokenFromHeader(authHeader);
+    const payload = token ? verifyToken(token) : null;
+    if (!payload) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const startDateParam = searchParams.get('startDate');
     const endDateParam = searchParams.get('endDate');
@@ -83,11 +92,21 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Batch 1: all independent queries run in PARALLEL (was 6 sequential round-trips) ──────
+    const outcomeStatuses = ['won', 'lost', 'unqualified', 'unreach'];
+    const statusChangeWhere: any = {
+      action: 'status_changed',
+      newValue: { in: outcomeStatuses },
+    };
+    if (Object.keys(dateFilter).length > 0) {
+      statusChangeWhere.createdAt = dateFilter;
+    }
+
     let allLeads: any[], allFollowups: any[], allCalls: any[];
     let leadsCreatedOnDate: any[], leadsUpdatedOnDate: any[], agents: any[];
+    let statusChangeActivities: any[];
 
     try {
-      [allLeads, allFollowups, allCalls, leadsCreatedOnDate, leadsUpdatedOnDate, agents] = await Promise.all([
+      [allLeads, allFollowups, allCalls, leadsCreatedOnDate, leadsUpdatedOnDate, agents, statusChangeActivities] = await Promise.all([
         // 1. All leads — no date filter needed; used for metrics + in-memory per-agent computation
         prisma.lead.findMany({
           where: agentId ? { assignedToId: agentId } : {},
@@ -123,6 +142,33 @@ export async function GET(request: NextRequest) {
           select: { id: true, name: true, email: true },
           orderBy: { name: 'asc' },
         }),
+        // 7. Outcome status-change events in date range (each event counts separately)
+        prisma.activityHistory.findMany({
+          where: statusChangeWhere,
+          select: {
+            id: true,
+            leadId: true,
+            newValue: true,
+            createdAt: true,
+            userId: true,
+            Lead: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+                status: true,
+                source: true,
+                campaign: true,
+                createdAt: true,
+                assignedToId: true,
+                is_existing: true,
+                User_Lead_assignedToIdToUser: { select: { id: true, name: true, email: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
       ]);
     } catch (error) {
       console.error('[DSR Stats API] Error fetching data:', error);
@@ -132,8 +178,39 @@ export async function GET(request: NextRequest) {
     // allCalls is already date-filtered — it IS callsOnDate (eliminates a redundant round-trip)
     const callsOnDate = allCalls;
 
+    // Filter outcome events by assigned agent when agentId is specified
+    if (agentId) {
+      statusChangeActivities = statusChangeActivities.filter(
+        (a: any) => a.Lead?.assignedToId === agentId
+      );
+    }
+
+    const leadById = new Map(allLeads.map((l: any) => [l.id, l]));
+    const statusChangesForMetrics = statusChangeActivities.map((a: any) => ({
+      leadId: a.leadId,
+      newValue: a.newValue,
+      createdAt: a.createdAt,
+    }));
+
+    const outcomeEvents = statusChangeActivities.map((activity: any) => ({
+      id: activity.id,
+      leadId: activity.leadId,
+      status: activity.newValue,
+      eventAt: activity.createdAt,
+      name: activity.Lead?.name ?? 'Unknown',
+      phone: activity.Lead?.phone ?? '',
+      email: activity.Lead?.email,
+      source: activity.Lead?.source,
+      campaign: activity.Lead?.campaign,
+      currentStatus: activity.Lead?.status,
+      assignedTo: activity.Lead?.User_Lead_assignedToIdToUser,
+      createdAt: activity.Lead?.createdAt,
+      is_existing: activity.Lead?.is_existing ?? false,
+    }));
+
     console.log('[DSR Stats API] Parallel batch — leads:', allLeads.length,
-      '| followups:', allFollowups.length, '| calls:', allCalls.length, '| agents:', agents.length);
+      '| followups:', allFollowups.length, '| calls:', allCalls.length,
+      '| outcome events:', statusChangeActivities.length, '| agents:', agents.length);
 
     // ── Calculate follow-ups maps (two versions for different purposes) ──────────────────────
     // 1. ALL follow-ups (for "Overdue Handled" detection - includes completed)
@@ -195,6 +272,7 @@ export async function GET(request: NextRequest) {
       ...leadsCreatedOnDate.map((l: any) => l.id),
       ...callsOnDate.map((c: any) => c.leadId),
       ...leadsUpdatedOnDate.map((l: any) => l.id),
+      ...statusChangeActivities.map((a: any) => a.leadId),
       ...Array.from(overduePendingLeadIds), // Include overdue pending leads even if no activity today
     ]);
 
@@ -277,6 +355,15 @@ export async function GET(request: NextRequest) {
       
       // 9️⃣ Overdue Pending: Lead has ONLY overdue follow-ups (no future) AND status is active
       const isOverduePending = overduePendingLeadIds.has(lead.id);
+
+      // Outcome events for this lead in the selected date range
+      const leadOutcomeEvents = statusChangeActivities.filter((a: any) => a.leadId === lead.id);
+      const outcomeEventCounts = {
+        won: leadOutcomeEvents.filter((a: any) => a.newValue === 'won').length,
+        lost: leadOutcomeEvents.filter((a: any) => a.newValue === 'lost').length,
+        unqualified: leadOutcomeEvents.filter((a: any) => a.newValue === 'unqualified').length,
+        unreach: leadOutcomeEvents.filter((a: any) => a.newValue === 'unreach').length,
+      };
       
       // Debug logging
       if (hadCallToday) {
@@ -312,6 +399,7 @@ export async function GET(request: NextRequest) {
           isFollowup: isFollowupCall,                // CallLog today + callAttempts > 1
           isOverdue: hadOverdueCallToday,            // CallLog today + scheduled followup < today
           isOverduePending: isOverduePending,        // Has ONLY overdue follow-ups (no future)
+          outcomeEvents: outcomeEventCounts,        // Per-outcome event counts from ActivityHistory
         },
       };
     });
@@ -342,6 +430,8 @@ export async function GET(request: NextRequest) {
       leads: allLeads,
       followups: allFollowups,
       calls: allCalls, // Already date-filtered at DB level
+      statusChanges: statusChangesForMetrics,
+      statusChangesPreFiltered: true,
       agentId: agentId || null,
       dateRange: (startDateParam || endDateParam) ? {
         startDate: startDateParam || undefined,
@@ -353,15 +443,6 @@ export async function GET(request: NextRequest) {
 
     // ── Agent performance: computed from in-memory data — zero extra DB queries ──────────────
     console.log('[DSR Stats API] Calculating agent performance (in-memory)...');
-
-    const dateStart: Date | undefined = (dateFilter as any).gte;
-    const dateEnd: Date | undefined = (dateFilter as any).lte;
-    const inDateRange = (date: Date | string): boolean => {
-      const d = typeof date === 'string' ? new Date(date) : date;
-      if (dateStart && d < dateStart) return false;
-      if (dateEnd && d > dateEnd) return false;
-      return true;
-    };
 
     const agentPerformanceData = (agentId ? agents.filter((a: any) => a.id === agentId) : agents).map((agent: any) => {
       // Calls made BY this agent on selected date (callerId added to allCalls select in Batch 1)
@@ -387,14 +468,15 @@ export async function GET(request: NextRequest) {
         (l.callAttempts || 0) > 1 && !agentOverdueLeadIds.has(l.id)
       ).length;
 
-      // Outcome metrics: leads ASSIGNED to this agent whose status changed in date range
-      const agentLeadsForOutcomes = allLeads.filter((l: any) =>
-        l.assignedToId === agent.id && inDateRange(l.updatedAt)
-      );
-      const won = agentLeadsForOutcomes.filter((l: any) => l.status === 'won').length;
-      const lost = agentLeadsForOutcomes.filter((l: any) => l.status === 'lost').length;
-      const unreachable = agentLeadsForOutcomes.filter((l: any) => l.status === 'unreach').length;
-      const unqualified = agentLeadsForOutcomes.filter((l: any) => l.status === 'unqualified').length;
+      // Outcome metrics: count status-change events for leads assigned to this agent
+      const agentOutcomeEvents = statusChangeActivities.filter((a: any) => {
+        const lead = leadById.get(a.leadId) ?? a.Lead;
+        return lead?.assignedToId === agent.id;
+      });
+      const won = agentOutcomeEvents.filter((a: any) => a.newValue === 'won').length;
+      const lost = agentOutcomeEvents.filter((a: any) => a.newValue === 'lost').length;
+      const unreachable = agentOutcomeEvents.filter((a: any) => a.newValue === 'unreach').length;
+      const unqualified = agentOutcomeEvents.filter((a: any) => a.newValue === 'unqualified').length;
 
       return {
         agentId: agent.id,
@@ -476,17 +558,17 @@ export async function GET(request: NextRequest) {
           // Total Calls - unique leads called (New + Follow-up + Overdue = Total)
           totalCalls: metrics.calls.total,
           
-          // LEADS OUTCOME PAGE METRICS (filtered by Lead.updatedAt = selected_date)
-          // Unqualified - status = 'unqualified' updated on selected date
+          // LEADS OUTCOME PAGE METRICS (ActivityHistory status_changed events in date range)
+          // Unqualified - each status_changed → unqualified event
           unqualified: metrics.unqualified.total,
           
-          // Unreachable - status = 'unreachable' updated on selected date
+          // Unreachable - each status_changed → unreach event
           unreachable: metrics.unreachable.total,
           
-          // Won - status = 'won' updated on selected date
+          // Won - each status_changed → won event (same lead twice = 2)
           won: metrics.won.total,
           
-          // Lost - status = 'lost' updated on selected date
+          // Lost - each status_changed → lost event
           lost: metrics.lost.total,
           
           // NEW METRIC: Overdue Pending - leads with ONLY overdue follow-ups (no future)
@@ -499,6 +581,7 @@ export async function GET(request: NextRequest) {
           avgOverdueResponseTime: avgOverdueWaitingTimeMinutes,
         },
         filteredLeads: transformedFilteredLeads,
+        outcomeEvents,
         agentPerformanceData,
         agents,
         timestamp: new Date().toISOString(),

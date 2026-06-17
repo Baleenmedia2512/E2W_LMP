@@ -376,6 +376,7 @@ export function useDSRData(
   startDate?: string,
   endDate?: string
 ) {
+  const { token } = useAuth();
   const params = new URLSearchParams();
   
   // If startDate and endDate are provided separately, use them (date range mode)
@@ -392,25 +393,9 @@ export function useDSRData(
     params.append('agentId', selectedAgentId);
   }
 
-  const fetchDSRData = async (url: string) => {
-    const res = await fetch(url);
-    
-    if (!res.ok) {
-      throw new Error('Failed to fetch DSR data');
-    }
-    
-    const result = await res.json();
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to fetch data');
-    }
-    
-    return result.data;
-  };
-
   const { data, error, isLoading, isValidating, mutate } = useSWR(
-    `/api/dsr/stats?${params.toString()}`,
-    fetchDSRData,
+    token ? [`/api/dsr/stats?${params.toString()}`, token] : null,
+    ([url, tkn]) => authFetcher(url, tkn),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
@@ -423,6 +408,7 @@ export function useDSRData(
   return {
     stats: data?.stats || null,
     filteredLeads: data?.filteredLeads || [],
+    outcomeEvents: data?.outcomeEvents || [],
     agentPerformanceData: data?.agentPerformanceData || [],
     agents: data?.agents || [],
     isLoading,
@@ -444,6 +430,7 @@ export function useDSRCallLogs(
   startDate?: string,
   endDate?: string
 ) {
+  const { token } = useAuth();
   const params = new URLSearchParams();
   
   // If startDate and endDate are provided separately, use them (date range mode)
@@ -460,8 +447,13 @@ export function useDSRCallLogs(
     params.append('agentId', selectedAgentId);
   }
 
-  const fetchCallLogs = async (url: string) => {
-    const res = await fetch(url);
+  const fetchCallLogs = async ([url, tkn]: [string, string]) => {
+    const res = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tkn}`,
+      },
+    });
     
     if (!res.ok) {
       throw new Error('Failed to fetch call logs');
@@ -477,7 +469,7 @@ export function useDSRCallLogs(
   };
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(
-    enabled ? `/api/dsr/call-logs?${params.toString()}` : null,
+    enabled && token ? [`/api/dsr/call-logs?${params.toString()}`, token] : null,
     fetchCallLogs,
     {
       revalidateOnFocus: false,

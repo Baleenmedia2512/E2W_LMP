@@ -56,7 +56,7 @@ const rolePermissions: RolePermissions = {
     canViewLeads: true,
     canAssignLeads: false,
     canViewTeamReport: false,
-    canViewDSR: false,
+    canViewDSR: true,
   },
   'Team Lead': {
     canCreateLead: true,
@@ -68,7 +68,7 @@ const rolePermissions: RolePermissions = {
     canViewLeads: true,
     canAssignLeads: true,
     canViewTeamReport: true,
-    canViewDSR: false,
+    canViewDSR: true,
     canMonitorTeam: true,
   },
   'Super Agent': {

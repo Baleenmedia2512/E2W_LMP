@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +21,14 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
+    // Auth check — must be logged in
+    const authHeader = request.headers.get('authorization');
+    const token = extractTokenFromHeader(authHeader);
+    const payload = token ? verifyToken(token) : null;
+    if (!payload) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const dateParam = searchParams.get('date');
     const startDateParam = searchParams.get('startDate');

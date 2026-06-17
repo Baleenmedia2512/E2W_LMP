@@ -67,9 +67,12 @@ import {
   HiChevronRight,
   HiX,
 } from 'react-icons/hi';
+import { useRouter } from 'next/navigation';
 import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useResponsive } from '@/shared/hooks/useResponsive';
+import { useRoleBasedAccess } from '@/shared/hooks/useRoleBasedAccess';
+import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useDSRData, useDSRCallLogs } from '@/shared/hooks/useLeadsData';
 import { DashboardStatSkeleton, LeadCardSkeleton } from '@/shared/components/SkeletonLoaders';
 
@@ -112,6 +115,17 @@ const formatMinutesToReadable = (minutes: number): string => {
   return `${days} days`;
 };
 
+// Outcome cards use ActivityHistory events (same lead can appear multiple times)
+const OUTCOME_CARDS = ['won', 'lost', 'unqualified', 'unreachable'] as const;
+const OUTCOME_STATUS_MAP: Record<string, string> = {
+  won: 'won',
+  lost: 'lost',
+  unqualified: 'unqualified',
+  unreachable: 'unreach',
+};
+const isOutcomeCard = (card: string | null): boolean =>
+  card !== null && (OUTCOME_CARDS as readonly string[]).includes(card);
+
 // Types for API response
 interface Lead {
   id: string;
@@ -138,6 +152,12 @@ interface Lead {
     isFollowup: boolean;
     isOverdue: boolean;
     isOverduePending: boolean;
+    outcomeEvents?: {
+      won: number;
+      lost: number;
+      unqualified: number;
+      unreach: number;
+    };
   };
   // Optional properties for call logs
   callStatus?: string;
@@ -145,6 +165,26 @@ interface Lead {
   duration?: number;
   nextFollowupAt?: string | null;
   leadId?: string; // Actual lead ID (differs from id when showing call logs in totalCalls mode)
+}
+
+interface OutcomeEvent {
+  id: string;
+  leadId: string;
+  status: string;
+  eventAt: string;
+  name: string;
+  phone: string;
+  email?: string;
+  source?: string;
+  campaign?: string;
+  currentStatus?: string;
+  assignedTo?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  createdAt?: string;
+  is_existing?: boolean;
 }
 
 interface AgentPerformance {
@@ -169,8 +209,17 @@ interface Agent {
 }
 
 export default function DSRPage() {
+  const router = useRouter();
+  const { hasPermission, isSalesAgent } = useRoleBasedAccess();
+  const { user } = useAuth();
   const toast = useToast();
   const { isMobile, isTablet, isDesktop } = useResponsive();
+
+  // Block access for roles without canViewDSR permission
+  if (!hasPermission('canViewDSR')) {
+    router.replace('/dashboard');
+    return null;
+  }
   
   // Get today's date and set default to TODAY
   const today = new Date();
@@ -186,12 +235,15 @@ export default function DSRPage() {
   const [startDate, setStartDate] = useState(todayString);
   const [endDate, setEndDate] = useState(todayString);
   
-  const [selectedAgentId, setSelectedAgentId] = useState('all');
+  const [selectedAgentId, setSelectedAgentId] = useState(() =>
+    // Sales Agent always sees only their own data
+    isSalesAgent() && user?.id ? user.id : 'all'
+  );
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Fetch DSR data using SWR hooks - pass appropriate dates based on view mode
-  const { stats, filteredLeads: apiLeads, agentPerformanceData, agents, 
+  const { stats, filteredLeads: apiLeads, outcomeEvents, agentPerformanceData, agents, 
           isLoading, isValidating, error: fetchError, refresh } = useDSRData(
     selectedDate, 
     selectedAgentId,
@@ -368,7 +420,8 @@ export default function DSRPage() {
       Campaign: lead.campaign || '',
       Remarks: (lead as any).callLogRemarks || (lead as any).remarks || '',
       'Assigned To': lead.assignedTo?.name || 'Unassigned',
-      'Created Date': formatDate(new Date(lead.createdAt)),
+      ...(isOutcomeCard(activeCard) ? { 'Event Time': formatDate(new Date(lead.createdAt)) } : {}),
+      'Created Date': formatDate(new Date((lead as any).leadCreatedAt || lead.createdAt)),
     }));
     exportToCSV(exportData, 'filtered_leads');
   };
@@ -469,8 +522,8 @@ export default function DSRPage() {
     setSelectedDate(todayString);
     setStartDate(todayString);
     setEndDate(todayString);
-    // Reset agent filter to all
-    setSelectedAgentId('all');
+    // Reset agent filter — Sales Agent always stays on themselves
+    setSelectedAgentId(isSalesAgent() && user?.id ? user.id : 'all');
     // Clear active card filter
     setActiveCard(null);
     // Clear search query
@@ -493,6 +546,38 @@ export default function DSRPage() {
   // SPECIAL CASE: For Total Calls Handled, we show call logs instead of leads
   const filteredLeads = useMemo(() => {
     if (!apiLeads) return [];
+
+    // Outcome cards: show each status-change event (same lead winning twice = 2 rows)
+    if (activeCard && isOutcomeCard(activeCard)) {
+      const targetStatus = OUTCOME_STATUS_MAP[activeCard];
+      let events = (outcomeEvents as OutcomeEvent[]).filter(e => e.status === targetStatus);
+
+      if (debouncedSearch.trim()) {
+        const query = debouncedSearch.toLowerCase();
+        events = events.filter(e =>
+          e.name.toLowerCase().includes(query) ||
+          e.phone.includes(query) ||
+          (e.email && e.email.toLowerCase().includes(query))
+        );
+      }
+
+      console.log(`[DSR Filter] ${activeCard}: ${events.length} outcome events`);
+      return events.map(e => ({
+        id: e.id,
+        leadId: e.leadId,
+        name: e.name,
+        phone: e.phone,
+        email: e.email,
+        status: e.status,
+        source: e.source ?? '',
+        campaign: e.campaign,
+        createdAt: e.eventAt,
+        leadCreatedAt: e.createdAt,
+        assignedTo: e.assignedTo,
+        is_existing: e.is_existing ?? false,
+        currentStatus: e.currentStatus,
+      }));
+    }
     
     // Special handling for Total Calls Handled - show call logs, not leads
     // Bug 1 fix: when callLogs are still loading, return empty array (show spinner)
@@ -568,42 +653,6 @@ export default function DSRPage() {
       );
       console.log(`[DSR Filter] Overdue Leads Handled: ${filtered.length} leads`);
       
-    } else if (activeCard === 'unqualified') {
-      // Unqualified: Lead.status = 'unqualified' AND Lead.updatedAt = selected_date
-      // Show ONLY leads with unqualified status changed on selected date
-      filtered = filtered.filter(lead => 
-        lead.status === 'unqualified' &&
-        lead.activityFlags?.statusChangedToday === true
-      );
-      console.log(`[DSR Filter] Unqualified: ${filtered.length} leads`);
-      
-    } else if (activeCard === 'unreachable') {
-      // Unreachable: Lead.status = 'unreach' AND Lead.updatedAt = selected_date
-      // Show ONLY leads with unreachable status changed on selected date
-      filtered = filtered.filter(lead => 
-        lead.status === 'unreach' &&
-        lead.activityFlags?.statusChangedToday === true
-      );
-      console.log(`[DSR Filter] Unreachable: ${filtered.length} leads`);
-      
-    } else if (activeCard === 'won') {
-      // Won: Lead.status = 'won' AND Lead.updatedAt = selected_date
-      // Show ONLY leads with won status changed on selected date
-      filtered = filtered.filter(lead => 
-        lead.status === 'won' &&
-        lead.activityFlags?.statusChangedToday === true
-      );
-      console.log(`[DSR Filter] Won: ${filtered.length} leads`);
-      
-    } else if (activeCard === 'lost') {
-      // Lost: Lead.status = 'lost' AND Lead.updatedAt = selected_date
-      // Show ONLY leads with lost status changed on selected date
-      filtered = filtered.filter(lead => 
-        lead.status === 'lost' &&
-        lead.activityFlags?.statusChangedToday === true
-      );
-      console.log(`[DSR Filter] Lost: ${filtered.length} leads`);
-      
     } else if (activeCard === 'overduePending') {
       // Overdue Pending: Leads with ONLY overdue follow-ups (no future) AND status is active
       // These are leads falling through the cracks that need immediate attention
@@ -629,7 +678,7 @@ export default function DSRPage() {
     }
 
     return filtered;
-  }, [apiLeads, activeCard, debouncedSearch, callLogs]);
+  }, [apiLeads, activeCard, debouncedSearch, callLogs, outcomeEvents]);
   
   // Paginated leads
   const paginatedLeads = useMemo(() => {
@@ -943,7 +992,8 @@ export default function DSRPage() {
                 </>
               )}
 
-              {/* Agent Selector */}
+              {/* Agent Selector — hidden for Sales Agent (locked to themselves) */}
+              {!isSalesAgent() && (
               <Box flex={{ base: '1', md: '0 0 200px' }}>
                 <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
                   Filter by Agent
@@ -968,6 +1018,7 @@ export default function DSRPage() {
                   ))}
                 </Select>
               </Box>
+              )}
 
               {/* Search Input */}
               <Box flex={{ base: '1', md: '1 1 300px' }}>
@@ -1420,7 +1471,7 @@ export default function DSRPage() {
                 px={3}
                 py={1}
               >
-                {filteredLeads.length} {activeCard === 'totalCalls' ? 'call' : 'lead'}{filteredLeads.length !== 1 ? 's' : ''} (Page {currentPage} of {totalPages || 1})
+                {filteredLeads.length} {activeCard === 'totalCalls' || isOutcomeCard(activeCard) ? 'event' : 'lead'}{filteredLeads.length !== 1 ? 's' : ''} (Page {currentPage} of {totalPages || 1})
               </Badge>
             </Flex>
             {activeCard && (
@@ -1455,13 +1506,13 @@ export default function DSRPage() {
             <Table variant="simple" size={{ base: 'sm', md: 'md' }} minW={{ base: '900px', md: 'auto' }}>
               <Thead bg="gray.50" position="sticky" top={0} zIndex={1}>
                 <Tr>
-                  {activeCard === 'totalCalls' && (
+                  {(activeCard === 'totalCalls' || isOutcomeCard(activeCard)) && (
                     <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Time</Th>
                   )}
                   <Th
                     color={THEME_COLORS.dark}
                     position="sticky"
-                    left={activeCard === 'totalCalls' ? '60px' : 0}
+                    left={(activeCard === 'totalCalls' || isOutcomeCard(activeCard)) ? '60px' : 0}
                     zIndex={2}
                     bg="gray.50"
                     boxShadow="2px 0 4px rgba(0,0,0,0.08)"
@@ -1500,7 +1551,7 @@ export default function DSRPage() {
                       _hover={{ bg: `${THEME_COLORS.light}20` }}
                       transition="all 0.2s"
                     >
-                      {activeCard === 'totalCalls' && (
+                      {(activeCard === 'totalCalls' || isOutcomeCard(activeCard)) && (
                         <Td fontSize={{ base: 'xs', md: 'sm' }} whiteSpace="nowrap">
                           {new Date(lead.createdAt).toLocaleTimeString('en-IN', {
                             hour: '2-digit',
@@ -1517,7 +1568,7 @@ export default function DSRPage() {
                         _hover={{ textDecoration: 'underline', opacity: 0.8 }}
                         onClick={() => handleLeadNameClick((lead as any).leadId || lead.id)}
                         position="sticky"
-                        left={activeCard === 'totalCalls' ? '60px' : 0}
+                        left={(activeCard === 'totalCalls' || isOutcomeCard(activeCard)) ? '60px' : 0}
                         zIndex={1}
                         bg="white"
                         boxShadow="2px 0 4px rgba(0,0,0,0.06)"
@@ -1593,7 +1644,7 @@ export default function DSRPage() {
                             {lead.assignedTo?.name || 'Unassigned'}
                           </Td>
                           <Td whiteSpace="nowrap" fontSize={{ base: 'xs', md: 'sm' }}>
-                            {formatDate(new Date(lead.createdAt))}
+                            {formatDate(new Date((lead as any).leadCreatedAt || lead.createdAt))}
                           </Td>
                           <Td fontSize={{ base: 'xs', md: 'sm' }}>
                             {lead.campaign || '-'}

@@ -12,11 +12,12 @@
  *    - Total Calls: All calls made on selected_date
  *    NOTE: Follow-up and Overdue calls are mutually exclusive
  * 
- * 📌 LEADS OUTCOME PAGE → Lead table filtered by updatedAt = selected_date
- *    - Unqualified: status = 'unqualified' updated on selected_date
- *    - Unreachable: status = 'unreach' updated on selected_date
- *    - Won: status = 'won' updated on selected_date
- *    - Lost: status = 'lost' updated on selected_date
+ * 📌 LEADS OUTCOME PAGE → ActivityHistory filtered by createdAt = selected_date
+ *    - Unqualified: status_changed events where newValue = 'unqualified'
+ *    - Unreachable: status_changed events where newValue = 'unreach'
+ *    - Won: status_changed events where newValue = 'won'
+ *    - Lost: status_changed events where newValue = 'lost'
+ *    NOTE: Counts each status-change event (same lead winning twice = 2)
  * 
  * ✅ BEHAVIOR:
  * - Default date: TODAY
@@ -52,6 +53,13 @@ export interface DSRMetricsInput {
     attemptNumber: number;
     callStatus?: string | null;
   }>;
+  /** Status-change events from ActivityHistory (pre-filtered by date at DB level when provided) */
+  statusChanges?: Array<{
+    leadId: string;
+    newValue: string;
+    createdAt: Date | string;
+  }>;
+  statusChangesPreFiltered?: boolean;
   agentId?: string | null;
   timezone?: string;
   dateRange?: {
@@ -84,8 +92,44 @@ function getTotalByStatus(
 }
 
 /**
- * Get leads where status changed to a specific status today or in date range
- * This checks if updatedAt is in range AND current status matches
+ * Count status-change events to a specific outcome status today or in date range.
+ * Uses ActivityHistory events — each transition counts separately (same lead can count twice).
+ */
+function getStatusChangeEventCount(
+  statusChanges: DSRMetricsInput['statusChanges'],
+  statusName: string,
+  timezone: string = DEFAULT_TIMEZONE,
+  dateRange?: { startDate?: Date | string; endDate?: Date | string },
+  preFiltered = false
+): number {
+  if (!statusChanges || statusChanges.length === 0) return 0;
+
+  return statusChanges.filter((change) => {
+    if (change.newValue.toLowerCase() !== statusName.toLowerCase()) return false;
+
+    if (preFiltered) return true;
+
+    const changedDate = typeof change.createdAt === 'string' ? new Date(change.createdAt) : change.createdAt;
+
+    if (!dateRange || (!dateRange.startDate && !dateRange.endDate)) {
+      return isToday(change.createdAt, timezone);
+    }
+
+    const start = dateRange.startDate ? (typeof dateRange.startDate === 'string' ? new Date(dateRange.startDate) : dateRange.startDate) : null;
+    const end = dateRange.endDate ? (typeof dateRange.endDate === 'string' ? new Date(dateRange.endDate) : dateRange.endDate) : null;
+
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(23, 59, 59, 999);
+
+    if (start && end) return changedDate >= start && changedDate <= end;
+    if (start) return changedDate >= start;
+    if (end) return changedDate <= end;
+    return false;
+  }).length;
+}
+
+/**
+ * Legacy: count leads where current status matches and updatedAt is in range (unique leads only)
  */
 function getStatusChangeToday(
   leads: DSRMetricsInput['leads'],
@@ -457,11 +501,8 @@ function getNewLeadsToday(
  * - Total Calls: Unique leads called on selected date (New + Follow-up + Overdue = Total)
  * NOTE: Follow-up and Overdue calls are mutually exclusive, and all three sum to Total
  * 
- * LEADS OUTCOME PAGE (Lead filtered by updatedAt = selected_date):
- * - Unqualified: status = 'unqualified' updated on selected date
- * - Unreachable: status = 'unreachable' updated on selected date
- * - Won: status = 'won' updated on selected date
- * - Lost: status = 'lost' updated on selected date
+ * LEADS OUTCOME PAGE (ActivityHistory filtered by createdAt = selected_date):
+ * - Unqualified / Unreachable / Won / Lost: count status_changed events per newValue
  */
 export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   const timezone = input.timezone || DEFAULT_TIMEZONE;
@@ -597,18 +638,25 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
   console.log('  Sum (New+Follow+Overdue):', newCallsCount + followupCallsCount + overdueCallsHandled);
   console.log('  Match:', (newCallsCount + followupCallsCount + overdueCallsHandled) === totalCalls ? '✅' : '❌');
   
-  // LEADS OUTCOME PAGE METRICS - All filtered by lead updatedAt on selected date
-  // Unqualified: Leads with status='unqualified' updated on selected date
-  const totalUnqualified = getStatusChangeToday(leads, 'unqualified', timezone, dateRange);
-  
-  // Unreachable: Leads with status='unreach' updated on selected date
-  const totalUnreachable = getStatusChangeToday(leads, 'unreach', timezone, dateRange);
-  
-  // Won: Leads with status='won' updated on selected date
-  const totalWon = getStatusChangeToday(leads, 'won', timezone, dateRange);
-  
-  // Lost: Leads with status='lost' updated on selected date
-  const totalLost = getStatusChangeToday(leads, 'lost', timezone, dateRange);
+  // LEADS OUTCOME PAGE METRICS — ActivityHistory status_changed events in date range
+  const useStatusEvents = input.statusChanges && input.statusChanges.length > 0;
+  const statusChangesPreFiltered = input.statusChangesPreFiltered ?? useStatusEvents;
+
+  const totalUnqualified = useStatusEvents
+    ? getStatusChangeEventCount(input.statusChanges, 'unqualified', timezone, dateRange, statusChangesPreFiltered)
+    : getStatusChangeToday(leads, 'unqualified', timezone, dateRange);
+
+  const totalUnreachable = useStatusEvents
+    ? getStatusChangeEventCount(input.statusChanges, 'unreach', timezone, dateRange, statusChangesPreFiltered)
+    : getStatusChangeToday(leads, 'unreach', timezone, dateRange);
+
+  const totalWon = useStatusEvents
+    ? getStatusChangeEventCount(input.statusChanges, 'won', timezone, dateRange, statusChangesPreFiltered)
+    : getStatusChangeToday(leads, 'won', timezone, dateRange);
+
+  const totalLost = useStatusEvents
+    ? getStatusChangeEventCount(input.statusChanges, 'lost', timezone, dateRange, statusChangesPreFiltered)
+    : getStatusChangeToday(leads, 'lost', timezone, dateRange);
   
   return {
     newLeads: { 
@@ -644,6 +692,7 @@ export function calculateDSRMetrics(input: DSRMetricsInput): DSRMetricsResult {
 
 export {
   isToday,
+  getStatusChangeEventCount,
   getStatusChangeToday,
   getTotalByStatus,
   getFollowupsToday,
