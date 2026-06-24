@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
           where: agentId ? {
             Lead: { assignedToId: agentId },
           } : {},
-          select: { id: true, leadId: true, scheduledAt: true, createdAt: true, status: true },
+          select: { id: true, leadId: true, scheduledAt: true, createdAt: true, status: true, notes: true },
         }),
         // 3. Calls on selected date — also serves as callsOnDate; adds callerId for per-agent grouping
         prisma.callLog.findMany({
@@ -160,6 +160,8 @@ export async function GET(request: NextRequest) {
                 status: true,
                 source: true,
                 campaign: true,
+                customerRequirement: true,
+                notes: true,
                 createdAt: true,
                 assignedToId: true,
                 is_existing: true,
@@ -206,6 +208,8 @@ export async function GET(request: NextRequest) {
       assignedTo: activity.Lead?.User_Lead_assignedToIdToUser,
       createdAt: activity.Lead?.createdAt,
       is_existing: activity.Lead?.is_existing ?? false,
+      customerRequirement: activity.Lead?.customerRequirement ?? null,
+      notes: activity.Lead?.notes ?? null,
     }));
 
     console.log('[DSR Stats API] Parallel batch — leads:', allLeads.length,
@@ -320,6 +324,51 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Overdue-pending leads often have no call on the selected date — load remark fallbacks separately
+    const overduePendingIdsArray = Array.from(overduePendingLeadIds);
+    const latestCallRemarksByLeadId = new Map<string, string>();
+
+    if (overduePendingIdsArray.length > 0) {
+      const callsWithRemarks = await prisma.callLog.findMany({
+        where: {
+          leadId: { in: overduePendingIdsArray },
+          remarks: { not: null },
+        },
+        select: { leadId: true, remarks: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      for (const call of callsWithRemarks) {
+        const trimmed = call.remarks?.trim();
+        if (trimmed && !latestCallRemarksByLeadId.has(call.leadId)) {
+          latestCallRemarksByLeadId.set(call.leadId, trimmed);
+        }
+      }
+    }
+
+    const overdueFollowUpNotesByLeadId = new Map<string, string>();
+    if (overduePendingIdsArray.length > 0) {
+      const refNow = new Date();
+      const bestNoteByLead = new Map<string, { at: number; note: string }>();
+      for (const followup of allFollowups) {
+        if (!overduePendingLeadIds.has(followup.leadId)) continue;
+        if (followup.status === 'completed' || followup.status === 'cancelled') continue;
+        const scheduled = typeof followup.scheduledAt === 'string'
+          ? new Date(followup.scheduledAt)
+          : followup.scheduledAt;
+        if (scheduled >= refNow) continue;
+        const note = followup.notes?.trim();
+        if (!note) continue;
+        const at = scheduled.getTime();
+        const prev = bestNoteByLead.get(followup.leadId);
+        if (!prev || at > prev.at) {
+          bestNoteByLead.set(followup.leadId, { at, note });
+        }
+      }
+      bestNoteByLead.forEach((value, leadId) => {
+        overdueFollowUpNotesByLeadId.set(leadId, value.note);
+      });
+    }
+
     // Transform filteredLeads to match frontend expectations and add activity metadata
     // CRITICAL: These flags MUST match the exact KPI logic for perfect count matching
     const transformedFilteredLeads = filteredLeads.map((lead: any) => {
@@ -381,11 +430,22 @@ export async function GET(request: NextRequest) {
       const futureFollowups = leadFollowupDates.filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
       const nextFollowupAt = futureFollowups.length > 0 ? futureFollowups[0]?.toISOString() : null;
 
+      const pendingRemarks = isOverduePending
+        ? (
+            latestCallRemarksByLeadId.get(lead.id) ||
+            lead.customerRequirement?.trim() ||
+            lead.notes?.trim() ||
+            overdueFollowUpNotesByLeadId.get(lead.id) ||
+            null
+          )
+        : null;
+
       return {
         ...lead,
         assignedTo: lead.User_Lead_assignedToIdToUser,
         createdBy: lead.User_Lead_createdByIdToUser,
-        callLogRemarks: mostRecentCallRemarks,  // Add call log remarks
+        callLogRemarks: mostRecentCallRemarks,  // Selected-date call remarks (unchanged for other cards)
+        pendingRemarks,
         nextFollowupAt,
         User_Lead_assignedToIdToUser: undefined,
         User_Lead_createdByIdToUser: undefined,
@@ -496,6 +556,15 @@ export async function GET(request: NextRequest) {
 
     console.log('[DSR Stats API] Agent performance calculated. Preparing response...');
 
+    // Attach same-day call remarks to outcome events (lead fields already include customerRequirement/notes)
+    const callRemarksByLeadId = new Map(
+      transformedFilteredLeads.map((l: any) => [l.id, l.callLogRemarks ?? null])
+    );
+    const enrichedOutcomeEvents = outcomeEvents.map((e) => ({
+      ...e,
+      callLogRemarks: callRemarksByLeadId.get(e.leadId) ?? null,
+    }));
+
     // ── Calculate Average Overdue Waiting Time (for Overdue Pending leads) ─────────────────
     // For each lead in Overdue Pending (49 leads waiting right now),
     // calculate how long they've been waiting since their follow-up was due
@@ -581,7 +650,7 @@ export async function GET(request: NextRequest) {
           avgOverdueResponseTime: avgOverdueWaitingTimeMinutes,
         },
         filteredLeads: transformedFilteredLeads,
-        outcomeEvents,
+        outcomeEvents: enrichedOutcomeEvents,
         agentPerformanceData,
         agents,
         timestamp: new Date().toISOString(),

@@ -129,6 +129,19 @@ const OUTCOME_STATUS_MAP: Record<string, string> = {
 const isOutcomeCard = (card: string | null): boolean =>
   card !== null && (OUTCOME_CARDS as readonly string[]).includes(card);
 
+/** Remarks for outcome-card rows: lead reason/notes first, then same-day call log */
+function resolveOutcomeRemarks(event: {
+  customerRequirement?: string | null;
+  notes?: string | null;
+  callLogRemarks?: string | null;
+}): string | null {
+  for (const value of [event.customerRequirement, event.notes, event.callLogRemarks]) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
 // Types for API response
 interface Lead {
   id: string;
@@ -140,6 +153,7 @@ interface Lead {
   campaign?: string;
   remarks?: string;
   callLogRemarks?: string | null;
+  pendingRemarks?: string | null;
   createdAt: string;
   updatedAt: string;
   assignedTo?: {
@@ -188,6 +202,9 @@ interface OutcomeEvent {
   };
   createdAt?: string;
   is_existing?: boolean;
+  customerRequirement?: string | null;
+  notes?: string | null;
+  callLogRemarks?: string | null;
 }
 
 interface AgentPerformance {
@@ -584,7 +601,7 @@ export default function DSRPage() {
         assignedTo: e.assignedTo,
         is_existing: e.is_existing ?? false,
         currentStatus: e.currentStatus,
-        
+        callLogRemarks: resolveOutcomeRemarks(e),
       }));
     }
     
@@ -665,9 +682,12 @@ export default function DSRPage() {
     } else if (activeCard === 'overduePending') {
       // Overdue Pending: Leads with ONLY overdue follow-ups (no future) AND status is active
       // These are leads falling through the cracks that need immediate attention
-      filtered = filtered.filter(lead => 
-        lead.activityFlags?.isOverduePending === true
-      );
+      filtered = filtered
+        .filter(lead => lead.activityFlags?.isOverduePending === true)
+        .map(lead => ({
+          ...lead,
+          callLogRemarks: lead.pendingRemarks ?? lead.callLogRemarks,
+        }));
       console.log(`[DSR Filter] Overdue Pending: ${filtered.length} leads`);
       
     } else {
