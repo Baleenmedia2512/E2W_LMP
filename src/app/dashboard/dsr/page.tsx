@@ -66,6 +66,9 @@ import {
   HiChevronLeft,
   HiChevronRight,
   HiX,
+  HiSortAscending,
+  HiSortDescending,
+  HiSwitchVertical,
 } from 'react-icons/hi';
 import { useRouter } from 'next/navigation';
 import { formatDate } from '@/shared/lib/date-utils';
@@ -285,9 +288,14 @@ export default function DSRPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
   
-  // Sorting state
+  // Sorting state (Agent Performance table)
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Sorting state (Filtered Leads table)
+  type LeadSortCol = 'name' | 'phone' | 'email' | 'status' | 'source' | 'assignedTo' | 'createdAt' | 'campaign' | 'callStatus' | 'callAttempts' | 'duration' | 'time';
+  const [leadSortColumn, setLeadSortColumn] = useState<LeadSortCol | null>(null);
+  const [leadSortDirection, setLeadSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Debounced search
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -576,6 +584,7 @@ export default function DSRPage() {
         assignedTo: e.assignedTo,
         is_existing: e.is_existing ?? false,
         currentStatus: e.currentStatus,
+        
       }));
     }
     
@@ -680,12 +689,96 @@ export default function DSRPage() {
     return filtered;
   }, [apiLeads, activeCard, debouncedSearch, callLogs, outcomeEvents]);
   
+  // Normalize a source value for sort: strips leading numbers/dots so "1.JUSTDIAL" groups with "JUSTDIAL"
+  const normalizeForSort = (val: string) =>
+    val.replace(/^[\d.\s]+/, '').replace(/\s+/g, '').toLowerCase();
+
+  type LeadSortColFn = 'name' | 'phone' | 'email' | 'status' | 'source' | 'assignedTo' | 'createdAt' | 'campaign' | 'callStatus' | 'callAttempts' | 'duration' | 'time';
+
+  // Handle lead sort column click
+  const handleLeadSort = (column: LeadSortColFn) => {
+    if (leadSortColumn === column) {
+      if (leadSortDirection === 'asc') {
+        setLeadSortDirection('desc');
+      } else {
+        setLeadSortColumn(null);
+        setLeadSortDirection('asc');
+      }
+    } else {
+      setLeadSortColumn(column);
+      setLeadSortDirection('asc');
+    }
+  };
+
+  // Sorted filtered leads
+  const sortedFilteredLeads = useMemo(() => {
+    if (!leadSortColumn) return filteredLeads;
+    return [...filteredLeads].sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+
+      switch (leadSortColumn) {
+        case 'name':
+          aVal = (a.name ?? '').toLowerCase();
+          bVal = (b.name ?? '').toLowerCase();
+          break;
+        case 'phone':
+          aVal = (a.phone ?? '').replace(/\D/g, '');
+          bVal = (b.phone ?? '').replace(/\D/g, '');
+          break;
+        case 'email':
+          aVal = (a.email ?? '').toLowerCase();
+          bVal = (b.email ?? '').toLowerCase();
+          break;
+        case 'status':
+          aVal = (a.status ?? '').toLowerCase();
+          bVal = (b.status ?? '').toLowerCase();
+          break;
+        case 'source':
+          aVal = normalizeForSort(a.source ?? '');
+          bVal = normalizeForSort(b.source ?? '');
+          break;
+        case 'assignedTo':
+          aVal = (a.assignedTo?.name ?? 'zzz').toLowerCase();
+          bVal = (b.assignedTo?.name ?? 'zzz').toLowerCase();
+          break;
+        case 'createdAt':
+        case 'time':
+          aVal = new Date((a as any).leadCreatedAt || a.createdAt).getTime();
+          bVal = new Date((b as any).leadCreatedAt || b.createdAt).getTime();
+          break;
+        case 'campaign':
+          aVal = (a.campaign ?? '').toLowerCase();
+          bVal = (b.campaign ?? '').toLowerCase();
+          break;
+        case 'callStatus':
+          aVal = ((a as any).callStatus ?? '').toLowerCase();
+          bVal = ((b as any).callStatus ?? '').toLowerCase();
+          break;
+        case 'callAttempts':
+          aVal = (a as any).callAttempts ?? 0;
+          bVal = (b as any).callAttempts ?? 0;
+          break;
+        case 'duration':
+          aVal = (a as any).duration ?? 0;
+          bVal = (b as any).duration ?? 0;
+          break;
+      }
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return leadSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      const cmp = String(aVal).localeCompare(String(bVal));
+      return leadSortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredLeads, leadSortColumn, leadSortDirection]);
+
   // Paginated leads
   const paginatedLeads = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return filteredLeads.slice(startIndex, endIndex);
-  }, [filteredLeads, currentPage]);
+    return sortedFilteredLeads.slice(startIndex, endIndex);
+  }, [sortedFilteredLeads, currentPage]);
   
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   
@@ -1507,7 +1600,23 @@ export default function DSRPage() {
               <Thead bg="gray.50" position="sticky" top={0} zIndex={1}>
                 <Tr>
                   {(activeCard === 'totalCalls' || isOutcomeCard(activeCard)) && (
-                    <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Time</Th>
+                    <Th
+                      color={THEME_COLORS.dark}
+                      whiteSpace="nowrap"
+                      cursor="pointer"
+                      onClick={() => handleLeadSort('time')}
+                      _hover={{ bg: 'gray.100' }}
+                      userSelect="none"
+                    >
+                      <Flex align="center" gap={1}>
+                        Time
+                        {leadSortColumn === 'time' ? (
+                          <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                        ) : (
+                          <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                        )}
+                      </Flex>
+                    </Th>
                   )}
                   <Th
                     color={THEME_COLORS.dark}
@@ -1520,24 +1629,204 @@ export default function DSRPage() {
                     w={{ base: '120px', md: 'auto' }}
                     minW={{ base: '120px', md: '160px' }}
                     maxW={{ base: '120px', md: '220px' }}
+                    cursor="pointer"
+                    onClick={() => handleLeadSort('name')}
+                    _hover={{ bg: 'gray.100' }}
+                    userSelect="none"
                   >
-                    Lead Name
+                    <Flex align="center" gap={1}>
+                      Lead Name
+                      {leadSortColumn === 'name' ? (
+                        leadSortDirection === 'asc' ? (
+                          <Icon as={HiSortAscending} boxSize={4} color={THEME_COLORS.primary} />
+                        ) : (
+                          <Icon as={HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                        )
+                      ) : (
+                        <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                      )}
+                    </Flex>
                   </Th>
-                  <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Phone</Th>
-                  <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Email</Th>
+                  <Th
+                    color={THEME_COLORS.dark}
+                    whiteSpace="nowrap"
+                    cursor="pointer"
+                    onClick={() => handleLeadSort('phone')}
+                    _hover={{ bg: 'gray.100' }}
+                    userSelect="none"
+                  >
+                    <Flex align="center" gap={1}>
+                      Phone
+                      {leadSortColumn === 'phone' ? (
+                        <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                      ) : (
+                        <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                      )}
+                    </Flex>
+                  </Th>
+                  <Th
+                    color={THEME_COLORS.dark}
+                    whiteSpace="nowrap"
+                    cursor="pointer"
+                    onClick={() => handleLeadSort('email')}
+                    _hover={{ bg: 'gray.100' }}
+                    userSelect="none"
+                  >
+                    <Flex align="center" gap={1}>
+                      Email
+                      {leadSortColumn === 'email' ? (
+                        <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                      ) : (
+                        <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                      )}
+                    </Flex>
+                  </Th>
                   {activeCard === 'totalCalls' ? (
                     <>
-                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Call Status</Th>
-                      <Th color={THEME_COLORS.dark} isNumeric whiteSpace="nowrap">Attempt #</Th>
-                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Duration</Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('callStatus')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1}>
+                          Call Status
+                          {leadSortColumn === 'callStatus' ? (
+                            <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        isNumeric
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('callAttempts')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1} justify="flex-end">
+                          Attempt #
+                          {leadSortColumn === 'callAttempts' ? (
+                            <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('duration')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1}>
+                          Duration
+                          {leadSortColumn === 'duration' ? (
+                            <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
                     </>
                   ) : (
                     <>
-                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Status</Th>
-                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Source</Th>
-                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Assigned To</Th>
-                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Created Date</Th>
-                      <Th color={THEME_COLORS.dark} whiteSpace="nowrap">Campaign</Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('status')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1}>
+                          Status
+                          {leadSortColumn === 'status' ? (
+                            <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('source')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1}>
+                          Source
+                          {leadSortColumn === 'source' ? (
+                            leadSortDirection === 'asc' ? (
+                              <Icon as={HiSortAscending} boxSize={4} color={THEME_COLORS.primary} />
+                            ) : (
+                              <Icon as={HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                            )
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('assignedTo')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1}>
+                          Assigned To
+                          {leadSortColumn === 'assignedTo' ? (
+                            <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('createdAt')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1}>
+                          Created Date
+                          {leadSortColumn === 'createdAt' ? (
+                            <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
+                      <Th
+                        color={THEME_COLORS.dark}
+                        whiteSpace="nowrap"
+                        cursor="pointer"
+                        onClick={() => handleLeadSort('campaign')}
+                        _hover={{ bg: 'gray.100' }}
+                        userSelect="none"
+                      >
+                        <Flex align="center" gap={1}>
+                          Campaign
+                          {leadSortColumn === 'campaign' ? (
+                            <Icon as={leadSortDirection === 'asc' ? HiSortAscending : HiSortDescending} boxSize={4} color={THEME_COLORS.primary} />
+                          ) : (
+                            <Icon as={HiSwitchVertical} boxSize={4} color="gray.400" />
+                          )}
+                        </Flex>
+                      </Th>
                       <Th color={THEME_COLORS.dark} whiteSpace="nowrap" minW="480px">Remarks</Th>
                     </>
                   )}
