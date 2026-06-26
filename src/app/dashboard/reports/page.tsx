@@ -32,6 +32,7 @@ import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/swr';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import SourceWinAnalysisSection from '@/features/reports/components/SourceWinAnalysisSection';
 
 interface ReportsData {
   totalLeads: number;
@@ -379,6 +380,13 @@ export default function ReportsPage() {
           </CardBody>
         </Card>
       </SimpleGrid>
+
+      <SourceWinAnalysisSection
+        startDate={startDate}
+        endDate={endDate}
+        dateFilterType={dateFilterType}
+        selectedAgentId={selectedAgentId}
+      />
 
       {/* Call Attempts Distribution - US-9 */}
       <Card mb={6}>
