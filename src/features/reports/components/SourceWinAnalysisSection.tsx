@@ -422,7 +422,7 @@ export default function SourceWinAnalysisSection({
       <Flex justify="space-between" align="center" flexWrap="wrap" gap={4} mb={6} pb={5} borderBottom="1px solid" borderColor="gray.100">
         <Box>
           <Heading size="md" color="gray.800" fontWeight="bold">
-            Conversion Rate by Source
+            Conversion Rate by Contacts 
           </Heading>
           <Text fontSize="xs" color="gray.500" mt={1}>
             Click Conv. Rate header to toggle manual sorting order dynamically.

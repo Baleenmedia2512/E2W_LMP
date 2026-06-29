@@ -28,7 +28,7 @@ import {
   Flex,
   Select,
 } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/swr';
 import { useAuth } from '@/shared/lib/auth/auth-context';
@@ -63,8 +63,12 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
   const [dateFilterType, setDateFilterType] = useState<'created' | 'updated'>('created');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
+  
+  // Sorting states
+  const [sourceSortOrder, setSourceSortOrder] = useState<string>('percentage-desc');
+  const [statusSortOrder, setStatusSortOrder] = useState<string>('percentage-desc');
 
-  // Auto-select current user's ID if they are an Agent (not SuperAgent/Finance/HR/Procurement)
+  // Auto-select current user's ID if they are an Agent
   useEffect(() => {
     if (user && user.role === 'Agent') {
       setSelectedAgentId(user.id);
@@ -84,6 +88,56 @@ export default function ReportsPage() {
 
   const toast = useToast();
 
+  // Memoized sorted sources logic
+  const sortedSources = useMemo(() => {
+    if (!data || !data.leadsBySource) return [];
+
+    const sourceEntries = Object.entries(data.leadsBySource).map(([source, count]) => {
+      const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100 * 100) / 100 : 0;
+      return { source, count, percentage };
+    });
+
+    return sourceEntries.sort((a, b) => {
+      switch (sourceSortOrder) {
+        case 'percentage-desc':
+          return b.percentage - a.percentage;
+        case 'percentage-asc':
+          return a.percentage - b.percentage;
+        case 'alphabetical-asc':
+          return a.source.localeCompare(b.source);
+        case 'alphabetical-desc':
+          return b.source.localeCompare(a.source);
+        default:
+          return b.percentage - a.percentage;
+      }
+    });
+  }, [data, sourceSortOrder]);
+
+  // Memoized sorted status logic
+  const sortedStatuses = useMemo(() => {
+    if (!data || !data.leadsByStatus) return [];
+
+    const statusEntries = Object.entries(data.leadsByStatus).map(([status, count]) => {
+      const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100 * 100) / 100 : 0;
+      return { status, count, percentage };
+    });
+
+    return statusEntries.sort((a, b) => {
+      switch (statusSortOrder) {
+        case 'percentage-desc':
+          return b.percentage - a.percentage;
+        case 'percentage-asc':
+          return a.percentage - b.percentage;
+        case 'alphabetical-asc':
+          return a.status.localeCompare(b.status);
+        case 'alphabetical-desc':
+          return b.status.localeCompare(a.status);
+        default:
+          return b.percentage - a.percentage;
+      }
+    });
+  }, [data, statusSortOrder]);
+
   const handleExport = () => {
     toast({
       title: 'Export Feature',
@@ -94,8 +148,6 @@ export default function ReportsPage() {
       position: 'top',
     });
   };
-
-
 
   if (loading) {
     return (
@@ -317,46 +369,70 @@ export default function ReportsPage() {
         {/* Leads by Source */}
         <Card>
           <CardHeader>
-            <Heading size="md">Leads by Source</Heading>
+            <Flex justify="space-between" align="center">
+              <Heading size="md">Contact by Source</Heading>
+              <Select 
+                w="160px" 
+                size="sm" 
+                value={sourceSortOrder} 
+                onChange={(e) => setSourceSortOrder(e.target.value)}
+                bg="white"
+              >
+                <option value="percentage-desc">Highest % First</option>
+                <option value="percentage-asc">Lowest % First</option>
+                <option value="alphabetical-asc">A to Z</option>
+                <option value="alphabetical-desc">Z to A</option>
+              </Select>
+            </Flex>
           </CardHeader>
           <CardBody>
             <VStack spacing={3} align="stretch">
-              {Object.entries(data.leadsBySource).map(([source, count]) => {
-                const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100 * 100) / 100 : 0;
-                return (
-                  <Box key={source}>
-                    <HStack justify="space-between" mb={1}>
-                      <Text fontSize="sm" fontWeight="medium" textTransform="capitalize">{source}</Text>
-                      <HStack spacing={2}>
-                        <Text fontSize="sm" color="gray.600">{count} leads</Text>
-                        <Badge colorScheme="blue">{percentage}%</Badge>
-                      </HStack>
+              {sortedSources.map(({ source, count, percentage }) => (
+                <Box key={source}>
+                  <HStack justify="space-between" mb={1}>
+                    <Text fontSize="sm" fontWeight="medium" textTransform="capitalize">{source}</Text>
+                    <HStack spacing={2}>
+                      <Text fontSize="sm" color="gray.600">{count} leads</Text>
+                      <Badge colorScheme="blue">{percentage}%</Badge>
                     </HStack>
-                    <Progress 
-                      value={percentage} 
-                      size="sm" 
-                      colorScheme="blue" 
-                      borderRadius="full"
-                    />
-                  </Box>
-                );
-              })}
-              {Object.keys(data.leadsBySource).length === 0 && (
+                  </HStack>
+                  <Progress 
+                    value={percentage} 
+                    size="sm" 
+                    colorScheme="blue" 
+                    borderRadius="full"
+                  />
+                </Box>
+              ))}
+              {sortedSources.length === 0 && (
                 <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>No source data available</Text>
               )}
             </VStack>
           </CardBody>
         </Card>
 
-        {/* Leads by Status Distribution */}
+        {/* Contact by Status Distribution - Updated with manual sort identical to Source */}
         <Card>
           <CardHeader>
-            <Heading size="md">Leads by Status</Heading>
+            <Flex justify="space-between" align="center">
+              <Heading size="md">Contact by Status</Heading>
+              <Select 
+                w="160px" 
+                size="sm" 
+                value={statusSortOrder} 
+                onChange={(e) => setStatusSortOrder(e.target.value)}
+                bg="white"
+              >
+                <option value="percentage-desc">Highest % First</option>
+                <option value="percentage-asc">Lowest % First</option>
+                <option value="alphabetical-asc">A to Z</option>
+                <option value="alphabetical-desc">Z to A</option>
+              </Select>
+            </Flex>
           </CardHeader>
           <CardBody>
             <VStack spacing={3} align="stretch">
-              {Object.entries(data.leadsByStatus).map(([status, count]) => {
-                const percentage = data.totalLeads > 0 ? Math.round((count / data.totalLeads) * 100 * 100) / 100 : 0;
+              {sortedStatuses.map(({ status, count, percentage }) => {
                 const colorScheme = status === 'won' ? 'green' : status === 'lost' ? 'red' : status === 'qualified' ? 'purple' : 'blue';
                 return (
                   <Box key={status}>
@@ -376,6 +452,9 @@ export default function ReportsPage() {
                   </Box>
                 );
               })}
+              {sortedStatuses.length === 0 && (
+                <Text fontSize="sm" color="gray.500" textAlign="center" py={4}>No status data available</Text>
+              )}
             </VStack>
           </CardBody>
         </Card>
@@ -388,7 +467,7 @@ export default function ReportsPage() {
         selectedAgentId={selectedAgentId}
       />
 
-      {/* Call Attempts Distribution - US-9 */}
+      {/* Call Attempts Distribution */}
       <Card mb={6}>
         <CardHeader>
           <Heading size="md">Call Attempts Distribution</Heading>
@@ -476,8 +555,3 @@ export default function ReportsPage() {
     </Box>
   );
 }
-
-
-
-
-
