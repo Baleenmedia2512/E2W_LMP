@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { applySourceFilterToWhere } from '@/shared/constants/lead-sources';
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (source && source !== 'all') {
-      where.source = source;
+      applySourceFilterToWhere(where, source);
     }
 
     if (startDate || endDate) {

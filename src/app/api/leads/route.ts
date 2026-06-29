@@ -4,16 +4,7 @@ import { notifyLeadAssigned } from '@/shared/lib/utils/notification-service';
 import { normalizePhoneForStorage, isValidPhone, getPhoneValidationError } from '@/shared/utils/phone';
 import { randomUUID } from 'crypto';
 import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-utils';
-
-// Sources that are always INBOUND (customer reached out to you)
-const INBOUND_SOURCES = ['meta', 'website', 'whatsapp', 'online', 'referral', 'direct', 'consultant', 'indiamart', 'sulekha', 'just dial'];
-
-function deriveLeadCategory(source: string, explicitCategory?: string): string {
-  if (explicitCategory === 'INBOUND' || explicitCategory === 'OUTBOUND') {
-    return explicitCategory;
-  }
-  return INBOUND_SOURCES.includes(source?.toLowerCase()) ? 'INBOUND' : 'OUTBOUND';
-}
+import { applySourceFilterToWhere, deriveLeadCategory } from '@/shared/constants/lead-sources';
 
 // GET all leads with optional filters
 export async function GET(request: NextRequest) {
@@ -48,7 +39,7 @@ export async function GET(request: NextRequest) {
     const where: any = {};
 
     if (status) where.status = status;
-    if (source) where.source = source;
+    applySourceFilterToWhere(where, source);
     
     // Date range filter for createdAt
     if (startDate || endDate) {

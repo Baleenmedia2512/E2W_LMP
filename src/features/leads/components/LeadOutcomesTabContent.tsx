@@ -48,6 +48,7 @@ import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
 import { loadOutcomesTabPersistedFilters, usePersistOutcomesTabFilters } from '@/shared/hooks/useLeadsFilterPersistence';
+import { leadSourceMatchesFilter } from '@/shared/constants/lead-sources';
 
 interface Lead {
   id: string;
@@ -451,7 +452,7 @@ export default function LeadOutcomesTabContent({
 
     // Apply source filter
     if (sourceFilter !== 'all') {
-      filtered = filtered.filter(lead => lead.source?.toLowerCase() === sourceFilter.toLowerCase());
+      filtered = filtered.filter(lead => leadSourceMatchesFilter(lead.source, sourceFilter));
     }
 
     // Apply owner filter
@@ -547,7 +548,7 @@ export default function LeadOutcomesTabContent({
     
     // Apply source filter to historical won leads
     if (wonViewMode === 'historical' && sourceFilter !== 'all') {
-      wonLeads = wonLeads.filter(lead => lead.source?.toLowerCase() === sourceFilter.toLowerCase());
+      wonLeads = wonLeads.filter(lead => leadSourceMatchesFilter(lead.source, sourceFilter));
     }
     
     // Apply owner filter to historical won leads

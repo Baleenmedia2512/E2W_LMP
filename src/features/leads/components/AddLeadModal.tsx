@@ -36,6 +36,7 @@ import { ConfirmDialog, useConfirmDialog } from '@/shared/components/ConfirmDial
 import ValidatedInput from '@/shared/components/ValidatedInput';
 import ValidatedTextarea from '@/shared/components/ValidatedTextarea';
 import { normalizePhoneForStorage } from '@/shared/utils/phone';
+import { ALL_LEAD_SOURCES, deriveLeadCategory } from '@/shared/constants/lead-sources';
 
 interface AddLeadModalProps {
   isOpen: boolean;
@@ -447,8 +448,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
     } else {
       // Auto-derive lead_category when source changes
       if (name === 'source') {
-        const inboundSources = ['meta', 'website', 'whatsapp', 'online', 'referral', 'direct', 'consultant', 'indiamart', 'sulekha', 'just dial'];
-        const autoCategory = inboundSources.includes(value.toLowerCase()) ? 'INBOUND' : 'OUTBOUND';
+        const autoCategory = deriveLeadCategory(value);
         setFormData({
           ...formData,
           [name]: value,
@@ -508,6 +508,12 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
 
   const handleMenuSelect = (name: string, value: string) => {
     if (errors[name]) clearError(name);
+    if (name === 'source') {
+      const autoCategory = deriveLeadCategory(value);
+      if (errors.lead_category) clearError('lead_category');
+      setFormData((prev) => ({ ...prev, source: value, lead_category: autoCategory }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -641,7 +647,7 @@ export default function AddLeadModal({ isOpen, onClose, onSuccess }: AddLeadModa
                       {formData.source || 'Select a Source'}
                     </MenuButton>
                     <MenuList maxH="220px" overflowY="auto" zIndex={2000} fontSize={{ base: 'sm', md: 'md' }}>
-                      {['ChatGPT','Cold Call','Consultant','Direct','Google Maps','Indiamart','Just Dial','LG','Meta','Newspaper','Online','Own','Referral','Sulekha','Web App DB','Website','WhatsApp'].map(opt => (
+                      {ALL_LEAD_SOURCES.map(opt => (
                         <MenuItem
                           key={opt}
                           onClick={() => handleMenuSelect('source', opt)}

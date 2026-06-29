@@ -63,6 +63,7 @@ import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
 import { loadLeadsTabPersistedFilters, usePersistLeadsTabFilters } from '@/shared/hooks/useLeadsFilterPersistence';
+import { leadSourceMatchesFilter } from '@/shared/constants/lead-sources';
 
 // Modals are lazy-loaded — their JS is NOT bundled into the initial page chunk.
 // Each modal's code only downloads the first time a user actually opens it.
@@ -779,7 +780,7 @@ function LeadsTabContent({
       }
       
       // Source filter (case-insensitive)
-      if (hasSourceFilter && lead.source?.toLowerCase() !== sourceFilter.toLowerCase()) return false;
+      if (hasSourceFilter && !leadSourceMatchesFilter(lead.source, sourceFilter)) return false;
       
       // Client type filter
       if (hasClientTypeFilter) {

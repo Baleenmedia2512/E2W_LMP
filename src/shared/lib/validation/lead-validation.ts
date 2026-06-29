@@ -69,13 +69,8 @@ export const validateLeadSource = (source: string): ValidationResult => {
   if (!source || !source.trim()) {
     return { isValid: false, error: 'Source is required' };
   }
-  
-  const validSources = ['Website', 'Meta', 'Referral', 'Cold Call', 'WhatsApp', 'Direct'];
-  
-  if (!validSources.includes(source)) {
-    return { isValid: false, error: 'Invalid source value' };
-  }
-  
+
+  // Accept canonical UI sources and any legacy stored source values.
   return { isValid: true };
 };
 

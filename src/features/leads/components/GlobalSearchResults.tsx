@@ -19,6 +19,7 @@ import { HiUsers, HiCheckCircle } from 'react-icons/hi';
 import ModernLeadCard from './ModernLeadCard';
 import type { Lead, CallLog } from '@/shared/types';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { leadSourceMatchesFilter } from '@/shared/constants/lead-sources';
 
 // Lead Age Component
 const LeadAge = ({ createdAt }: { createdAt: string | Date }) => {
@@ -168,7 +169,7 @@ function GlobalSearchResults({
     // Apply global filters to search results
     let filtered = allLeads.filter(lead => {
       // Source filter
-      if (globalSourceFilter !== 'all' && lead.source?.toLowerCase() !== globalSourceFilter.toLowerCase()) {
+      if (globalSourceFilter !== 'all' && !leadSourceMatchesFilter(lead.source, globalSourceFilter)) {
         return false;
       }
       

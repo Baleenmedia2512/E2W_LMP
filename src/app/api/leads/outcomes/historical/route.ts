@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { leadSourceMatchesFilter } from '@/shared/constants/lead-sources';
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (source && source !== 'all') {
-        if (lead.source !== source) continue;
+        if (!leadSourceMatchesFilter(lead.source, source)) continue;
       }
 
       // Add or update lead with count

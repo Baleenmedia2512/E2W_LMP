@@ -27,6 +27,7 @@ import { useAuth } from '@/shared/lib/auth/auth-context';
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/swr';
 import { loadLeadsPagePersistedFilters, usePersistLeadsPageFilters } from '@/shared/hooks/useLeadsFilterPersistence';
+import { getLeadSourcesForCategory } from '@/shared/constants/lead-sources';
 
 export default function UnifiedLeadsPage() {
   const searchParams = useSearchParams();
@@ -52,18 +53,8 @@ export default function UnifiedLeadsPage() {
   const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>(leadsInit.globalOwnerFilter);
   const [addLeadHandler, setAddLeadHandler] = useState<(() => void) | null>(null);
   
-  // Source categorization
-  const inboundSources = ['Website', 'Meta', 'Online', 'Referral', 'Direct', 'WhatsApp', 'Consultant', 'Indiamart', 'Just Dial', 'Sulekha'];
-  const outboundSources = ['Cold Call', 'ChatGPT', 'Google Maps', 'Web App DB', 'LG', 'Newspaper', 'Own'];
-  
-  // Get available sources based on lead category filter
-  const getAvailableSources = () => {
-    if (globalLeadCategoryFilter === 'inbound') return inboundSources;
-    if (globalLeadCategoryFilter === 'outbound') return outboundSources;
-    return [...inboundSources, ...outboundSources].sort();
-  };
-  
-  const availableSources = getAvailableSources();
+  // Available sources based on lead category filter (7 canonical sources only)
+  const availableSources = getLeadSourcesForCategory(globalLeadCategoryFilter);
   // Fetch users directly so the Owner filter is populated immediately on mount
   const { data: usersData } = useSWR('/api/users', fetcher, {
     revalidateOnFocus: false,
