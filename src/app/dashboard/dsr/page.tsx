@@ -119,6 +119,13 @@ const formatMinutesToReadable = (minutes: number): string => {
   return `${days} days`;
 };
 
+const toLocalDateString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Outcome cards use ActivityHistory events (same lead can appear multiple times)
 const OUTCOME_CARDS = ['won', 'lost', 'unqualified', 'unreachable'] as const;
 const OUTCOME_STATUS_MAP: Record<string, string> = {
@@ -320,6 +327,31 @@ export default function DSRPage() {
     dsrInit.leadSortColumn as LeadSortCol | null
   );
   const [leadSortDirection, setLeadSortDirection] = useState<'asc' | 'desc'>(dsrInit.leadSortDirection);
+
+  const activeRangePreset = useMemo<'last7' | 'last30' | null>(() => {
+    if (viewMode !== 'range' || !startDate || !endDate) return null;
+
+    const localToday = toLocalDateString(new Date());
+    if (endDate !== localToday) return null;
+
+    const start = new Date(`${startDate}T12:00:00`);
+    const end = new Date(`${endDate}T12:00:00`);
+    const spanDays = Math.round((end.getTime() - start.getTime()) / 86400000);
+
+    if (spanDays === 6) return 'last7';
+    if (spanDays === 29) return 'last30';
+    return null;
+  }, [viewMode, startDate, endDate]);
+
+  const applyQuickRangePreset = (days: 7 | 30) => {
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(end.getDate() - (days === 7 ? 6 : 29));
+    setStartDate(toLocalDateString(start));
+    setEndDate(toLocalDateString(end));
+    setCurrentPage(1);
+    setActiveCard(null);
+  };
 
   usePersistDSRFilters({
     viewMode,
@@ -1085,44 +1117,26 @@ export default function DSRPage() {
                     <Text fontSize="sm" fontWeight="semibold" mb={2} color={THEME_COLORS.medium}>
                       Quick Ranges
                     </Text>
-                    <HStack spacing={3}>
+                    <ButtonGroup size={{ base: 'xs', md: 'sm' }} isAttached variant="outline">
                       <Button
-                        onClick={() => {
-                          const end = new Date();
-                          const start = new Date(end);
-                          start.setDate(end.getDate() - 6);
-                          setStartDate(start.toISOString().split('T')[0]);
-                          setEndDate(end.toISOString().split('T')[0]);
-                          setCurrentPage(1);
-                          setActiveCard(null);
-                        }}
-                        colorScheme="gray"
-                        variant="outline"
-                        size="sm"
-                        borderColor={THEME_COLORS.light}
-                        _hover={{ borderColor: THEME_COLORS.primary, bg: `${THEME_COLORS.primary}10` }}
+                        onClick={() => applyQuickRangePreset(7)}
+                        bg={activeRangePreset === 'last7' ? THEME_COLORS.primary : 'white'}
+                        color={activeRangePreset === 'last7' ? 'white' : THEME_COLORS.dark}
+                        _hover={{ bg: activeRangePreset === 'last7' ? THEME_COLORS.medium : 'gray.100' }}
+                        fontWeight={activeRangePreset === 'last7' ? 'bold' : 'normal'}
                       >
                         Last 7 Days
                       </Button>
                       <Button
-                        onClick={() => {
-                          const end = new Date();
-                          const start = new Date(end);
-                          start.setDate(end.getDate() - 29);
-                          setStartDate(start.toISOString().split('T')[0]);
-                          setEndDate(end.toISOString().split('T')[0]);
-                          setCurrentPage(1);
-                          setActiveCard(null);
-                        }}
-                        colorScheme="gray"
-                        variant="outline"
-                        size="sm"
-                        borderColor={THEME_COLORS.light}
-                        _hover={{ borderColor: THEME_COLORS.primary, bg: `${THEME_COLORS.primary}10` }}
+                        onClick={() => applyQuickRangePreset(30)}
+                        bg={activeRangePreset === 'last30' ? THEME_COLORS.primary : 'white'}
+                        color={activeRangePreset === 'last30' ? 'white' : THEME_COLORS.dark}
+                        _hover={{ bg: activeRangePreset === 'last30' ? THEME_COLORS.medium : 'gray.100' }}
+                        fontWeight={activeRangePreset === 'last30' ? 'bold' : 'normal'}
                       >
                         Last 30 Days
                       </Button>
-                    </HStack>
+                    </ButtonGroup>
                   </Box>
                 </>
               )}

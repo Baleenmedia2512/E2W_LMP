@@ -123,11 +123,15 @@ export default function UnifiedLeadsPage() {
   const handleLeadOutcomesCountChange = (count: number) => {
     setLeadOutcomesCount(count);
   };
-  
-  // Reset source filter when lead category changes
-  useEffect(() => {
-    setGlobalSourceFilter('all');
-  }, [globalLeadCategoryFilter]);
+
+  const handleLeadCategoryFilterChange = (value: string) => {
+    setGlobalLeadCategoryFilter(value);
+    setGlobalSourceFilter((current) => {
+      if (current === 'all') return current;
+      const allowed = getLeadSourcesForCategory(value);
+      return allowed.includes(current) ? current : 'all';
+    });
+  };
   
   // Reset all global filters
   const handleResetGlobalFilters = () => {
@@ -197,7 +201,7 @@ export default function UnifiedLeadsPage() {
           <Flex gap={2} flexWrap="wrap" align="center">
             <Select
               value={globalLeadCategoryFilter}
-              onChange={(e) => setGlobalLeadCategoryFilter(e.target.value)}
+              onChange={(e) => handleLeadCategoryFilterChange(e.target.value)}
               size="sm"
               flex={{ base: '1 1 calc(50% - 4px)', sm: '1 1 auto' }}
               maxW={{ sm: '160px' }}
