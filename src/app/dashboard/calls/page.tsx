@@ -45,6 +45,7 @@ import { formatDateTime, formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import CallRecordingPlayer from '@/shared/components/CallRecordingPlayer';
 import { useCallLogs } from '@/shared/hooks/useLeadsData';
+import { loadCallsPersistedFilters, usePersistCallsFilters } from '@/shared/hooks/useCallsFilterPersistence';
 import { LeadCardSkeleton } from '@/shared/components/SkeletonLoaders';
 
 interface CallLog {
@@ -84,10 +85,13 @@ export default function CallsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlDateFilter = searchParams.get('date');
+
+  const initialCallsFiltersRef = useRef(loadCallsPersistedFilters(urlDateFilter));
+  const callsInit = initialCallsFiltersRef.current;
   
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState<string>(urlDateFilter || 'all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState(callsInit.statusFilter);
+  const [dateFilter, setDateFilter] = useState<string>(callsInit.dateFilter);
+  const [searchQuery, setSearchQuery] = useState(callsInit.searchQuery);
   
   // Fetch call logs using SWR for instant cached loading
   const { callLogs, isLoading, isValidating, error: fetchError } = useCallLogs(statusFilter);
@@ -96,7 +100,9 @@ export default function CallsPage() {
   const [selectedRemark, setSelectedRemark] = useState<string | null>(null);
   const { isOpen: isHistoryOpen, onOpen: onHistoryOpen, onClose: onHistoryClose } = useDisclosure();
   const [selectedLeadHistory, setSelectedLeadHistory] = useState<CallLog[]>([]);
-  const [viewMode, setViewMode] = useState<'table' | 'tile'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'tile'>(callsInit.viewMode);
+
+  usePersistCallsFilters({ statusFilter, dateFilter, searchQuery, viewMode });
 
   // Refs for scroll synchronization
   const topScrollRef = useRef<HTMLDivElement>(null);

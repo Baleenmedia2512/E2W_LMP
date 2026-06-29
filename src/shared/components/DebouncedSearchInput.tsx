@@ -7,6 +7,7 @@ import { HiSearch } from 'react-icons/hi';
 interface DebouncedSearchInputProps {
   placeholder: string;
   onSearch: (value: string) => void;
+  defaultValue?: string;
   debounceMs?: number;
   size?: 'sm' | 'md' | 'lg';
   maxW?: any;
@@ -15,11 +16,12 @@ interface DebouncedSearchInputProps {
 function DebouncedSearchInput({
   placeholder,
   onSearch,
+  defaultValue = '',
   debounceMs = 300,
   size = 'md',
   maxW,
 }: DebouncedSearchInputProps) {
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState(defaultValue);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle input change with immediate visual feedback

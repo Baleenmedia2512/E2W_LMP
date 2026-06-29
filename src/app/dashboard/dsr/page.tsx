@@ -77,6 +77,7 @@ import { useResponsive } from '@/shared/hooks/useResponsive';
 import { useRoleBasedAccess } from '@/shared/hooks/useRoleBasedAccess';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useDSRData, useDSRCallLogs } from '@/shared/hooks/useLeadsData';
+import { loadDSRPersistedFilters, usePersistDSRFilters } from '@/shared/hooks/useDSRFilterPersistence';
 import { DashboardStatSkeleton, LeadCardSkeleton } from '@/shared/components/SkeletonLoaders';
 
 // Custom hook for debouncing
@@ -244,23 +245,27 @@ export default function DSRPage() {
   // Get today's date and set default to TODAY
   const today = new Date();
   const todayString = today.toISOString().split('T')[0];
+
+  const defaultAgentId = isSalesAgent() && user?.id ? user.id : 'all';
+  const lockedAgentId = isSalesAgent() && user?.id ? user.id : undefined;
+  const initialDSRFiltersRef = useRef(
+    loadDSRPersistedFilters(todayString, defaultAgentId, lockedAgentId)
+  );
+  const dsrInit = initialDSRFiltersRef.current;
   
   // View mode state - 'single' for single date (default), 'range' for date range
-  const [viewMode, setViewMode] = useState<'single' | 'range'>('single');
+  const [viewMode, setViewMode] = useState<'single' | 'range'>(dsrInit.viewMode);
   
   // Filter state - DEFAULT TO TODAY (single date selection)
-  const [selectedDate, setSelectedDate] = useState(todayString);
+  const [selectedDate, setSelectedDate] = useState(dsrInit.selectedDate);
   
   // Date range state (used only when viewMode === 'range')
-  const [startDate, setStartDate] = useState(todayString);
-  const [endDate, setEndDate] = useState(todayString);
+  const [startDate, setStartDate] = useState(dsrInit.startDate);
+  const [endDate, setEndDate] = useState(dsrInit.endDate);
   
-  const [selectedAgentId, setSelectedAgentId] = useState(() =>
-    // Sales Agent always sees only their own data
-    isSalesAgent() && user?.id ? user.id : 'all'
-  );
-  const [activeCard, setActiveCard] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState(dsrInit.selectedAgentId);
+  const [activeCard, setActiveCard] = useState<string | null>(dsrInit.activeCard);
+  const [searchQuery, setSearchQuery] = useState(dsrInit.searchQuery);
   
   // Fetch DSR data using SWR hooks - pass appropriate dates based on view mode
   const { stats, filteredLeads: apiLeads, outcomeEvents, agentPerformanceData, agents, 
@@ -302,17 +307,34 @@ export default function DSRPage() {
   // ──────────────────────────────────────────────────────────────────────────────────────
   
   // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(dsrInit.currentPage);
   const itemsPerPage = 50;
   
   // Sorting state (Agent Performance table)
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortColumn, setSortColumn] = useState<string | null>(dsrInit.sortColumn);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(dsrInit.sortDirection);
 
   // Sorting state (Filtered Leads table)
   type LeadSortCol = 'name' | 'phone' | 'email' | 'status' | 'source' | 'assignedTo' | 'createdAt' | 'campaign' | 'callStatus' | 'callAttempts' | 'duration' | 'time';
-  const [leadSortColumn, setLeadSortColumn] = useState<LeadSortCol | null>(null);
-  const [leadSortDirection, setLeadSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [leadSortColumn, setLeadSortColumn] = useState<LeadSortCol | null>(
+    dsrInit.leadSortColumn as LeadSortCol | null
+  );
+  const [leadSortDirection, setLeadSortDirection] = useState<'asc' | 'desc'>(dsrInit.leadSortDirection);
+
+  usePersistDSRFilters({
+    viewMode,
+    selectedDate,
+    startDate,
+    endDate,
+    selectedAgentId,
+    activeCard,
+    searchQuery,
+    currentPage,
+    sortColumn,
+    sortDirection,
+    leadSortColumn,
+    leadSortDirection,
+  });
   
   // Debounced search
   const debouncedSearch = useDebounce(searchQuery, 300);

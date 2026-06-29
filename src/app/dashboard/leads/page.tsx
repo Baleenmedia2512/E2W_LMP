@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
+import { useState, useEffect, useCallback, useTransition, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -26,21 +26,30 @@ import DebouncedSearchInput from '@/shared/components/DebouncedSearchInput';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/swr';
+import { loadLeadsPagePersistedFilters, usePersistLeadsPageFilters } from '@/shared/hooks/useLeadsFilterPersistence';
 
 export default function UnifiedLeadsPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+
+  const lockedOwnerId = user?.role === 'Sales Agent' && user?.id ? user.id : undefined;
+  const urlTabIndex = searchParams.get('tab') === 'outcomes' ? 1 : undefined;
+  const initialLeadsFiltersRef = useRef(
+    loadLeadsPagePersistedFilters(lockedOwnerId, urlTabIndex)
+  );
+  const leadsInit = initialLeadsFiltersRef.current;
+
+  const [globalSearchQuery, setGlobalSearchQuery] = useState(leadsInit.globalSearchQuery);
   const [leadsCount, setLeadsCount] = useState(0);
   const [leadOutcomesCount, setLeadOutcomesCount] = useState(0);
   const [isPending, startTransition] = useTransition();
   
   // Global filter states - shared across both tabs
-  const [globalLeadCategoryFilter, setGlobalLeadCategoryFilter] = useState<string>('all');
-  const [globalClientTypeFilter, setGlobalClientTypeFilter] = useState<string>('all');
-  const [globalSourceFilter, setGlobalSourceFilter] = useState<string>('all');
-  const [globalAttemptsFilter, setGlobalAttemptsFilter] = useState<string>('all');
-  const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>('all');
+  const [globalLeadCategoryFilter, setGlobalLeadCategoryFilter] = useState<string>(leadsInit.globalLeadCategoryFilter);
+  const [globalClientTypeFilter, setGlobalClientTypeFilter] = useState<string>(leadsInit.globalClientTypeFilter);
+  const [globalSourceFilter, setGlobalSourceFilter] = useState<string>(leadsInit.globalSourceFilter);
+  const [globalAttemptsFilter, setGlobalAttemptsFilter] = useState<string>(leadsInit.globalAttemptsFilter);
+  const [globalOwnerFilter, setGlobalOwnerFilter] = useState<string>(leadsInit.globalOwnerFilter);
   const [addLeadHandler, setAddLeadHandler] = useState<(() => void) | null>(null);
   
   // Source categorization
@@ -68,14 +77,24 @@ export default function UnifiedLeadsPage() {
     if (usersData?.data) setAvailableOwners(usersData.data);
   }, [usersData?.data]);
   
-  // Initialize tab based on query parameter or search state
+  // Initialize tab based on query parameter or persisted state
   const getInitialTab = () => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'outcomes') return 1;
-    return 0;
+    return leadsInit.activeTabIndex;
   };
   
   const [activeTabIndex, setActiveTabIndex] = useState(getInitialTab());
+
+  usePersistLeadsPageFilters({
+    globalSearchQuery,
+    globalLeadCategoryFilter,
+    globalClientTypeFilter,
+    globalSourceFilter,
+    globalAttemptsFilter,
+    globalOwnerFilter,
+    activeTabIndex,
+  });
   // Component pre-mounted for instant tab switching
 
   const handleTabChange = (index: number) => {
@@ -177,6 +196,7 @@ export default function UnifiedLeadsPage() {
           <DebouncedSearchInput
             placeholder="🔍 Search across all leads (name, phone, email)..."
             onSearch={handleGlobalSearch}
+            defaultValue={globalSearchQuery}
             debounceMs={400}
             size="md"
             maxW={{ base: 'full', md: '500px' }}

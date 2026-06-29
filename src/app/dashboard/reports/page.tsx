@@ -28,10 +28,11 @@ import {
   Flex,
   Select,
 } from '@chakra-ui/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/swr';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { loadReportsPersistedFilters, usePersistReportsFilters } from '@/shared/hooks/useReportsFilterPersistence';
 import SourceWinAnalysisSection from '@/features/reports/components/SourceWinAnalysisSection';
 
 interface ReportsData {
@@ -55,18 +56,28 @@ interface ReportsData {
 
 export default function ReportsPage() {
   const { user } = useAuth();
-  const [startDate, setStartDate] = useState<string>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 7); // 7 days ago
-    return date.toISOString().split('T')[0] || '';
-  });
-  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0] || '');
-  const [dateFilterType, setDateFilterType] = useState<'created' | 'updated'>('created');
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
+
+  const lockedAgentId = user?.role === 'Agent' && user?.id ? user.id : undefined;
+  const initialReportsFiltersRef = useRef(loadReportsPersistedFilters(lockedAgentId));
+  const reportsInit = initialReportsFiltersRef.current;
+
+  const [startDate, setStartDate] = useState<string>(reportsInit.startDate);
+  const [endDate, setEndDate] = useState<string>(reportsInit.endDate);
+  const [dateFilterType, setDateFilterType] = useState<'created' | 'updated'>(reportsInit.dateFilterType);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(reportsInit.selectedAgentId);
   
   // Sorting states
-  const [sourceSortOrder, setSourceSortOrder] = useState<string>('percentage-desc');
-  const [statusSortOrder, setStatusSortOrder] = useState<string>('percentage-desc');
+  const [sourceSortOrder, setSourceSortOrder] = useState<string>(reportsInit.sourceSortOrder);
+  const [statusSortOrder, setStatusSortOrder] = useState<string>(reportsInit.statusSortOrder);
+
+  usePersistReportsFilters({
+    startDate,
+    endDate,
+    dateFilterType,
+    selectedAgentId,
+    sourceSortOrder,
+    statusSortOrder,
+  });
 
   // Auto-select current user's ID if they are an Agent
   useEffect(() => {

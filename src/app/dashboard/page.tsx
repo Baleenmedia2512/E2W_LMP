@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Box,
   SimpleGrid,
@@ -42,6 +42,7 @@ import useSWR from 'swr';
 import AddLeadModal from '@/features/leads/components/AddLeadModal';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useRoleBasedAccess } from '@/shared/hooks/useRoleBasedAccess';
+import { loadDashboardPersistedFilters, usePersistDashboardFilters } from '@/shared/hooks/useDashboardFilterPersistence';
 
 const StatCard = ({
   label,
@@ -194,20 +195,28 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { isSalesAgent, isTeamLead, isSuperAgent } = useRoleBasedAccess();
   const { isOpen: isAddLeadOpen, onOpen: onAddLeadOpen, onClose: onAddLeadClose } = useDisclosure();
+
+  const lockedUserId = isSalesAgent() && user?.id ? user.id : undefined;
+  const initialDashboardFiltersRef = useRef(loadDashboardPersistedFilters(lockedUserId));
+  const dashboardInit = initialDashboardFiltersRef.current;
   
-  const [startDate, setStartDate] = useState<string>(() => {
-    // Default to Today
-    return new Date().toISOString().split('T')[0] || '';
-  });
-  const [endDate, setEndDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0] || '';
-  });
-  const [dateRangeLabel, setDateRangeLabel] = useState<string>('Today');
-  const [hasDateFilter, setHasDateFilter] = useState<boolean>(true);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [startDate, setStartDate] = useState<string>(dashboardInit.startDate);
+  const [endDate, setEndDate] = useState<string>(dashboardInit.endDate);
+  const [dateRangeLabel, setDateRangeLabel] = useState<string>(dashboardInit.dateRangeLabel);
+  const [hasDateFilter, setHasDateFilter] = useState<boolean>(dashboardInit.hasDateFilter);
+  const [autoRefresh, setAutoRefresh] = useState(dashboardInit.autoRefresh);
   
   // User filtering state
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(dashboardInit.selectedUserId);
+
+  usePersistDashboardFilters({
+    startDate,
+    endDate,
+    dateRangeLabel,
+    hasDateFilter,
+    autoRefresh,
+    selectedUserId,
+  });
 
   // Auto-set userId for Sales Agents (they can only see their own data)
   useEffect(() => {

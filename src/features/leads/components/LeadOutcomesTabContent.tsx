@@ -47,6 +47,7 @@ import { formatDate } from '@/shared/lib/date-utils';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
+import { loadOutcomesTabPersistedFilters, usePersistOutcomesTabFilters } from '@/shared/hooks/useLeadsFilterPersistence';
 
 interface Lead {
   id: string;
@@ -105,6 +106,9 @@ export default function LeadOutcomesTabContent({
   const initialDateFilter = searchParams.get('date') as 'all' | 'today' | 'week' | 'month' || 'all';
   const initialStatusFilter = searchParams.get('status') || null;
   
+  const initialOutcomesTabFiltersRef = useRef(loadOutcomesTabPersistedFilters());
+  const outcomesTabInit = initialOutcomesTabFiltersRef.current;
+
   // Use global filters instead of local ones
   const searchQuery = globalSearchQuery;
   const leadCategoryFilter = globalLeadCategoryFilter;
@@ -114,7 +118,7 @@ export default function LeadOutcomesTabContent({
   const dateRangeFilter = globalDateRangeFilter as 'all' | 'today' | 'week' | 'month' | 'custom';
   
   // Local filter specific to Lead Outcome tab
-  const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>('all');
+  const [outcomeStatusFilter, setOutcomeStatusFilter] = useState<string>(outcomesTabInit.outcomeStatusFilter);
   
   // Custom date range is still local (for custom date picker)
   const [startDate, setStartDate] = useState('');
@@ -124,7 +128,7 @@ export default function LeadOutcomesTabContent({
   const [highlightStatus, setHighlightStatus] = useState<string | null>(initialStatusFilter);
   
   // Won section view mode: 'current' or 'historical'
-  const [wonViewMode, setWonViewMode] = useState<'current' | 'historical'>('current');
+  const [wonViewMode, setWonViewMode] = useState<'current' | 'historical'>(outcomesTabInit.wonViewMode);
   const [historicalWonLeads, setHistoricalWonLeads] = useState<Lead[]>([]);
   const [loadingHistoricalWon, setLoadingHistoricalWon] = useState(false);
   
@@ -238,11 +242,12 @@ export default function LeadOutcomesTabContent({
   // Sorting state for each section (default: newest first)
   const [sortConfig, setSortConfig] = useState<{
     [key: string]: { field: string; direction: 'asc' | 'desc' };
-  }>({
-    unqualified: { field: 'updatedAt', direction: 'desc' },
-    unreach: { field: 'updatedAt', direction: 'desc' },
-    won: { field: 'updatedAt', direction: 'desc' },
-    lost: { field: 'updatedAt', direction: 'desc' },
+  }>(outcomesTabInit.sortConfig);
+
+  usePersistOutcomesTabFilters({
+    outcomeStatusFilter,
+    wonViewMode,
+    sortConfig,
   });
 
   // Pagination state for each section (100 leads per page)

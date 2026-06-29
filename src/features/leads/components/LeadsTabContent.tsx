@@ -62,6 +62,7 @@ import { openWhatsApp, isValidWhatsAppPhone } from '@/shared/utils/whatsapp';
 import { formatPhoneForDisplay } from '@/shared/utils/phone';
 import { useAuth } from '@/shared/lib/auth/auth-context';
 import { useScrollRestoration } from '@/shared/hooks/useScrollRestoration';
+import { loadLeadsTabPersistedFilters, usePersistLeadsTabFilters } from '@/shared/hooks/useLeadsFilterPersistence';
 
 // Modals are lazy-loaded — their JS is NOT bundled into the initial page chunk.
 // Each modal's code only downloads the first time a user actually opens it.
@@ -354,6 +355,9 @@ function LeadsTabContent({
   
   // Get filter from URL if present
   const urlFilter = searchParams.get('filter');
+
+  const initialLeadsTabFiltersRef = useRef(loadLeadsTabPersistedFilters(urlFilter));
+  const leadsTabInit = initialLeadsTabFiltersRef.current;
   
   // Use global filters instead of local ones
   const searchQuery = globalSearchQuery;
@@ -368,22 +372,12 @@ function LeadsTabContent({
                           globalDateRangeFilter;
   
   // Status filter is specific to Leads tab, so keep it local
-  // Status filter is specific to Leads tab, so keep it local
-  const [statusFilter, setStatusFilter] = useState<string>(() => {
-    // Apply filter from URL (e.g., 'new', 'won', 'overdue', 'today')
-    if (urlFilter) {
-      // Handle both status filters and special filters like 'overdue', 'today'
-      if (['new', 'won', 'qualified', 'unqualified', 'unreachable', 'lost', 'overdue', 'scheduled', 'today'].includes(urlFilter)) {
-        return urlFilter;
-      }
-    }
-    return 'all';
-  });
+  const [statusFilter, setStatusFilter] = useState<string>(leadsTabInit.statusFilter);
   
   // Remove local source, client type, date range, and attempts filters - now using global
   // Keep only tab-specific filters
-  const [assignedToMe, setAssignedToMe] = useState<boolean>(false);
-  const [showOnlyToday, setShowOnlyToday] = useState<boolean>(true); // Default: show only today's leads
+  const [assignedToMe, setAssignedToMe] = useState<boolean>(leadsTabInit.assignedToMe);
+  const [showOnlyToday, setShowOnlyToday] = useState<boolean>(leadsTabInit.showOnlyToday); // Default: show only today's leads
   const [visibleCount, setVisibleCount] = useState<number>(50); // Lazy loading: initially show 50 leads
   const [visibleNewLeadsCount, setVisibleNewLeadsCount] = useState<number>(15); // Lazy loading for New Leads section
   const [selectedLead, setSelectedLead] = useState<{ id: string; name: string } | null>(null);
@@ -445,10 +439,20 @@ function LeadsTabContent({
   const [scrollRestored, setScrollRestored] = useState(false);
   
   // Section collapse state - Accordion behavior: all start collapsed, only one open at a time
-  const [isOverdueCollapsed, setIsOverdueCollapsed] = useState(true);
-  const [isScheduledCollapsed, setIsScheduledCollapsed] = useState(true);
-  const [isNewLeadsCollapsed, setIsNewLeadsCollapsed] = useState(true);
-  const [isStatusFilteredCollapsed, setIsStatusFilteredCollapsed] = useState(true);
+  const [isOverdueCollapsed, setIsOverdueCollapsed] = useState(leadsTabInit.isOverdueCollapsed);
+  const [isScheduledCollapsed, setIsScheduledCollapsed] = useState(leadsTabInit.isScheduledCollapsed);
+  const [isNewLeadsCollapsed, setIsNewLeadsCollapsed] = useState(leadsTabInit.isNewLeadsCollapsed);
+  const [isStatusFilteredCollapsed, setIsStatusFilteredCollapsed] = useState(leadsTabInit.isStatusFilteredCollapsed);
+
+  usePersistLeadsTabFilters({
+    statusFilter,
+    assignedToMe,
+    showOnlyToday,
+    isOverdueCollapsed,
+    isScheduledCollapsed,
+    isNewLeadsCollapsed,
+    isStatusFilteredCollapsed,
+  });
 
   // Accordion handler - opens one section and closes all others
   const handleSectionToggle = (section: 'overdue' | 'scheduled' | 'newLeads' | 'statusFiltered') => {
