@@ -5,19 +5,34 @@ import prisma from '@/shared/lib/db/prisma';
 import { randomUUID } from 'crypto';
 
 /**
- * Cron job: SLA check for INBOUND leads
+ * Calculates the number of working minutes (10 AM - 6 PM) that have elapsed 
+ * between the lead creation date and the current execution time.
+ */
+function getElapsedWorkingMinutes(createdAt: Date, now: Date): number {
+  let totalMinutes = 0;
+  // Create a moving pointer starting from the lead's creation time
+  let current = new Date(createdAt.getTime());
+
+  // Loop through each minute until we reach the current 'now' timestamp
+  while (current < now) {
+    const hours = current.getHours();
+    
+    // Check if the current pointer hour falls within working hours (10:00 AM to 5:59 PM)
+    if (hours >= 10 && hours < 18) {
+      totalMinutes++;
+    }
+    
+    // Advance the pointer by 1 minute
+    current.setMinutes(current.getMinutes() + 1);
+  }
+
+  return totalMinutes;
+}
+
+/**
+ * Cron job: SLA check for INBOUND leads with 10 AM - 6 PM working hours restriction
  * Schedule: Every 10 minutes — "every-10-min"
  * URL: /api/cron/check-inbound-sla
- *
- * Business rule:
- *   IF lead_category = 'INBOUND'
- *   AND status = 'new'
- *   AND createdAt < (now - 1 hour)
- *   THEN:
- *     - Update status → 'followup'
- *     - Create a FollowUp record scheduled at now + 1 hour
- *     - Log to ActivityHistory
- *     - Send notification to assigned agent
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,20 +48,27 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    const followUpScheduledAt = new Date(now.getTime() + 60 * 60 * 1000); // now + 1 hour
+    
+    // 1. Calculate the follow-up task time:
+    // If it's currently working hours, schedule it for 1 hour from now.
+    // If it's outside working hours, schedule it for 11:00 AM of the next working day.
+    let followUpScheduledAt = new Date(now.getTime() + 60 * 60 * 1000);
+    const currentHour = now.getHours();
+    
+    if (currentHour < 10 || currentHour >= 18) {
+      followUpScheduledAt = new Date(now);
+      if (currentHour >= 18) {
+        // If it's after 6 PM, push the follow-up task to 11 AM tomorrow
+        followUpScheduledAt.setDate(followUpScheduledAt.getDate() + 1);
+      }
+      followUpScheduledAt.setHours(11, 0, 0, 0);
+    }
 
-    // Find all INBOUND leads that are still NEW and older than 1 hour
-    // Also ensure no active (non-cancelled/completed) follow-up already exists
-    // to prevent duplicate follow-up creation
-    const overdueInboundLeads = await prisma.lead.findMany({
+    // 2. Fetch all potentially pending inbound leads
+    const activeInboundLeads = await prisma.lead.findMany({
       where: {
         lead_category: 'INBOUND',
         status: 'new',
-        createdAt: {
-          lt: oneHourAgo,
-        },
-        // Only pick leads that have NO active follow-up already
         FollowUp: {
           none: {
             status: { notIn: ['completed', 'cancelled'] },
@@ -61,12 +83,19 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log(`[SLA Cron] Found ${overdueInboundLeads.length} INBOUND leads that breached 1-hour SLA`);
+    // 3. Filter leads in-memory based on working hours elapsed
+    const overdueInboundLeads = activeInboundLeads.filter((lead) => {
+      const workingMinutesElapsed = getElapsedWorkingMinutes(lead.createdAt, now);
+      // If it has been sitting in the queue for 60 working minutes or more, it breached SLA
+      return workingMinutesElapsed >= 60;
+    });
 
+    console.log(`[SLA Cron] Found ${overdueInboundLeads.length} INBOUND leads that breached working hours SLA`);
+    
     if (overdueInboundLeads.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No INBOUND leads breached SLA',
+        message: 'No INBOUND leads breached working hours SLA',
         data: { processed: 0, timestamp: now.toISOString() },
       });
     }
@@ -90,8 +119,7 @@ export async function GET(request: NextRequest) {
         })
       );
 
-      // 2. Create follow-up scheduled at now + 1 hour
-      // Only create if lead has an assigned agent — createdById is a required FK to User table
+      // 2. Create follow-up scheduled at calculated time
       if (lead.assignedToId) {
         followUpCreatePromises.push(
           prisma.followUp.create({
@@ -102,7 +130,7 @@ export async function GET(request: NextRequest) {
               status: 'pending',
               priority: 'high',
               createdById: lead.assignedToId,
-              notes: 'Auto-created by SLA system — INBOUND lead exceeded 1-hour response window',
+              notes: 'Auto-created by SLA system — INBOUND lead exceeded working hours response window',
               createdAt: now,
               updatedAt: now,
             },
@@ -112,35 +140,35 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      // 3. Log to ActivityHistory — only if assigned agent exists (userId is a required FK)
+      // 3. Log to ActivityHistory
       if (lead.assignedToId) {
-      activityPromises.push(
-        prisma.activityHistory.create({
-          data: {
-            id: randomUUID(),
-            leadId: lead.id,
-            userId: lead.assignedToId,
-            action: 'status_changed',
-            fieldName: 'status',
-            oldValue: 'new',
-            newValue: 'followup',
-            description: `Lead automatically moved to Follow-up — INBOUND SLA of 1 hour exceeded. Follow-up scheduled at ${followUpScheduledAt.toISOString()}.`,
-            metadata: JSON.stringify({
-              trigger: 'inbound_sla_cron',
-              slaWindowHours: 1,
-              leadCreatedAt: lead.createdAt.toISOString(),
-              followUpScheduledAt: followUpScheduledAt.toISOString(),
-              processedAt: now.toISOString(),
-            }),
-            createdAt: now,
-          },
-        }).catch((err: any) => {
-          console.error(`[SLA Cron] Failed to create activity for lead ${lead.id}:`, err);
-        })
-      );
-      } // end if (lead.assignedToId) for ActivityHistory
+        activityPromises.push(
+          prisma.activityHistory.create({
+            data: {
+              id: randomUUID(),
+              leadId: lead.id,
+              userId: lead.assignedToId,
+              action: 'status_changed',
+              fieldName: 'status',
+              oldValue: 'new',
+              newValue: 'followup',
+              description: `Lead automatically moved to Follow-up — Working hours SLA exceeded. Follow-up scheduled at ${followUpScheduledAt.toISOString()}.`,
+              metadata: JSON.stringify({
+                trigger: 'inbound_sla_cron',
+                slaWindowHours: 1,
+                leadCreatedAt: lead.createdAt.toISOString(),
+                followUpScheduledAt: followUpScheduledAt.toISOString(),
+                processedAt: now.toISOString(),
+              }),
+              createdAt: now,
+            },
+          }).catch((err: any) => {
+            console.error(`[SLA Cron] Failed to create activity for lead ${lead.id}:`, err);
+          })
+        );
+      }
 
-      // 4. Send notification to assigned agent (if any)
+      // 4. Send notification to assigned agent
       if (lead.assignedToId) {
         notificationPromises.push(
           prisma.notification.create({
@@ -149,7 +177,7 @@ export async function GET(request: NextRequest) {
               userId: lead.assignedToId,
               type: 'warning',
               title: '⚠️ Inbound Lead SLA Breached',
-              message: `Lead "${lead.name}" missed the 1-hour inbound response window and has been moved to Follow-up. A follow-up is scheduled for ${followUpScheduledAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}.`,
+              message: `Lead "${lead.name}" missed the inbound response window and has been moved to Follow-up. A follow-up is scheduled for ${followUpScheduledAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}.`,
               isRead: false,
               relatedLeadId: lead.id,
               createdAt: now,
@@ -161,10 +189,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Execute status updates first (most critical)
+    // Execute status updates first
     await Promise.allSettled(statusUpdatePromises);
 
-    // Then execute follow-up creation, activity logs, and notifications in parallel
+    // Then execute secondary actions in parallel
     await Promise.allSettled([
       ...followUpCreatePromises,
       ...activityPromises,
