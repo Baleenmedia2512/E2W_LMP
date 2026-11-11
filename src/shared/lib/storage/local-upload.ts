@@ -53,7 +53,7 @@ export function getLocalUploadUrl(relativePath: string): string {
 
 /**
  * Persist a buffer. Prefer MilesWeb /costmanager; else local public/uploads.
- * Returned `url` must be persisted in DB (MilesWeb → https://wellnessvalley.in/costmanager/...).
+ * Returned `url` must be persisted in DB (MilesWeb public costmanager URL).
  */
 export async function saveLocalUpload(
   relativePath: string,

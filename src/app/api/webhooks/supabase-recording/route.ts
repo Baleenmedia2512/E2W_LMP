@@ -6,7 +6,7 @@ import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
 
 /**
  * Webhook endpoint for Call Monitor / storage notify when a recording is uploaded.
- * Persists MilesWeb public URLs (wellnessvalley.in/costmanager/...).
+ * Persists MilesWeb public URLs (costmanager/... on configured uploads base).
  *
  * Accepts two types of payloads:
  * 1. Legacy storage INSERT format (type: 'INSERT', record: {...})
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     const uploadsBase = (
       process.env.NEXT_PUBLIC_UPLOADS_BASE_URL ||
-      'https://wellnessvalley.in/costmanager'
+      'https://baleenmedia.in/costmanager'
     ).replace(/\/$/, '');
 
     // Handle direct payload from Call Monitor app
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
         success: false, 
         message: 'Invalid payload format',
         expectedFormats: {
-          direct: { phoneNumber: '9360381404', recordingUrl: 'https://wellnessvalley.in/costmanager/...', duration: 180 },
+          direct: { phoneNumber: '9360381404', recordingUrl: 'https://baleenmedia.in/costmanager/...', duration: 180 },
           legacy: { type: 'INSERT', record: { name: 'file.m4a', bucket_id: 'recordings' } }
         }
       }, { status: 400 });
@@ -418,7 +418,7 @@ export async function GET() {
     expectedPayload: {
       direct: {
         phoneNumber: '9360381404',
-        recordingUrl: 'https://wellnessvalley.in/costmanager/proposal-images/...',
+        recordingUrl: 'https://baleenmedia.in/costmanager/proposal-images/...',
         duration: 180,
       },
       legacy: {

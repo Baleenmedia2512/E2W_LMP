@@ -1,14 +1,14 @@
 /**
  * Upload files to MilesWeb via Cost Manager PHP bridge:
- * https://wellnessvalley.in/costmanager/upload.php
- * Same shared folder tree as Cost Manager / Quote Buddy.
+ * Public bridge for /home/yvyunomg/baleenmedia.in/costmanager/upload.php
+ * → https://baleenmedia.in/costmanager/upload.php (after domain verify)
  */
 
 function getUploadsBase(): string {
   return (
     process.env.NEXT_PUBLIC_UPLOADS_BASE_URL ||
     process.env.PUBLIC_UPLOADS_BASE_URL ||
-    'https://wellnessvalley.in/costmanager'
+    'https://baleenmedia.in/costmanager'
   ).replace(/\/$/, '');
 }
 
@@ -27,6 +27,19 @@ export function toMileswebPublicUrl(relativePath: string): string {
     .split('/')
     .map((s) => encodeURIComponent(s))
     .join('/')}`;
+}
+
+/** Normalize any returned / legacy host to current uploads base. */
+function normalizeReturnedUrl(url: string, savedPath: string): string {
+  const base = getUploadsBase();
+  const rewritten = url.replace(
+    /https?:\/\/(?:www\.)?(?:wellnessvalley\.in|baleenmedia\.(?:in|com))\/costmanager/gi,
+    base,
+  );
+  if (rewritten.startsWith('http://') || rewritten.startsWith('https://')) {
+    return rewritten;
+  }
+  return toMileswebPublicUrl(savedPath || rewritten);
 }
 
 export async function saveMileswebUpload(
@@ -68,9 +81,9 @@ export async function saveMileswebUpload(
   }
 
   const savedPath = payload.data?.path || rel;
-  const url = payload.data?.url || toMileswebPublicUrl(savedPath);
+  const rawUrl = payload.data?.url || toMileswebPublicUrl(savedPath);
   return {
-    url,
+    url: normalizeReturnedUrl(rawUrl, savedPath),
     path: savedPath.replace(/^proposal-images\//, ''),
     bucket: payload.data?.bucket || 'uploads',
   };

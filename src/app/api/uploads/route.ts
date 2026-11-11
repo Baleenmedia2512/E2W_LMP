@@ -4,7 +4,7 @@ import { extractTokenFromHeader, verifyToken } from '@/shared/lib/auth/auth-util
 
 /**
  * Upload a file to shared Cost Manager MilesWeb storage
- * (wellnessvalley.in/costmanager/proposal-images/...).
+ * (shared costmanager/proposal-images/... on MilesWeb).
  *
  * multipart fields:
  * - file (required)
