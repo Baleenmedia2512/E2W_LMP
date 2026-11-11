@@ -115,8 +115,8 @@ async function main() {
   const user = await prisma.user.findFirst({
     where: {
       OR: [
-        { name: { contains: ASSIGNEE_SEARCH, mode: 'insensitive' } },
-        { email: { contains: ASSIGNEE_SEARCH.toLowerCase(), mode: 'insensitive' } },
+        { name: { contains: ASSIGNEE_SEARCH } },
+        { email: { contains: ASSIGNEE_SEARCH.toLowerCase() } },
       ],
     },
     select: { id: true, name: true, email: true },

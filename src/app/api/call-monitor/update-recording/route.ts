@@ -1,14 +1,54 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { autoUpdateBusyToAnswered, autoUpdateCurrentCallStatus } from '@/shared/lib/call-status-auto-update';
+import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
+import { saveLocalUpload } from '@/shared/lib/storage/local-upload';
 
 /**
  * API endpoint for Call Monitor app to update a call log with
  * the recording URL after the call has been recorded and uploaded.
+ * Accepts JSON { recordingUrl } or multipart { file, callLogId, ... }.
  */
 export async function POST(request: Request) {
   try {
-    const { callLogId, recordingUrl, duration, recordingAppCallId, apiKey } = await request.json();
+    const contentType = request.headers.get('content-type') || '';
+    let callLogId: string | undefined;
+    let recordingUrl: string | undefined;
+    let duration: number | undefined;
+    let recordingAppCallId: string | undefined;
+    let apiKey: string | undefined;
+
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData();
+      callLogId = String(form.get('callLogId') || '');
+      duration = form.get('duration') ? Number(form.get('duration')) : undefined;
+      recordingAppCallId = form.get('recordingAppCallId')
+        ? String(form.get('recordingAppCallId'))
+        : undefined;
+      apiKey = form.get('apiKey') ? String(form.get('apiKey')) : undefined;
+      const file = form.get('file');
+      const urlField = form.get('recordingUrl');
+      if (file instanceof File) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const saved = await saveLocalUpload(
+          `proposal-images/recordings/${file.name || `recording-${Date.now()}.m4a`}`,
+          buffer,
+          file.type || 'audio/mp4',
+        );
+        recordingUrl = saved.url;
+      } else if (typeof urlField === 'string') {
+        recordingUrl = resolveMediaUrl(urlField) || urlField;
+      }
+    } else {
+      const body = await request.json();
+      callLogId = body.callLogId;
+      recordingUrl = body.recordingUrl
+        ? resolveMediaUrl(body.recordingUrl) || body.recordingUrl
+        : undefined;
+      duration = body.duration;
+      recordingAppCallId = body.recordingAppCallId;
+      apiKey = body.apiKey;
+    }
 
     console.log('[Update Recording] Request received:');
     console.log(`  Call Log ID: ${callLogId}`);
@@ -44,7 +84,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Prepare update data
+    // Prepare update data — always store MilesWeb public URL when rewrite applies
     const updateData: any = {
       recordingUrl,
       recordingStatus: 'available',

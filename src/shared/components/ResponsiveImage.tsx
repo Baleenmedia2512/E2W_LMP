@@ -1,7 +1,8 @@
 'use client';
 
 import { Box, Image as ChakraImage, Skeleton, ImageProps as ChakraImageProps } from '@chakra-ui/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
 
 interface ResponsiveImageProps extends Omit<ChakraImageProps, 'src' | 'fallback'> {
   src: string;
@@ -25,18 +26,23 @@ export default function ResponsiveImage({
   objectFit = 'cover',
   ...props
 }: ResponsiveImageProps) {
+  const resolvedSrc = useMemo(() => resolveMediaUrl(src) || src, [src]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [imageSrc, setImageSrc] = useState(lazy ? '' : src);
+  const [imageSrc, setImageSrc] = useState(lazy ? '' : resolvedSrc);
 
   useEffect(() => {
-    if (lazy && typeof window !== 'undefined') {
+    if (!lazy) {
+      setImageSrc(resolvedSrc);
+      return undefined;
+    }
+    if (typeof window !== 'undefined') {
       // Use IntersectionObserver for lazy loading
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              setImageSrc(src);
+              setImageSrc(resolvedSrc);
               observer.disconnect();
             }
           });
@@ -46,7 +52,7 @@ export default function ResponsiveImage({
         }
       );
 
-      const element = document.getElementById(`img-${src}`);
+      const element = document.getElementById(`img-${resolvedSrc}`);
       if (element) {
         observer.observe(element);
       }
@@ -54,7 +60,7 @@ export default function ResponsiveImage({
       return () => observer.disconnect();
     }
     return undefined;
-  }, [src, lazy]);
+  }, [resolvedSrc, lazy]);
 
   const handleLoad = () => {
     setIsLoaded(true);
@@ -71,7 +77,7 @@ export default function ResponsiveImage({
       width="100%"
       paddingBottom={aspectRatio ? `${(1 / aspectRatio) * 100}%` : undefined}
       overflow="hidden"
-      id={`img-${src}`}
+      id={`img-${resolvedSrc}`}
     >
       {!isLoaded && (
         <Skeleton

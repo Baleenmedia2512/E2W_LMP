@@ -35,7 +35,10 @@ export async function GET() {
       stack: errorStack,
       env: {
         hasDatabaseUrl: !!process.env.DATABASE_URL,
-        hasDirectUrl: !!process.env.DIRECT_DATABASE_URL,
+        hasUploadsBase: !!process.env.NEXT_PUBLIC_UPLOADS_BASE_URL,
+        hasMileswebUpload: !!(
+          process.env.MILESWEB_UPLOAD_URL && process.env.MILESWEB_UPLOAD_SECRET
+        ),
         nodeEnv: process.env.NODE_ENV,
       }
     });

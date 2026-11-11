@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
+import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
 
 // GET all call attempts for a specific lead
 export async function GET(
@@ -55,7 +56,7 @@ export async function GET(
       duration: log.duration,
       callStatus: log.callStatus,
       remarks: log.remarks || log.customerRequirement,
-      recordingUrl: log.recordingUrl,
+      recordingUrl: resolveMediaUrl(log.recordingUrl) ?? log.recordingUrl,
       recordingStatus: log.recordingStatus,
       caller: {
         name: log.User.name,

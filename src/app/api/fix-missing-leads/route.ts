@@ -70,11 +70,11 @@ async function fetchCampaignName(campaignId: string, accessToken: string): Promi
 
 // Check for duplicate leads using efficient query
 async function isDuplicate(phone: string, email: string | null, metaLeadId: string): Promise<boolean> {
-  // Check by Meta Lead ID using PostgreSQL JSON operators
+  // Check by Meta Lead ID using MySQL JSON operators
   const existingByMetaId = await prisma.$queryRaw<any[]>`
-    SELECT id FROM "Lead" 
-    WHERE source = 'meta' 
-    AND metadata::jsonb->>'metaLeadId' = ${metaLeadId}
+    SELECT id FROM lead
+    WHERE source = 'meta'
+    AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.metaLeadId')) = ${metaLeadId}
     LIMIT 1
   `;
 

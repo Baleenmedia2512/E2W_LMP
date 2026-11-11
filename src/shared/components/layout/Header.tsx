@@ -22,6 +22,7 @@ import { FiLogOut, FiRotateCcw, FiMenu, FiUser, FiSettings } from 'react-icons/f
 import { useRouter } from 'next/navigation';
 import NotificationBell from '@/shared/components/NotificationBell';
 import { useAuth } from '@/shared/lib/auth/auth-context';
+import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
 import { useEffect, useState } from 'react';
 
 interface HeaderProps {
@@ -86,7 +87,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 <Avatar
                   size="sm"
                   name={user.name || user.email}
-                  src={user.image || undefined}
+                  src={resolveMediaUrl(user.image) || undefined}
                   bg="purple.500"
                 />
               </MenuButton>

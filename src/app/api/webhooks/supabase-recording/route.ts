@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import prisma from '@/shared/lib/db/prisma';
 import { randomUUID } from 'crypto';
 import { autoUpdateBusyToAnswered, autoUpdateCurrentCallStatus } from '@/shared/lib/call-status-auto-update';
+import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
 
 /**
- * Webhook endpoint for Supabase Storage to notify when a recording is uploaded
- * This automatically syncs recordings with LMS call logs
- * 
+ * Webhook endpoint for Call Monitor / storage notify when a recording is uploaded.
+ * Persists MilesWeb public URLs (wellnessvalley.in/costmanager/...).
+ *
  * Accepts two types of payloads:
- * 1. Supabase webhook format (type: 'INSERT', record: {...})
+ * 1. Legacy storage INSERT format (type: 'INSERT', record: {...})
  * 2. Direct format (phoneNumber, recordingUrl, duration)
  */
 export async function POST(request: Request) {
@@ -24,27 +25,35 @@ export async function POST(request: Request) {
     let fileName: string = '';
     let callTimestamp: Date | undefined;
 
+    const uploadsBase = (
+      process.env.NEXT_PUBLIC_UPLOADS_BASE_URL ||
+      'https://wellnessvalley.in/costmanager'
+    ).replace(/\/$/, '');
+
     // Handle direct payload from Call Monitor app
     if (payload.phoneNumber && payload.recordingUrl) {
       console.log('[Recording Sync Webhook] Direct format detected');
       phoneNumber = payload.phoneNumber;
-      recordingUrl = payload.recordingUrl;
+      recordingUrl =
+        resolveMediaUrl(payload.recordingUrl) || String(payload.recordingUrl);
       duration = payload.duration;
       callTimestamp = payload.timestamp ? new Date(payload.timestamp) : undefined;
       fileName = payload.fileName || recordingUrl.split('/').pop() || 'unknown';
     }
-    // Handle Supabase webhook format
+    // Handle legacy storage webhook format
     else if (payload.type === 'INSERT' && payload.record) {
-      console.log('[Recording Sync Webhook] Supabase webhook format detected');
+      console.log('[Recording Sync Webhook] Legacy storage INSERT format detected');
       
-      const { name: fName, bucket_id, metadata } = payload.record;
+      const { name: fName, metadata } = payload.record;
       fileName = fName;
       
-      // Construct the public URL with proper encoding
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wkwrrdcjknvupwsfdjtd.supabase.co';
-      // Encode the filename to handle spaces and special characters
+      // Prefer MilesWeb public URL (shared costmanager tree)
       const encodedFileName = encodeURIComponent(fName);
-      recordingUrl = `${supabaseUrl}/storage/v1/object/public/${bucket_id}/${encodedFileName}`;
+      const legacyOrDirect =
+        metadata?.publicUrl ||
+        metadata?.url ||
+        `${uploadsBase}/proposal-images/${encodedFileName}`;
+      recordingUrl = resolveMediaUrl(legacyOrDirect) || legacyOrDirect;
       
       // Try to extract phone from metadata first
       phoneNumber = metadata?.phoneNumber;
@@ -80,7 +89,7 @@ export async function POST(request: Request) {
         // Try to find lead by name (partial match)
         const leadByName = await prisma.lead.findFirst({
           where: {
-            name: { contains: contactName, mode: 'insensitive' }
+            name: { contains: contactName }
           },
           select: {
             id: true,
@@ -110,8 +119,8 @@ export async function POST(request: Request) {
         success: false, 
         message: 'Invalid payload format',
         expectedFormats: {
-          direct: { phoneNumber: '9360381404', recordingUrl: 'https://...', duration: 180 },
-          supabase: { type: 'INSERT', record: { name: 'file.m4a', bucket_id: 'recordings' } }
+          direct: { phoneNumber: '9360381404', recordingUrl: 'https://wellnessvalley.in/costmanager/...', duration: 180 },
+          legacy: { type: 'INSERT', record: { name: 'file.m4a', bucket_id: 'recordings' } }
         }
       }, { status: 400 });
     }
@@ -405,14 +414,21 @@ export async function GET() {
   return NextResponse.json({
     status: 'active',
     endpoint: '/api/webhooks/supabase-recording',
-    message: 'Supabase recording webhook is ready',
+    message: 'Recording webhook ready (MilesWeb /costmanager URLs)',
     expectedPayload: {
-      type: 'INSERT',
-      record: {
-        name: 'filename.m4a',
-        bucket_id: 'recordings',
-        metadata: {}
-      }
-    }
+      direct: {
+        phoneNumber: '9360381404',
+        recordingUrl: 'https://wellnessvalley.in/costmanager/proposal-images/...',
+        duration: 180,
+      },
+      legacy: {
+        type: 'INSERT',
+        record: {
+          name: 'filename.m4a',
+          bucket_id: 'recordings',
+          metadata: {},
+        },
+      },
+    },
   });
 }

@@ -418,11 +418,10 @@ function LeadsTabContent({
     // dashboardMode=false (Show All): fetches full dataset (2000 rows, only on demand)
     dashboardMode: showOnlyToday,
     limit: showOnlyToday ? 1000 : 2000, // Increased from 500 to 1000 to capture all overdue leads
-    refreshInterval: 60000, // 60s polling — safety net if realtime misses an event
+    refreshInterval: 30000, // 30s polling (replaces removed Supabase realtime)
   });
 
-  // Realtime sync: Supabase pushes Lead/FollowUp DB changes directly into SWR caches
-  // Ensures cron-based status changes (e.g. new → followup) instantly regroup lead cards
+  // Hook retained for API compatibility; realtime removed — SWR polling handles sync
   useLeadsSWRSync(mutateLeads, mutateFollowUps);
 
   // Optimistic update helper for lead status changes

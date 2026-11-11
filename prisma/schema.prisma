@@ -1,13 +1,11 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
-  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_DATABASE_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model ActivityHistory {
@@ -18,8 +16,8 @@ model ActivityHistory {
   fieldName   String?
   oldValue    String?
   newValue    String?
-  description String
-  metadata    String?
+  description String   @db.Text
+  metadata    String?  @db.Text
   createdAt   DateTime @default(now())
   Lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -27,6 +25,7 @@ model ActivityHistory {
   @@index([createdAt])
   @@index([leadId])
   @@index([userId])
+  @@map("activityhistory")
 }
 
 model AuditLog {
@@ -35,15 +34,16 @@ model AuditLog {
   action     String
   targetType String
   targetId   String
-  changes    String?
-  metadata   String?
+  changes    String?  @db.Text
+  metadata   String?  @db.Text
   ipAddress  String?
-  userAgent  String?
+  userAgent  String?  @db.Text
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
   @@index([targetType])
   @@index([userId])
+  @@map("auditlog")
 }
 
 model CallLog {
@@ -53,12 +53,12 @@ model CallLog {
   startedAt           DateTime  @default(now())
   endedAt             DateTime?
   duration            Int?
-  remarks             String?
+  remarks             String?   @db.Text
   callStatus          String?
   attemptNumber       Int       @default(1)
-  recordingUrl        String?
-  customerRequirement String?
-  metadata            String?
+  recordingUrl        String?   @db.Text
+  customerRequirement String?   @db.Text
+  metadata            String?   @db.Text
   createdAt           DateTime  @default(now())
   phoneDialed         String?
   recordingStatus     String?   @default("pending")
@@ -70,6 +70,7 @@ model CallLog {
   @@index([createdAt])
   @@index([leadId])
   @@index([phoneDialed, startedAt])
+  @@map("calllog")
 }
 
 model FollowUp {
@@ -77,14 +78,14 @@ model FollowUp {
   leadId              String
   scheduledAt         DateTime
   completedAt         DateTime?
-  notes               String?
+  notes               String?   @db.Text
   status              String    @default("pending")
   priority            String    @default("medium")
   createdById         String
-  metadata            String?
+  metadata            String?   @db.Text
   createdAt           DateTime  @default(now())
   updatedAt           DateTime
-  customerRequirement String?
+  customerRequirement String?   @db.Text
   User                User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
   Lead                Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
@@ -92,6 +93,7 @@ model FollowUp {
   @@index([leadId])
   @@index([scheduledAt])
   @@index([status])
+  @@map("followup")
 }
 
 model Lead {
@@ -100,17 +102,17 @@ model Lead {
   phone                        String
   email                        String?
   alternatePhone               String?
-  address                      String?
+  address                      String?           @db.Text
   city                         String?
   state                        String?
   pincode                      String?
   source                       String
   campaign                     String?
-  customerRequirement          String?
+  customerRequirement          String?           @db.Text
   status                       String            @default("new")
   priority                     String            @default("medium")
-  notes                        String?
-  metadata                     String?
+  notes                        String?           @db.Text
+  metadata                     String?           @db.Text
   assignedToId                 String?
   createdById                  String?
   createdAt                    DateTime          @default(now())
@@ -129,12 +131,12 @@ model Lead {
   @@index([createdById])
   @@index([source])
   @@index([status])
-  // Composite indexes for common query patterns — eliminates multi-index merges in PostgreSQL
-  @@index([status, createdAt])                    // Default view: filter by status + sort by date
-  @@index([assignedToId, status, createdAt])      // Agent view: filter by owner + status + sort by date
-  @@index([status, assignedToId])                 // Count queries: status + owner lookup
-  @@index([updatedAt])                            // Outcomes tab sorts by updatedAt
-  @@index([lead_category, status, createdAt])     // SLA cron: INBOUND + new + createdAt lookup
+  @@index([status, createdAt])
+  @@index([assignedToId, status, createdAt])
+  @@index([status, assignedToId])
+  @@index([updatedAt])
+  @@index([lead_category, status, createdAt])
+  @@map("lead")
 }
 
 model Notification {
@@ -142,10 +144,10 @@ model Notification {
   userId        String
   type          String
   title         String
-  message       String
+  message       String    @db.Text
   isRead        Boolean   @default(false)
   readAt        DateTime?
-  metadata      String?
+  metadata      String?   @db.Text
   createdAt     DateTime  @default(now())
   relatedLeadId String?
   User          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -154,16 +156,19 @@ model Notification {
   @@index([relatedLeadId])
   @@index([type])
   @@index([userId])
+  @@map("notification")
 }
 
 model Role {
   id          String   @id
   name        String   @unique
-  description String?
-  permissions String?
+  description String?  @db.Text
+  permissions String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   User        User[]
+
+  @@map("role")
 }
 
 model User {
@@ -171,14 +176,14 @@ model User {
   name                         String?
   email                        String            @unique
   emailVerified                DateTime?
-  image                        String?
+  image                        String?           @db.Text
   googleId                     String?           @unique
-  password                     String?
+  password                     String?           @db.Text
   roleId                       String
   isActive                     Boolean           @default(true)
   createdAt                    DateTime          @default(now())
   updatedAt                    DateTime
-  settings                     String?
+  settings                     String?           @db.Text
   ActivityHistory              ActivityHistory[]
   CallLog                      CallLog[]
   FollowUp                     FollowUp[]
@@ -190,6 +195,7 @@ model User {
 
   @@index([email])
   @@index([roleId])
+  @@map("user")
 }
 
 model OtpRequest {
@@ -201,10 +207,11 @@ model OtpRequest {
   used       Boolean  @default(false)
   createdAt  DateTime @default(now())
   ipAddress  String?
-  userAgent  String?
+  userAgent  String?  @db.Text
 
   @@index([email, createdAt])
   @@index([expiresAt])
+  @@map("otprequest")
 }
 
 model Session {
@@ -212,9 +219,9 @@ model Session {
   userId         String
   token          String   @unique
   refreshToken   String?  @unique
-  deviceInfo     String?
+  deviceInfo     String?  @db.Text
   ipAddress      String?
-  userAgent      String?
+  userAgent      String?  @db.Text
   lastActivityAt DateTime @default(now())
   expiresAt      DateTime
   createdAt      DateTime @default(now())
@@ -224,6 +231,7 @@ model Session {
   @@index([userId, createdAt])
   @@index([token])
   @@index([expiresAt])
+  @@map("session")
 }
 
 model LoginActivity {
@@ -233,13 +241,14 @@ model LoginActivity {
   action        String
   status        String
   success       Boolean
-  failureReason String?
+  failureReason String?  @db.Text
   ipAddress     String?
-  userAgent     String?
-  metadata      String?
+  userAgent     String?  @db.Text
+  metadata      String?  @db.Text
   createdAt     DateTime @default(now())
 
   @@index([email, createdAt])
   @@index([userId, createdAt])
   @@index([action])
+  @@map("loginactivity")
 }

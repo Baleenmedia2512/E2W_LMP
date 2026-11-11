@@ -1,6 +1,7 @@
 import { Box, IconButton, Text, HStack, Spinner, Tooltip } from '@chakra-ui/react';
 import { FaPlay, FaPause, FaDownload, FaExclamationTriangle } from 'react-icons/fa';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
 
 interface CallRecordingPlayerProps {
   recordingUrl?: string | null;
@@ -13,10 +14,14 @@ interface CallRecordingPlayerProps {
  * Shows play/pause controls and download option when recording is available.
  */
 export default function CallRecordingPlayer({
-  recordingUrl,
+  recordingUrl: recordingUrlProp,
   recordingStatus = 'pending',
   callDuration,
 }: CallRecordingPlayerProps) {
+  const recordingUrl = useMemo(
+    () => resolveMediaUrl(recordingUrlProp),
+    [recordingUrlProp],
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);

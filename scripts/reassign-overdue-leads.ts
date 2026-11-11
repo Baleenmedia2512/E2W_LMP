@@ -24,8 +24,8 @@ async function resolveUser(search: string) {
   const user = await prisma.user.findFirst({
     where: {
       OR: [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search.toLowerCase(), mode: 'insensitive' } },
+        { name: { contains: search } },
+        { email: { contains: search.toLowerCase() } },
       ],
     },
     select: { id: true, name: true, email: true },

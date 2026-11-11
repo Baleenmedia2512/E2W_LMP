@@ -27,7 +27,6 @@
     "@emotion/styled": "^11.11.5",
     "@prisma/client": "^5.11.0",
     "@prisma/extension-accelerate": "^3.0.1",
-    "@supabase/supabase-js": "^2.39.0",
     "@types/node": "^20.19.27",
     "@types/nodemailer": "^8.0.0",
     "@types/ua-parser-js": "^0.7.39",

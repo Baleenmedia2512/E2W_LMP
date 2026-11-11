@@ -3,6 +3,7 @@ import prisma from '@/shared/lib/db/prisma';
 import { randomUUID } from 'crypto';
 import { notifyCallLogged, notifyCallCompleted, notifyCallLogSubmitted } from '@/shared/lib/utils/notification-service';
 import { autoUpdateCurrentCallStatus } from '@/shared/lib/call-status-auto-update';
+import { resolveMediaUrl } from '@/shared/lib/storage/media-url';
 
 // GET call logs with optional filters
 export async function GET(request: NextRequest) {
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
     // Map the data to match frontend expectations (lead and caller instead of Lead and User)
     const formattedCallLogs = callLogs.map((log: any) => ({
       ...log,
+      recordingUrl: resolveMediaUrl(log.recordingUrl) ?? log.recordingUrl,
       lead: log.Lead,
       caller: log.User,
       Lead: undefined,
