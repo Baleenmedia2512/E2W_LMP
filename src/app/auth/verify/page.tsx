@@ -170,8 +170,11 @@ function VerifyPageContent() {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to resend code');
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+            'Unable to resend code. Check that this email is registered.'
+        );
       }
 
       toast({

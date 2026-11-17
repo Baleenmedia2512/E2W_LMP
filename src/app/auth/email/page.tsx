@@ -82,8 +82,13 @@ export default function EmailPage() {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
+      // API returns 200 even for unknown emails (anti-enumeration).
+      // Only treat as sent when success + otpRequestId are present.
+      if (!response.ok || !data.success || !data.otpRequestId) {
+        throw new Error(
+          data.error ||
+            'Unable to send verification code. Check that this email is registered.'
+        );
       }
 
       toast({
